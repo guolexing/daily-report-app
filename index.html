@@ -316,6 +316,25 @@
     <div class="card">
       <h2>任务列表（<span id="tk_count">0</span> 个）</h2>
       <div class="stat" id="tk_stat"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+        <label style="font-size:12px">项目</label>
+        <select id="tk_filter_proj" style="width:auto;min-width:130px" onchange="renderTasks()">
+          <option value="">全部项目</option>
+        </select>
+        <label style="font-size:12px">状态</label>
+        <select id="tk_filter_status" style="width:auto;min-width:110px" onchange="renderTasks()">
+          <option value="">全部状态</option>
+          <option value="doing">🔄 进行中</option>
+          <option value="done">✅ 已完成</option>
+          <option value="overdue">⏰ 已逾期</option>
+          <option value="cancelled">✖ 已取消</option>
+          <option value="urgent">⚡ 紧急</option>
+        </select>
+        <label style="font-size:12px">关键字</label>
+        <input type="text" id="tk_filter_key" placeholder="任务名称搜索…" style="width:auto;min-width:180px" oninput="renderTasks()">
+        <button class="btn gray sm" onclick="tkClearFilter()">✕ 清空筛选</button>
+        <span class="muted" style="font-size:12px" id="tk_filter_note"></span>
+      </div>
       <div id="task_list"><div class="empty">还没有任务，先在上方添加</div></div>
     </div>
   </div>
@@ -1658,6 +1677,8 @@ function refreshDaily(){
 
   var box=document.getElementById("daily_list");
   if(!monthList.length){ box.innerHTML='<div class="empty">本月还没有记录</div>'; return; }
+  // 本月日报默认按日期倒序（最新在前；同一天多条保持录入顺序）
+  monthList=monthList.slice().sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); });
   var h='<table><tr><th>日期</th><th>项目</th><th>任务</th><th>时长</th><th>今日工作</th><th>明日计划</th><th>备注</th><th>操作</th></tr>';
   monthList.forEach(function(e){
     var tn=taskName(e.taskId);
@@ -1960,9 +1981,48 @@ function restoreTask(id){
 }
 window.restoreTask=restoreTask;
 
+// 清空任务筛选
+function tkClearFilter(){
+  var p=document.getElementById("tk_filter_proj"), s=document.getElementById("tk_filter_status"), k=document.getElementById("tk_filter_key");
+  if(p) p.value=""; if(s) s.value=""; if(k) k.value="";
+  renderTasks();
+}
+
 function renderTasks(){
-  var list=getTasks();
-  document.getElementById("tk_count").textContent=list.length;
+  var all=getTasks();
+  // 填充项目筛选下拉（保留当前选中）
+  var projSel=document.getElementById("tk_filter_proj");
+  if(projSel){
+    var cur=projSel.value||"";
+    var projs=[]; all.forEach(function(t){ if(t&&t.project&&projs.indexOf(t.project)<0) projs.push(t.project); });
+    projs.sort();
+    var opts='<option value="">全部项目</option>'+projs.map(function(p){ return '<option value="'+esc(p)+'"'+(p===cur?' selected':'')+'>'+esc(p)+'</option>'; }).join("");
+    if(projSel.innerHTML!==opts) projSel.innerHTML=opts;
+  }
+  // 读取筛选条件
+  var fProj=(document.getElementById("tk_filter_proj")||{}).value||"";
+  var fStatus=(document.getElementById("tk_filter_status")||{}).value||"";
+  var fKey=((document.getElementById("tk_filter_key")||{}).value||"").trim().toLowerCase();
+  // 应用筛选
+  var list=all.filter(function(t){
+    if(fProj && t.project!==fProj) return false;
+    if(fStatus){
+      var st=taskStatus(t);
+      if(fStatus==="urgent"){ if(!t.urgent) return false; }
+      else if(fStatus==="doing"){ if(st.label!=="进行中") return false; }
+      else if(fStatus==="done"){ if(st.label!=="已完成") return false; }
+      else if(fStatus==="overdue"){ if(st.label!=="已逾期") return false; }
+      else if(fStatus==="cancelled"){ if(st.label!=="已取消") return false; }
+    }
+    if(fKey && t.name.toLowerCase().indexOf(fKey)<0) return false;
+    return true;
+  });
+  document.getElementById("tk_count").textContent=all.length;
+  var note=document.getElementById("tk_filter_note");
+  if(note){
+    if(fProj||fStatus||fKey) note.textContent="筛选结果："+list.length+" / "+all.length+" 个任务";
+    else note.textContent="";
+  }
   var doneN=0, hoursTotal=0, overdueN=0, cancelledN=0;
   list.forEach(function(t){
     if(t.cancelled){ cancelledN++; return; } // 已取消不计工时
@@ -1980,7 +2040,10 @@ function renderTasks(){
   document.getElementById("tk_stat").innerHTML=statHtml;
 
   var box=document.getElementById("task_list");
-  if(!list.length){ box.innerHTML='<div class="empty">还没有任务，先在上方添加</div>'; return; }
+  if(!list.length){
+    box.innerHTML='<div class="empty">'+(fProj||fStatus||fKey?'没有符合筛选条件的任务':'还没有任务，先在上方添加')+'</div>';
+    return;
+  }
   var h='<table><tr><th>项目</th><th>任务名称</th><th>计划开始</th><th>计划完成</th><th>实际完成</th><th>状态</th><th>实际完成工时</th><th>挂载日报</th><th>操作</th></tr>';
   list.slice().sort(function(a,b){
     var au=a.urgent&&!a.done&&!a.cancelled?0:(a.urgent?1:(a.cancelled?3:2));
@@ -3186,7 +3249,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.1.1" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.2.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

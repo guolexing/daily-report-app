@@ -538,10 +538,10 @@
       </div>
       <div class="muted" id="db_status" style="margin-top:6px">未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn green" onclick="dbExportSql()">⬇ 导出 SQL 备份（全库）</button>
-        <button class="btn blue" onclick="dbImportSqlPick()">⬆ 从 SQL 文件恢复</button>
-        <input type="file" id="db_import_file" accept=".sql" style="display:none" onchange="dbImportSql(this)">
-        <span class="muted" style="font-size:12px">导出为 <b>.sql</b> 标准备份文件（含全库数据），可拷贝到任意电脑/MySQL 一键恢复；恢复前自动备份当前数据。</span>
+        <button class="btn green" onclick="dbExportJson()">⬇ 导出全库备份</button>
+        <button class="btn blue" onclick="dbImportJsonPick()">⬆ 从备份恢复</button>
+        <input type="file" id="db_import_file" accept=".json" style="display:none" onchange="dbImportJson(this)">
+        <span class="muted" style="font-size:12px">导出 <b>.json</b> 全库备份文件（含日报/任务/项目/设置），拷贝到任意电脑 → 安装本 APP → 「从备份恢复」即可完整迁移数据；恢复前自动备份当前数据。</span>
       </div>
     </div>
 
@@ -585,7 +585,7 @@
           <p>1. <b>日报录入</b>：每天选择项目、填写工作内容保存即可，一天可多条。</p>
           <p>2. <b>周报生成</b>：自动按「周一~周日」汇总本周，按项目生成总工时与任务总结（参考模板格式），可复制/下载 MD、Excel。</p>
           <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤，周六日计入休息）、月度评分表与 OKR绩效考核表。</p>
-          <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出 SQL 备份」可生成全库 .sql 标准备份文件，拷贝到任意电脑/MySQL 后点「⬆ 从 SQL 文件恢复」即可完整还原（恢复前自动备份当前数据）。</p>
+          <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出全库备份」生成 .json 备份文件，拷贝到任意电脑安装本 APP 后点「⬆ 从备份恢复」即可完整还原（恢复前自动备份当前数据）。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
           <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
@@ -671,46 +671,63 @@ function collectState(){
   });
   return items;
 // 导出全库 SQL 备份（标准 SQL，可在任意 MySQL 恢复）
-async function dbExportSql(){
+// 导出全库备份（JSON，含日报/任务/项目/设置，可移植到任意电脑恢复）
+async function dbExportJson(){
   try{
-    var r=await fetch("/api/db/export-sql");
-    var txt=await r.text();
-    if(txt.indexOf("极造数字")<0){ toast("❌ 导出失败：MySQL 未连接或返回异常"); return; }
+    var r=await fetch("/api/db/export-json");
+    var j=await r.json().catch(function(){return {};});
+    if(!(j && j.ok)){
+      toast("❌ 导出失败："+(j.error||"MySQL 未连接或返回异常"));
+      return;
+    }
     var ym=thisMonth();
-    var fname="日报工具备份_"+ym.replace("-",".")+".sql";
-    var blob=new Blob([txt],{type:"text/plain;charset=utf-8"});
+    var fname="日报工具全库备份_"+ym.replace("-",".")+".json";
+    var payload={
+      app:"极造数字日报工具",
+      type:"full-backup",
+      version:1,
+      exportedAt:new Date().toISOString(),
+      database:j.database||"jzd_daily",
+      items:j.items||{}
+    };
+    var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
     var url=URL.createObjectURL(blob);
     var a=document.createElement("a");
     a.href=url; a.download=fname;
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
-    toast("✅ 已导出全库 SQL 备份（"+fname+"）");
+    var n=Object.keys(j.items||{}).length;
+    toast("✅ 已导出全库备份（"+n+" 项数据 → "+fname+"）");
   }catch(e){
     toast("❌ 导出失败："+e.message);
   }
 }
-window.dbExportSql=dbExportSql;
+window.dbExportJson=dbExportJson;
 
-// 选择 SQL 文件导入
-function dbImportSqlPick(){
+// 选择备份文件导入
+function dbImportJsonPick(){
   var inp=document.getElementById("db_import_file");
   if(inp) inp.click();
 }
 
-// 从 SQL 文件恢复（导入覆盖，先自动备份）
-async function dbImportSql(input){
+// 从备份文件恢复（导入覆盖，先自动备份）
+async function dbImportJson(input){
   var file=input && input.files && input.files[0];
   if(!file){ return; }
-  if(!confirm("导入将覆盖当前数据库全部数据。\n恢复前会自动备份当前数据到本机备份目录。\n确认继续？")){ input.value=""; return; }
+  if(!confirm("从备份恢复将覆盖当前数据库全部数据。\n恢复前会自动备份当前数据到本机备份目录。\n确认继续？")){ input.value=""; return; }
   var reader=new FileReader();
   reader.onload=async function(ev){
     try{
-      var sql=ev.target.result;
-      var r=await fetch("/api/db/import-sql", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({sql:sql})});
+      var data=JSON.parse(ev.target.result);
+      if(!data || data.app!=="极造数字日报工具" || !data.items){
+        toast("❌ 文件不是本工具的备份格式，已拒绝恢复");
+        input.value="";
+        return;
+      }
+      var r=await fetch("/api/db/import-json", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:data.items})});
       var j=await r.json().catch(function(){return {};});
       if(j.ok){
-        toast("✅ 已从 SQL 恢复（"+j.count+" 条记录），自动备份："+(j.backup||""));
-        // 重新加载数据
+        toast("✅ 已恢复 "+j.count+" 项数据，自动备份："+(j.backup||""));
         setTimeout(function(){
           dbRefreshStatus().then(function(){
             fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(jj){
@@ -733,16 +750,16 @@ async function dbImportSql(input){
           });
         }, 300);
       }else{
-        toast("❌ 导入失败："+(j.error||"未知错误"));
+        toast("❌ 恢复失败："+(j.error||"未知错误"));
       }
     }catch(e){
-      toast("❌ 导入失败："+e.message);
+      toast("❌ 恢复失败："+(e.message||"文件解析错误，请确认是备份文件"));
     }
     input.value="";
   };
   reader.readAsText(file, "utf-8");
 }
-window.dbImportSql=dbImportSql;
+window.dbImportJson=dbImportJson;
 
 /* ================= Windows 通知（客户端） ================= */
 /* ================= Windows 通知（客户端） ================= */
@@ -3251,7 +3268,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.3.1" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.4.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

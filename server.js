@@ -83,85 +83,42 @@ async function setState(items) {
     conn.release();
   }
 }
-function sqlEscape(v) {
-  if (v === null || v === undefined) return 'NULL';
-  // 标准 MySQL 字符串转义：反斜杠→\\，单引号→''，换行→\n（兼容 mysqldump/phpMyAdmin 等任意工具）
-  let s = String(v);
-  s = s.replace(/\\/g, '\\\\');
-  s = s.replace(/'/g, "''");
-  s = s.replace(/\r\n/g, '\\n').replace(/\n/g, '\\n').replace(/\r/g, '\\n');
-  s = s.replace(/\x00/g, '');
-  return "'" + s + "'";
-}
-async function exportSql() {
+// ===== 全库数据转移（JSON 备份/恢复，可移植到任意电脑/MySQL） =====
+// 导出：读 MySQL 全库键值 → JSON
+async function exportJson() {
   if (!dbPool) throw new Error('MySQL 未连接，无法导出');
-  const dbName = dbCfg && dbCfg.database ? dbCfg.database : 'jzd_daily';
-  const [rows] = await dbPool.query('SELECT k, v FROM jzd_state ORDER BY k');
-  const L2 = [];
-  L2.push('-- ============================================');
-  L2.push('-- 极造数字 · 日报工具 全库备份');
-  L2.push('-- 导出时间: ' + new Date().toLocaleString('zh-CN'));
-  L2.push('-- 数据库: ' + dbName);
-  L2.push('-- 说明: 标准 SQL 格式，可用任意 MySQL 工具导入恢复');
-  L2.push('-- ============================================');
-  L2.push('SET NAMES utf8mb4;');
-  L2.push('');
-  L2.push('CREATE DATABASE IF NOT EXISTS `' + dbName + '` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;');
-  L2.push('USE `' + dbName + '`;');
-  L2.push('');
-  L2.push('DROP TABLE IF EXISTS `jzd_state`;');
-  L2.push('CREATE TABLE `jzd_state` (');
-  L2.push('  `k` VARCHAR(64) NOT NULL,');
-  L2.push('  `v` LONGTEXT,');
-  L2.push('  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,');
-  L2.push('  PRIMARY KEY (`k`)');
-  L2.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;');
-  L2.push('');
-  if (!rows.length) {
-    L2.push('-- (空库，无数据)');
-  } else {
-    L2.push('INSERT INTO `jzd_state` (`k`, `v`) VALUES');
-    rows.forEach((r, i) => {
-      const comma = i === rows.length - 1 ? ';' : ',';
-      L2.push('  (' + sqlEscape(r.k) + ', ' + sqlEscape(r.v) + ')' + comma);
-    });
-    L2.push('');
-  }
-  L2.push('-- 导出完成，共 ' + rows.length + ' 项');
-  return L2.join('\n');
+  const items = await getState();
+  return {
+    app: '极造数字日报工具',
+    type: 'full-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    database: (dbCfg && dbCfg.database) || 'jzd_daily',
+    items: items || {}
+  };
 }
 
-// 导入 SQL：先自动备份当前库到备份目录，再执行导入（覆盖）
-async function importSql(sqlText) {
+// 导入：先自动备份当前库到 backups/，再事务覆盖导入（JSON 无转义问题，天然安全）
+async function importJson(items) {
   if (!dbPool) throw new Error('MySQL 未连接，无法导入');
-  if (!sqlText || !sqlText.trim()) throw new Error('SQL 内容为空');
-  // 仅接受本工具导出的备份（防误导入任意 SQL）
-  if (sqlText.indexOf('极造数字') < 0 || sqlText.indexOf('jzd_state') < 0) {
-    throw new Error('文件不是本工具的 SQL 备份格式，已拒绝导入');
-  }
-  // 1. 自动备份当前库
-  const current = await exportSql();
+  if (!items || typeof items !== 'object') throw new Error('备份内容无效');
+  // 1. 自动备份当前库（JSON）
+  const current = await exportJson();
   const backupDir = path.join(DATA_DIR, 'backups');
   try { fs.mkdirSync(backupDir, { recursive: true }); } catch (e) {}
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const backupFile = path.join(backupDir, 'before_import_' + ts + '.sql');
-  fs.writeFileSync(backupFile, current, 'utf8');
-  // 2. 解析并执行导入（逐条执行，避免 multipleStatements 注入面）
+  const backupFile = path.join(backupDir, 'before_import_' + ts + '.json');
+  fs.writeFileSync(backupFile, JSON.stringify(current, null, 2), 'utf8');
+  // 2. 事务覆盖：清空 + 写入
   const conn = await dbPool.getConnection();
   let count = 0;
   try {
     await conn.beginTransaction();
-    // 去掉注释行与 SET 行，按 ; 拆分为可执行语句
-    const statements = sqlText.split('\n')
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('--') && !l.startsWith('#'))
-      .join(' ')
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    for (const stmt of statements) {
-      const [r] = await conn.query(stmt);
-      if (r && typeof r.affectedRows === 'number' && /^INSERT/i.test(stmt)) count += r.affectedRows;
+    await conn.query('DELETE FROM jzd_state');
+    const keys = Object.keys(items);
+    for (const k of keys) {
+      await conn.query('INSERT INTO jzd_state (k, v) VALUES (?, ?)', [k, String(items[k])]);
+      count++;
     }
     await conn.commit();
     return { ok: true, count: count, backup: path.basename(backupFile) };
@@ -301,9 +258,14 @@ function cors(res) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', c => { body += c; if (body.length > 10 * 1024 * 1024) { reject(new Error('body too large')); req.destroy(); } });
-    req.on('end', () => resolve(body));
+    const chunks = [];
+    let total = 0;
+    req.on('data', c => {
+      chunks.push(c);
+      total += c.length;
+      if (total > 10 * 1024 * 1024) { reject(new Error('body too large')); req.destroy(); }
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
@@ -439,22 +401,21 @@ const server = http.createServer((req, res) => {
   }
 
   // ===== 全库 SQL 导出 / 导入（数据可移植） =====
-  if (urlPath === '/api/db/export-sql' && method === 'GET') {
-    exportSql().then(sqlText => {
-      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end(sqlText);
+  // ===== 全库数据转移（JSON 备份/恢复，可移植到任意电脑/MySQL） =====
+  if (urlPath === '/api/db/export-json' && method === 'GET') {
+    exportJson().then(data => {
+      json(res, 200, Object.assign({ ok: true }, data));
     }).catch(e => {
       json(res, 200, { ok: false, error: String(e && e.message ? e.message : e) });
     });
     return;
   }
 
-  if (urlPath === '/api/db/import-sql' && method === 'POST') {
+  if (urlPath === '/api/db/import-json' && method === 'POST') {
     readBody(req).then(async (body) => {
       try {
         const data = JSON.parse(body);
-        const sqlText = data.sql || '';
-        const r = await importSql(sqlText);
+        const r = await importJson(data.items || {});
         json(res, 200, Object.assign({ ok: true }, r));
       } catch (e) {
         json(res, 200, { ok: false, error: String(e && e.message ? e.message : e) });

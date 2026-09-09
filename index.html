@@ -524,8 +524,8 @@
     </div>
 
     <div class="card">
-      <h2>🗄️ MySQL 数据存储（多入口共享数据，防止数据丢失）</h2>
-      <div class="muted" style="margin-bottom:8px">配置后，日报/任务/项目/模板/设置全部保存在 MySQL 中，无论用 <b>localhost、127.0.0.1、手机</b> 哪个入口打开都读到同一份数据，再也不怕"换入口数据丢失"。</div>
+      <h2>🗄️ MySQL 数据存储（数据持久化 + 可移植备份）</h2>
+      <div class="muted" style="margin-bottom:8px">日报/任务/项目/模板/设置全部保存在本机 MySQL 中，打开 APP 即自动读写，无需手动同步。可用「导出 SQL」生成全库备份文件（标准 SQL，可在任意 MySQL 恢复），实现数据可移植。</div>
       <div class="row">
         <div><label>主机</label><input type="text" id="db_host" value="127.0.0.1"></div>
         <div><label>端口</label><input type="text" id="db_port" value="3306"></div>
@@ -537,10 +537,11 @@
         <div style="display:flex;align-items:flex-end"><button class="btn" id="db_btn" onclick="dbSaveConfig()">🔌 保存并测试连接</button></div>
       </div>
       <div class="muted" id="db_status" style="margin-top:6px">未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。</div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn green" onclick="dbPush()">⬆ 上传本地数据到服务器</button>
-        <button class="btn blue" onclick="dbPull()">⬇ 从服务器恢复数据</button>
-        <span class="muted" style="align-self:center">首次启用：先在录入过数据的浏览器里点「⬆ 上传」，之后任意入口打开数据一致。</span>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn green" onclick="dbExportSql()">⬇ 导出 SQL 备份（全库）</button>
+        <button class="btn blue" onclick="dbImportSqlPick()">⬆ 从 SQL 文件恢复</button>
+        <input type="file" id="db_import_file" accept=".sql" style="display:none" onchange="dbImportSql(this)">
+        <span class="muted" style="font-size:12px">导出为 <b>.sql</b> 标准备份文件（含全库数据），可拷贝到任意电脑/MySQL 一键恢复；恢复前自动备份当前数据。</span>
       </div>
     </div>
 
@@ -584,7 +585,7 @@
           <p>1. <b>日报录入</b>：每天选择项目、填写工作内容保存即可，一天可多条。</p>
           <p>2. <b>周报生成</b>：自动按「周一~周日」汇总本周，按项目生成总工时与任务总结（参考模板格式），可复制/下载 MD、Excel。</p>
           <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤，周六日计入休息）、月度评分表与 OKR绩效考核表。</p>
-          <p>4. <b>数据存储</b>：默认保存在本浏览器 localStorage。若要防止换入口/清缓存丢数据，可在「数据管理 → MySQL 数据存储」配置本机 MySQL（主机/端口/用户名/密码/库名），保存并测试连接后点「⬆ 上传本地数据到服务器」，之后无论用 localhost、127.0.0.1 还是手机打开，都自动读到同一份 MySQL 数据。未配置 MySQL 时请定期「导出数据(JSON)」备份。</p>
+          <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出 SQL 备份」可生成全库 .sql 标准备份文件，拷贝到任意电脑/MySQL 后点「⬆ 从 SQL 文件恢复」即可完整还原（恢复前自动备份当前数据）。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
           <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
@@ -669,94 +670,81 @@ function collectState(){
     if(v!==null && v!==undefined) items[k]=v;
   });
   return items;
-}
-
-// 推送本地全部数据到服务器（MySQL）
-async function dbPush(){
-  var items=collectState();
+// 导出全库 SQL 备份（标准 SQL，可在任意 MySQL 恢复）
+async function dbExportSql(){
   try{
-    var r=await fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:items})});
-    var j=await r.json().catch(function(){return {};});
-    if(j.ok && j.available){
-      toast("✅ 已上传 "+ (j.count||Object.keys(items).length) +" 项数据到 MySQL");
-    }else{
-      toast("❌ 上传失败："+(j.error||"服务器未连接MySQL，请先保存并测试连接"));
-    }
+    var r=await fetch("/api/db/export-sql");
+    var txt=await r.text();
+    if(txt.indexOf("极造数字")<0){ toast("❌ 导出失败：MySQL 未连接或返回异常"); return; }
+    var ym=thisMonth();
+    var fname="日报工具备份_"+ym.replace("-",".")+".sql";
+    var blob=new Blob([txt],{type:"text/plain;charset=utf-8"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
+    toast("✅ 已导出全库 SQL 备份（"+fname+"）");
   }catch(e){
-    toast("❌ 上传失败："+e.message+"（请确认已启动服务）");
+    toast("❌ 导出失败："+e.message);
   }
 }
-window.dbPush=dbPush;
+window.dbExportSql=dbExportSql;
 
-// 从服务器拉取数据覆盖本地并刷新全部视图
-async function dbPull(){
-  try{
-    var r=await fetch("/api/state");
-    var j=await r.json().catch(function(){return {};});
-    if(!j.ok || !j.available){
-      toast("❌ 服务器未连接 MySQL，无法恢复："+(j.error||""));
-      return;
-    }
-    var items=j.items||{};
-    var n=Object.keys(items).length;
-    if(!n){ toast("服务器 MySQL 中没有数据"); return; }
-    if(!confirm("将从服务器覆盖当前浏览器数据（共 "+n+" 项），继续？")) return;
-    Object.keys(items).forEach(function(k){ localStorage.setItem(k, items[k]); });
-    refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
-    loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
-    refreshHeaderStats();
-    // 回填个人信息/AI设置输入框
-    var p=getProfile();
-    document.getElementById("set_name").value=p.name;
-    document.getElementById("set_dept").value=p.dept;
-    document.getElementById("set_post").value=p.post;
-    var a=getAI();
-    document.getElementById("ai_base").value=a.base;
-    document.getElementById("ai_key").value=a.key;
-    document.getElementById("ai_model").value=a.model;
-    ntRefreshStatus();
-    toast("✅ 已从服务器恢复数据");
-  }catch(e){
-    toast("❌ 恢复失败："+e.message+"（请确认已启动服务）");
-  }
+// 选择 SQL 文件导入
+function dbImportSqlPick(){
+  var inp=document.getElementById("db_import_file");
+  if(inp) inp.click();
 }
-window.dbPull=dbPull;
 
-// 连接后自动同步：服务器空→上传本地；服务器有数据→询问；本地空→拉取服务器
-async function dbAutoSync(){
-  try{
-    var r=await fetch("/api/state");
-    var j=await r.json().catch(function(){return {};});
-    if(!j.ok || !j.available) return;
-    var serverItems=j.items||{};
-    var hasServer=Object.keys(serverItems).length>0;
-    var local=collectState();
-    var hasLocal=Object.keys(local).length>0;
-    if(!hasServer && hasLocal){
-      // 服务器为空、本地有数据 → 自动上传（首次迁移）
-      await dbPush();
-      toast("✅ 已自动上传本地数据到 MySQL（共 "+Object.keys(local).length+" 项）");
-    } else if(hasServer && hasLocal){
-      // 两边都有 → 询问覆盖方向
-      var act=confirm("服务器 MySQL 已有 "+Object.keys(serverItems).length+" 项数据。\n确定用本地浏览器数据覆盖服务器吗？\n（选「取消」则保留服务器数据，可用「⬇ 从服务器恢复」拉取）");
-      if(act){
-        await dbPush();
-        toast("✅ 已用本地数据覆盖服务器数据");
-      } else {
-        toast("提示：保留服务器数据。如需用服务器恢复本地，请点「⬇ 从服务器恢复数据」");
+// 从 SQL 文件恢复（导入覆盖，先自动备份）
+async function dbImportSql(input){
+  var file=input && input.files && input.files[0];
+  if(!file){ return; }
+  if(!confirm("导入将覆盖当前数据库全部数据。\n恢复前会自动备份当前数据到本机备份目录。\n确认继续？")){ input.value=""; return; }
+  var reader=new FileReader();
+  reader.onload=async function(ev){
+    try{
+      var sql=ev.target.result;
+      var r=await fetch("/api/db/import-sql", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({sql:sql})});
+      var j=await r.json().catch(function(){return {};});
+      if(j.ok){
+        toast("✅ 已从 SQL 恢复（"+j.count+" 条记录），自动备份："+(j.backup||""));
+        // 重新加载数据
+        setTimeout(function(){
+          dbRefreshStatus().then(function(){
+            fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(jj){
+              if(jj && jj.ok && jj.items){
+                Object.keys(jj.items).forEach(function(k){ localStorage.setItem(k, jj.items[k]); });
+                refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
+                loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+                refreshHeaderStats();
+                var p=getProfile();
+                document.getElementById("set_name").value=p.name;
+                document.getElementById("set_dept").value=p.dept;
+                document.getElementById("set_post").value=p.post;
+                var a=getAI();
+                document.getElementById("ai_base").value=a.base;
+                document.getElementById("ai_key").value=a.key;
+                document.getElementById("ai_model").value=a.model;
+                toast("✅ 数据已刷新");
+              }
+            });
+          });
+        }, 300);
+      }else{
+        toast("❌ 导入失败："+(j.error||"未知错误"));
       }
-    } else if(hasServer && !hasLocal){
-      // 本地为空、服务器有数据 → 自动恢复
-      if(confirm("检测到服务器 MySQL 有 "+Object.keys(serverItems).length+" 项数据，当前浏览器无数据。\n是否从服务器恢复？")){
-        await dbPull();
-      }
+    }catch(e){
+      toast("❌ 导入失败："+e.message);
     }
-  }catch(e){
-    toast("❌ 自动同步失败："+e.message);
-  }
+    input.value="";
+  };
+  reader.readAsText(file, "utf-8");
 }
-window.dbAutoSync=dbAutoSync;
+window.dbImportSql=dbImportSql;
 
+/* ================= Windows 通知（客户端） ================= */
 /* ================= Windows 通知（客户端） ================= */
 // 保存通知设置
 async function ntSave(){
@@ -820,8 +808,16 @@ async function dbSaveConfig(){
     if(j.ok){
       toast("✅ MySQL 连接成功！数据库：「"+j.database+"」");
       dbRefreshStatus();
-      // 连接成功后自动把浏览器数据同步到服务器（服务器为空则直接上传；有数据则询问）
-      dbAutoSync();
+      // 连接成功后：若服务器有数据则静默拉取覆盖本地（MySQL 唯一真相）；服务器空则本地数据下次保存时自动上传
+      fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(jj){
+        if(jj && jj.ok && jj.items && Object.keys(jj.items).length>0){
+          Object.keys(jj.items).forEach(function(k){ localStorage.setItem(k, jj.items[k]); });
+          refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
+          loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+          refreshHeaderStats();
+          toast("✅ 已加载 MySQL 数据");
+        }
+      }).catch(function(){});
     }else{
       toast("❌ 连接失败："+(j.error||"未知错误"));
       dbRefreshStatus();
@@ -854,13 +850,19 @@ async function dbRefreshStatus(){
 window.dbRefreshStatus=dbRefreshStatus;
 
 // 所有保存操作的统一推送（防抖：300ms 内多次保存只推送一次）
+// 桌面版数据流：页面读写 localStorage → 防抖推送到 MySQL（唯一真相）
 var dbPushTimer=null;
 function pushStateDebounced(){
   clearTimeout(dbPushTimer);
   dbPushTimer=setTimeout(function(){
     if(dbSyncing) return;
     dbSyncing=true;
-    dbPush().finally(function(){ dbSyncing=false; });
+    var items=collectState();
+    fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:items})})
+      .then(function(r){ return r.json().catch(function(){return {};}); })
+      .then(function(j){ if(!(j && j.ok)) { /* MySQL 未连接时静默忽略，数据保留在 localStorage */ } })
+      .catch(function(){})
+      .finally(function(){ dbSyncing=false; });
   }, 300);
 }
 window.pushStateDebounced=pushStateDebounced;
@@ -3249,7 +3251,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.2.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.3.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -3412,12 +3414,13 @@ window.loadSeed=loadSeed;
           document.getElementById("ai_model").value=a.model;
           toast("✅ 已从服务器 MySQL 加载数据（日报 "+serverDaily+" 条）");
         }else{
-          // 服务器空、本地有数据 → 自动上传（首次迁移）
+          // 服务器空、本地有数据 → 静默上传（首次迁移：首次配置 MySQL 时把既有数据带入）
           var localKeys=Object.keys(collectState());
           if(localKeys.length>0){
-            dbPush().then(function(){
-              toast("✅ 已自动上传本地数据到 MySQL（共 "+localKeys.length+" 项）");
-            });
+            fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:collectState()})})
+              .then(function(r){ return r.json().catch(function(){return {};}); })
+              .then(function(j){ if(j && j.ok) toast("✅ 已自动上传本地数据到 MySQL（共 "+localKeys.length+" 项）"); })
+              .catch(function(){});
           }
         }
       }).catch(function(){});

@@ -87,7 +87,7 @@ function sqlEscape(v) {
   if (v === null || v === undefined) return 'NULL';
   // 标准 MySQL 字符串转义：反斜杠→\\，单引号→''，换行→\n（兼容 mysqldump/phpMyAdmin 等任意工具）
   let s = String(v);
-  s = s.replace(/\\\\/g, '\\\\\\\\');
+  s = s.replace(/\\/g, '\\\\');
   s = s.replace(/'/g, "''");
   s = s.replace(/\r\n/g, '\\n').replace(/\n/g, '\\n').replace(/\r/g, '\\n');
   s = s.replace(/\x00/g, '');

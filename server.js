@@ -1,5 +1,5 @@
-// 极造数字 · 日报工具 本地服务（本机/局域网/手机访问 + AI 汇总代理 + MySQL 数据持久化）
-// 用法：node server.js   （或双击 启动服务.bat）
+// 极造数字 · 日报工具 内置服务（桌面版主进程启动：静态页面 + AI 汇总代理 + MySQL 数据持久化）
+// 用法：由 Electron 主进程（main.js）以 runtime\node.exe 启动
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -425,8 +425,7 @@ server.on('error', (err) => {
     console.error('');
     console.error('==============================================');
     console.error('  端口 ' + PORT + ' 已被占用！');
-    console.error('  可能已有本工具在运行（请先运行 停止服务.bat 或关闭旧窗口）。');
-    console.error('  若被其他程序占用，请修改 server.js 顶部的 PORT 后重试。');
+    console.error('  可能已有本工具在运行，请先关闭旧窗口。');
     console.error('==============================================');
     process.exit(2);
   } else {
@@ -435,17 +434,6 @@ server.on('error', (err) => {
 });
 server.listen(LISTEN_PORT, '0.0.0.0', () => {
   console.log('PORT_STARTED:' + LISTEN_PORT); // Electron 主进程捕获实际端口
-  console.log('==============================================');
-  console.log('  工作日报 · 周报月报生成器 已启动');
-  console.log('  本机访问:   http://localhost:' + LISTEN_PORT);
-  const ifs = os.networkInterfaces();
-  Object.keys(ifs).forEach(k => {
-    ifs[k].forEach(i => {
-      if (i.family === 'IPv4' && !i.internal) console.log('  手机访问:   http://' + i.address + ':' + LISTEN_PORT);
-    });
-  });
-  console.log('  AI 汇总:    浏览器 -> 本服务 -> OpenAI兼容接口(需在页面配置API Key)');
-  console.log('  MySQL 存储: ' + (dbPool ? '已连接（' + (dbCfg ? dbCfg.database : '') + '）' : '未配置（数据仅存本地浏览器）'));
-  console.log('  关闭服务: 关闭本窗口即可');
-  console.log('==============================================');
+  console.log('  工作日报 · 周报月报生成器 已启动（端口 ' + LISTEN_PORT + '）');
+  console.log('  MySQL 存储: ' + (dbPool ? '已连接（' + (dbCfg ? dbCfg.database : '') + '）' : '未配置（数据仅存本地）'));
 });

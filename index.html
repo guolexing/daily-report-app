@@ -501,7 +501,7 @@
           <option value="">（导入后在此选择供应商）</option>
         </select>
       </div>
-      <div class="muted" id="ai_cc_note" style="margin-top:6px">使用 AI 汇总前请先双击「启动服务.bat」启动本地服务，并通过 <b>http://localhost:8080</b> 访问页面；未配置 Key 或未启动服务时，周报/月报仍可正常使用规则版生成。</div>
+      <div class="muted" id="ai_cc_note" style="margin-top:6px">使用 AI 汇总需在桌面版中配置 API Key；未配置 Key 时，周报/月报仍可正常使用规则版生成。</div>
     </div>
 
     <div class="card">
@@ -567,12 +567,12 @@
           <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤，周六日计入休息）、月度评分表与 OKR绩效考核表。</p>
           <p>4. <b>数据存储</b>：默认保存在本浏览器 localStorage。若要防止换入口/清缓存丢数据，可在「数据管理 → MySQL 数据存储」配置本机 MySQL（主机/端口/用户名/密码/库名），保存并测试连接后点「⬆ 上传本地数据到服务器」，之后无论用 localhost、127.0.0.1 还是手机打开，都自动读到同一份 MySQL 数据。未配置 MySQL 时请定期「导出数据(JSON)」备份。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
-          <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后双击「启动服务.bat」通过 http://localhost:8080 打开页面，周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置或不启动服务时，规则版照常可用。</p>
+          <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
           <p>8. <b>一键载入历史日报</b>：数据管理 →「📥 一键载入历史日报（2025-05~2026-09）」可把入职至今的 333 条日报（历史日报.xlsx 转换而来，已含 8月/9月初）合并进应用，自动去重；或点「⬆ 导入数据(JSON)」手动选择「日报工具/历史日报备份.json」。之后周报/月报即可基于完整历史生成。</p>
           <p>9. <b>项目管理</b>：「② 项目管理」可添加/改名/删除项目，并可将项目<b>完结</b>（完成后点「✔ 完结」，默认不再出现在日报/任务的项目下拉中；勾选「显示已完结项目」可恢复查看）。项目完结不影响历史日报/任务数据。</p>
           <p>10. <b>任务管理</b>：「③ 任务管理」可把项目细分为任务（任务名称、<b>计划开始时间</b>、计划完成时间、实际完成时间）。<b>日报录入时只需选「所属任务」，项目自动带入</b>（任务=项目细分）；无合适任务时（如学习/会议）再直接选项目。任务的<b>实际完成工时 = 挂载日报工时自动累加</b>。状态自动判定：已填实际完成时间=已完成；超过计划时间未完成=已逾期；其余=进行中。任务随 JSON 备份一起导出/导入。</p>
-          <p>11. <b>Windows 任务开始提醒</b>：任务填写「计划开始时间」（如 09:00），服务端每 30 秒自动检查，到点（可设提前 5 分钟）弹出 <b>Windows 原生通知</b>提醒开始处理，无需打开页面。在「数据管理 → Windows 通知」可开关/调提前量/发测试通知。需保持「启动服务.bat」运行。</p>
+          <p>11. <b>Windows 任务开始提醒</b>：任务填写「计划开始时间」（如 09:00），桌面版内置服务每 30 秒自动检查，到点（可设提前 5 分钟）弹出 <b>Windows 原生通知</b>提醒开始处理。在「数据管理 → Windows 通知」可开关/调提前量/发测试通知。</p>
         </div>
       </details>
     </div>
@@ -779,7 +779,7 @@ async function ntRefreshStatus(){
     if(j.dbConnected===false){ el.innerHTML="⚠️ MySQL 未连接，通知暂不可用（请先在「MySQL 数据存储」配置）。"; return; }
     el.innerHTML=(j.enabled?"🟢 通知已启用":"⚪ 通知已关闭")+"，提前 <b>"+(j.advanceMin||5)+"</b> 分钟提醒，每 30 秒检查一次。";
   }catch(e){
-    el.innerHTML="⚠️ 无法连接服务（请先双击「启动服务.bat」）。";
+    el.innerHTML="⚠️ 无法连接本地服务，请稍后重试。";
   }
 }
 window.ntRefreshStatus=ntRefreshStatus;
@@ -808,7 +808,7 @@ async function dbSaveConfig(){
       dbRefreshStatus();
     }
   }catch(e){
-    toast("❌ 连接失败："+e.message+"（请确认已双击「启动服务.bat」）");
+    toast("❌ 连接失败："+e.message);
   }finally{
     if(btn){ btn.disabled=false; btn.textContent="🔌 保存并测试连接"; }
   }
@@ -829,7 +829,7 @@ async function dbRefreshStatus(){
       el.innerHTML="🔴 未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。";
     }
   }catch(e){
-    el.innerHTML="🔴 无法连接本地服务（请先双击「启动服务.bat」再刷新）。";
+    el.innerHTML="🔴 无法连接本地服务，请稍后重试。";
   }
 }
 window.dbRefreshStatus=dbRefreshStatus;
@@ -3067,7 +3067,7 @@ async function importCC(){
     document.getElementById("ai_cc_note").textContent="✅ 已从 CC Switch 读取 " + j.providers.length + " 个供应商（来源：" + (j.source||"") + "）。"+(last?"已自动选中上次使用的：「"+selName+"」；":"")+"选择上方供应商即自动填入，点「保存AI设置」生效。";
     toast("✅ 已从 CC Switch 导入"+(last?"，自动选中上次的「"+selName+"」":""));
   }catch(e){
-    document.getElementById("ai_cc_note").textContent="❌ 导入失败："+e.message+"（请先双击「启动服务.bat」并刷新页面）";
+    document.getElementById("ai_cc_note").textContent="❌ 导入失败："+e.message;
     toast("❌ 导入失败："+e.message);
   }finally{
     if(btn){ btn.disabled=false; btn.textContent="⚡ 从 CC Switch 一键导入"; }
@@ -3173,21 +3173,20 @@ window.mergeImport=mergeImport;
 // ===== 桌面版自动更新 =====
 function setUpdateStatus(msg){ var el=document.getElementById("app_update_status"); if(el) el.textContent=msg; }
 function appCheckUpdate(){
-  if(!window.appUpdate){ setUpdateStatus("⚠️ 当前为浏览器/Web 模式，请到 GitHub Releases 手动下载最新版。"); return; }
+  if(!window.appUpdate){ setUpdateStatus("⚠️ 当前未运行桌面版，请安装最新版使用。"); return; }
   setUpdateStatus("⏳ 正在检查更新…");
   window.appUpdate.check().then(function(r){
     if(r&&r.ok===false){ setUpdateStatus("❌ "+r.msg); }
   }).catch(function(e){ setUpdateStatus("❌ 检查失败："+(e&&e.message?e.message:e)); });
 }
 function appOpenRepo(){
-  if(window.appUpdate){ window.open("https://github.com/guolexing/daily-report-app","_blank"); }
-  else { window.open("https://github.com/guolexing/daily-report-app","_blank"); }
+  window.open("https://github.com/guolexing/daily-report-app","_blank");
 }
 // 显示当前版本 + 订阅更新状态
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.1.0" : "Web 版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.1.1" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -3207,7 +3206,7 @@ async function loadHistory(){
     if(!confirm("将导入历史日报 "+data.entries.length+" 条（2025-05 ~ 2026-09），与现有数据合并且自动去重，继续？")) return;
     mergeImport(data, "历史日报");
   }catch(e){
-    toast("❌ 载入失败："+e.message+"（请先双击「启动服务.bat」并刷新页面）");
+    toast("❌ 载入失败："+e.message);
   }finally{
     if(btn){ btn.disabled=false; btn.textContent="📥 一键载入历史日报（2025-05~2026-09）"; }
   }

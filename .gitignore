@@ -5,7 +5,6 @@ db_config.json
 # 用户数据与日志
 remind.log
 历史日报备份.json
-app_name.txt
 *.log
 
 # ===== 构建产物（用 GitHub Releases 发布安装包，不进仓库） =====

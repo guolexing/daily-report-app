@@ -34,11 +34,13 @@
 
 ## 🚀 快速开始
 
-### 方式一：安装包（推荐）
+### 方式一：安装包（唯一使用方式）
 
-从 [Releases](../../releases) 下载 `工作日报 Setup x.x.x.exe`，双击安装即可（自动创建桌面快捷方式）。
+从 [Releases](../../releases) 下载 `jzd-daily-app-setup-x.x.x.exe`，双击安装即可（自动创建桌面快捷方式，并支持应用内自动更新）。
 
-### 方式二：源码运行
+> 📌 本应用是**桌面版**，仅通过安装包使用。安装后双击桌面「工作日报」图标启动。
+
+### 方式二：源码开发（面向开发者）
 
 ```bash
 # 1. 安装依赖
@@ -51,8 +53,6 @@ cp db_config.example.json db_config.json   # Windows: copy db_config.example.jso
 # 3. 启动桌面版（开发模式）
 npm start
 ```
-
-> 💡 也支持纯 Web 模式：`node server.js` 后浏览器访问 `http://localhost:8080`
 
 ### 数据库
 
@@ -75,7 +75,7 @@ npm run dist
 ```
 日报工具/
 ├── index.html        # 前端单页（全部 UI 与逻辑）
-├── server.js         # 本地服务（静态托管 + AI 代理 + MySQL + 通知）
+├── server.js         # 内置服务（静态页面 + AI 代理 + MySQL + 通知，由桌面版启动）
 ├── main.js           # Electron 主进程（启动服务 + 桌面窗口）
 ├── package.json      # 依赖与构建配置
 ├── db_config.example.json  # MySQL 配置模板（复制为 db_config.json 使用）

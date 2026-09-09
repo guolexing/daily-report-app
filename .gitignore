@@ -1,0 +1,34 @@
+# ===== 敏感信息（绝不提交） =====
+# MySQL 连接配置（含真实密码）—— 请复制 db_config.example.json 为 db_config.json 使用
+db_config.json
+
+# 用户数据与日志
+remind.log
+历史日报备份.json
+app_name.txt
+*.log
+
+# ===== 构建产物（用 GitHub Releases 发布安装包，不进仓库） =====
+dist/
+release/
+*.blockmap
+
+# ===== 打包运行时（构建时由脚本生成，不入库） =====
+runtime/
+
+# ===== 依赖 =====
+node_modules/
+
+# ===== 开发/临时文件 =====
+.port_test*.log
+.app_out.log
+.app_err.log
+_*.js
+.DS_Store
+Thumbs.db
+
+# ===== 编辑器 =====
+.vscode/
+.idea/
+# 本机辅助脚本（依赖本地环境路径）
+安装到桌面.bat

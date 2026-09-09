@@ -1,0 +1,3330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作日报 · 周报月报生成器</title>
+<style>
+  :root{
+    --main:#2f6fed; --main-d:#1e50b8; --main-l:#e8f0ff;
+    --bg:#eef2f9; --card:#ffffff; --line:#e2e8f2;
+    --text:#1f2a3d; --sub:#718096; --ok:#16a34a; --ok-l:#e7f8ee;
+    --warn:#d97706; --warn-l:#fdf3e3; --err:#dc2626; --err-l:#fdeaea;
+    --shadow:0 1px 3px rgba(30,42,61,.06),0 4px 14px rgba(30,42,61,.05);
+    --shadow-h:0 6px 20px rgba(30,42,61,.12);
+    --radius:12px; --radius-s:8px;
+    --transition:.18s ease;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(47,111,237,.08), transparent 60%),
+    radial-gradient(900px 400px at -10% 10%, rgba(22,163,74,.06), transparent 60%),
+    var(--bg);
+    color:var(--text);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:16px 16px 80px}
+
+  /* ===== 头部 ===== */
+  header{background:linear-gradient(135deg,#2f6fed 0%,#4f8af7 55%,#7aa8fb 100%);
+    color:#fff;border-radius:16px;padding:22px 26px;margin-bottom:18px;
+    box-shadow:0 8px 24px rgba(47,111,237,.28);position:relative;overflow:hidden}
+  header::after{content:"";position:absolute;right:-40px;top:-60px;width:220px;height:220px;
+    background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);border-radius:50%}
+  header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.5px}
+  header .sub{opacity:.92;font-size:12.5px;margin-top:6px;line-height:1.7}
+  .hdr-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .hdr-stats .hs{background:rgba(255,255,255,.16);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.22);
+    border-radius:10px;padding:7px 14px;font-size:12.5px}
+  .hdr-stats .hs b{font-size:15px;margin-right:3px}
+
+  /* ===== 标签页 ===== */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .tabs button{border:1px solid var(--line);background:var(--card);color:var(--sub);padding:9px 18px;
+    border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;transition:var(--transition);
+    box-shadow:var(--shadow)}
+  .tabs button:hover{color:var(--main);border-color:var(--main);transform:translateY(-1px)}
+  .tabs button.on{background:linear-gradient(135deg,var(--main),var(--main-d));color:#fff;border-color:transparent;
+    box-shadow:0 4px 12px rgba(47,111,237,.35)}
+
+  /* ===== 卡片 ===== */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
+    margin-bottom:16px;box-shadow:var(--shadow);transition:var(--transition)}
+  .card:hover{box-shadow:var(--shadow-h)}
+  .card h2{margin:0 0 12px;font-size:16px;font-weight:600;color:var(--text);
+    border-left:4px solid var(--main);padding-left:10px;display:flex;align-items:center;gap:8px}
+  .card h3{margin:16px 0 8px;font-size:14px;color:var(--main);font-weight:600}
+
+  /* ===== 表单 ===== */
+  label{display:block;font-size:12px;color:var(--sub);margin:10px 0 5px;font-weight:500}
+  input[type=text],input[type=number],input[type=date],input[type=month],input[type=password],select,textarea{
+    width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-s);font-size:14px;
+    font-family:inherit;background:#fff;color:var(--text);transition:var(--transition);outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--main);box-shadow:0 0 0 3px rgba(47,111,237,.13)}
+  input:disabled,select:disabled{background:#f4f6fa;color:var(--sub);cursor:not-allowed;opacity:.85}
+  textarea{min-height:76px;resize:vertical}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--main);vertical-align:-3px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:130px}
+  .hint-line{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+
+  /* ===== 按钮 ===== */
+  .btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:var(--radius-s);padding:9px 18px;
+    cursor:pointer;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--main),var(--main-d));
+    transition:var(--transition);box-shadow:0 2px 6px rgba(47,111,237,.25);font-weight:500}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(47,111,237,.35)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+  .btn.gray{background:linear-gradient(135deg,#94a3b8,#7c8ba1);box-shadow:0 2px 6px rgba(100,116,139,.25)}
+  .btn.green{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 2px 6px rgba(22,163,74,.25)}
+  .btn.warn{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 2px 6px rgba(217,119,6,.25)}
+  .btn.danger{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 2px 6px rgba(220,38,38,.25)}
+  .btn.sm{padding:4px 12px;font-size:12px;border-radius:6px}
+  .btn.blue{background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:0 2px 6px rgba(14,165,233,.25)}
+
+  /* ===== 表格 ===== */
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:10px;
+    border:1px solid var(--line);border-radius:var(--radius-s);overflow:hidden}
+  th,td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#f4f7fd;white-space:nowrap;font-weight:600;color:#45536b;font-size:12.5px}
+  tr:last-child td{border-bottom:none}
+  tbody tr{transition:background .12s}
+  tbody tr:nth-child(even){background:#fafbfe}
+  tbody tr:hover{background:var(--main-l)}
+
+  /* ===== 状态徽章 ===== */
+  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;line-height:1.7}
+  .badge.ok{background:var(--ok-l);color:var(--ok)}
+  .badge.warn{background:var(--warn-l);color:var(--warn)}
+  .badge.err{background:var(--err-l);color:var(--err)}
+  .badge.info{background:var(--main-l);color:var(--main)}
+
+  /* ===== 预览区/统计/工具条 ===== */
+  .pre{background:#fbfcfe;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
+    white-space:pre-wrap;word-break:break-word;font-family:"Microsoft YaHei",sans-serif;font-size:13px;
+    max-height:520px;overflow:auto;line-height:1.7}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .muted{color:var(--sub);font-size:12px}
+  .stat{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .stat .item{background:#f4f7fd;border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12.5px;
+    box-shadow:var(--shadow)}
+  .stat .item b{color:var(--main);font-size:14px}
+
+  /* ===== Toast ===== */
+  #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(10px);
+    background:rgba(31,42,61,.94);color:#fff;padding:11px 22px;border-radius:12px;font-size:13.5px;
+    opacity:0;transition:all .25s;pointer-events:none;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.25);
+    backdrop-filter:blur(6px);max-width:86vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ===== 其他 ===== */
+  .empty{color:var(--sub);text-align:center;padding:26px 0;font-size:13px;border:1px dashed var(--line);
+    border-radius:var(--radius-s);margin-top:8px}
+  details{border:1px solid var(--line);border-radius:var(--radius-s);padding:10px 14px;margin:10px 0;background:#fbfcfe}
+  details summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--text);transition:var(--transition)}
+  details summary:hover{color:var(--main)}
+  details[open]{background:#fff}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#c3cddd;border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:#a5b3c9}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ===== 项目管理 ===== */
+  .proj-done{color:var(--sub)}
+  .proj-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:var(--radius-s);margin-bottom:8px;background:#fff;transition:var(--transition)}
+  .proj-row:hover{box-shadow:var(--shadow);border-color:var(--main)}
+  .proj-row.done{background:var(--bg);opacity:.75}
+  .proj-row .pn{font-weight:600;font-size:14px}
+  .proj-row .pn .tag{font-size:11px;margin-left:6px}
+  .proj-row .pm{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+  /* ===== 任务日历 ===== */
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-hd{text-align:center;font-size:12px;color:var(--sub);font-weight:600;padding:4px 0}
+  .cal-hd.sun{color:var(--err)} .cal-hd.sat{color:var(--warn)}
+  .cal-day{border:1px solid var(--line);border-radius:var(--radius-s);min-height:86px;padding:5px 7px;
+    background:#fff;cursor:pointer;transition:var(--transition);display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  .cal-day:hover{border-color:var(--main);box-shadow:var(--shadow)}
+  .cal-day.other{background:var(--bg);opacity:.55}
+  .cal-day.today{border-color:var(--main);border-width:2px;background:var(--main-l)}
+  .cal-day.sel{border-color:var(--main-d);box-shadow:0 0 0 2px rgba(47,111,237,.25)}
+  .cal-day .cd-num{font-size:12px;color:var(--sub);font-weight:600}
+  .cal-day.today .cd-num{color:var(--main);font-weight:700}
+  .cal-day .cd-hours{margin-left:auto;font-size:11px;color:var(--ok);font-weight:600}
+  .cal-tag{font-size:11px;line-height:1.4;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-tag.plan{background:var(--main-l);color:var(--main)}
+  .cal-tag.done{background:var(--ok-l);color:var(--ok)}
+  .cal-tag.entry{background:var(--ok-l);color:var(--ok);cursor:pointer}
+  .cal-tag.entry:hover{background:#d7eed9}
+  .cal-tag.urgent{background:var(--err-l);color:var(--err);font-weight:600}
+  .cal-tag.over{background:var(--err-l);color:var(--err)}
+  .cal-more{font-size:10.5px;color:var(--sub);text-align:center}
+  .cal-empty{color:var(--sub);font-size:12px;padding:14px;text-align:center;border:1px dashed var(--line);border-radius:var(--radius-s)}
+  @media (max-width:640px){
+    .cal-day{min-height:64px;padding:3px 4px}
+    .cal-tag{font-size:10px}
+  }
+
+  /* ===== 弹窗 Modal ===== */
+  #modal_mask{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s}
+  #modal_mask.show{opacity:1;visibility:visible}
+  #modal_box{background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.35);
+    width:min(560px,92vw);max-height:86vh;display:flex;flex-direction:column;
+    transform:translateY(16px) scale(.96);transition:transform .22s ease}
+  #modal_mask.show #modal_box{transform:translateY(0) scale(1)}
+  #modal_head{display:flex;align-items:center;padding:16px 20px 12px;border-bottom:1px solid var(--line)}
+  #modal_head h3{margin:0;font-size:16px;flex:1;color:var(--text)}
+  #modal_close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--sub);line-height:1;padding:2px 6px;border-radius:6px;transition:var(--transition)}
+  #modal_close:hover{color:var(--err);background:var(--err-l)}
+  #modal_body{padding:18px 20px;overflow-y:auto;flex:1}
+  #modal_foot{padding:12px 20px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .modal-row{display:flex;gap:10px;flex-wrap:wrap}
+  .modal-row>div{flex:1;min-width:120px}
+
+  /* ===== 未填日报提醒横幅 ===== */
+  .reminder{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#fff7e6,#ffedcc);
+    border:1.5px solid #f0c36d;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;
+    box-shadow:0 4px 14px rgba(217,119,6,.15);position:relative}
+  .reminder .ri{font-size:22px;flex-shrink:0}
+  .reminder .rm{flex:1;color:#7c4a03}
+  .reminder .rm b{color:#b45309}
+  .reminder .rm .sub2{font-size:12px;opacity:.85;margin-top:2px}
+  .reminder .btn{margin-left:auto;flex-shrink:0}
+  .reminder.ok{background:linear-gradient(135deg,#e7f8ee,#d3f2df);border-color:#86d9a8}
+  .reminder.ok .rm{color:#14532d}
+  .reminder.ok .rm b{color:#15803d}
+
+  @media (max-width:640px){
+    .row>div{min-width:100%}
+    .tabs button{flex:1;padding:9px 6px;font-size:13px}
+    header{padding:18px}
+    .card{padding:14px}
+    .toolbar .btn{flex:1;justify-content:center}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📋 工作日报 · 周报月报生成器</h1>
+    <div class="sub">录入每日工作 → 自动汇总本周周报（参考模板）与本月考核报表（月度评分表 + OKR绩效考核表）｜数据保存在本机浏览器</div>
+    <div class="hdr-stats">
+      <div class="hs">本月出勤 <b id="hdr_days">0</b> 天</div>
+      <div class="hs">本月工时 <b id="hdr_hours">0</b> h</div>
+      <div class="hs">进行中任务 <b id="hdr_todo">0</b></div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button id="tab_daily" class="on" onclick="switchTab('daily')">① 日报录入</button>
+    <button id="tab_project" onclick="switchTab('project')">② 项目管理</button>
+    <button id="tab_task" onclick="switchTab('task')">③ 任务管理</button>
+    <button id="tab_calendar" onclick="switchTab('calendar')">④ 任务日历</button>
+    <button id="tab_weekly" onclick="switchTab('weekly')">⑤ 周报生成</button>
+    <button id="tab_monthly" onclick="switchTab('monthly')">⑥ 月度考核报表</button>
+    <button id="tab_data" onclick="switchTab('data')">⑦ 数据管理</button>
+  </div>
+
+  <!-- ============ 日报录入 ============ -->
+  <div id="view_daily">
+    <div id="daily_reminder" class="reminder" style="display:none">
+      <span class="ri">⏰</span>
+      <div class="rm">
+        <b id="rm_title">今天尚未填写日报</b>
+        <div class="sub2" id="rm_sub"></div>
+      </div>
+      <button class="btn warn sm" onclick="document.getElementById('daily_reminder').style.display='none'">知道了</button>
+    </div>
+    <div class="card">
+      <h2>填写今日工作日报</h2>
+      <div class="row">
+        <div><label>日期</label><input type="date" id="in_date"></div>
+        <div style="flex:2"><label>所属任务（选任务后自动带入项目）</label>
+          <select id="in_task" onchange="onTaskPick()"><option value="">（无任务，直接选项目）</option></select>
+          <label id="in_task_done_box" style="display:none;margin:6px 0 0;align-items:center;gap:5px;font-size:12.5px;color:var(--sub);cursor:pointer">
+            <input type="checkbox" id="in_task_done"> ✔ 勾选表示<b>该任务今天已完成</b>（自动填入实际完成时间）
+          </label>
+        </div>
+        <div><label>项目名称（选任务后自动带入）</label><select id="in_project"></select></div>
+        <div style="flex:1"><label>工作时长（小时）</label><input type="number" id="in_hours" min="0" max="24" step="0.5" value="8"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+        <input type="text" id="in_project_new" placeholder="无合适任务时输入新项目名称" style="flex:1">
+        <button class="btn gray sm" onclick="addProject()">+ 添加项目</button>
+        <span class="muted">任务在「③ 任务管理」中维护；选择任务后项目自动带入。</span>
+        <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub);white-space:nowrap">
+          <input type="checkbox" id="in_proj_show_done" onchange="toggleProjShowDone()"> 显示已完结项目
+        </label>
+      </div>
+      <label>今日工作内容</label><textarea id="in_work" placeholder="例：完成XX功能开发，修复XX BUG，参加XX会议…"></textarea>
+      <label>明日计划（可选）</label><textarea id="in_plan" style="min-height:44px" placeholder="明天准备做什么…"></textarea>
+      <label>备注（可选）</label><input type="text" id="in_remark" placeholder="备注/休息/请假等">
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="saveEntry()">💾 保存日报</button>
+        <button class="btn gray" onclick="clearForm()">清空表单</button>
+      </div>
+      <div class="muted" style="margin-top:8px">提示：选择「所属任务」后项目自动带入（任务=项目细分）；无合适任务时可直接选项目（如学习/会议）。一天可保存多条记录。</div>
+    </div>
+
+    <div class="card">
+      <h2>本月日报记录（<span id="month_count">0</span> 条）</h2>
+      <div class="stat" id="month_stat"></div>
+      <div id="daily_list"><div class="empty">本月还没有记录</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 项目管理 ============ -->
+  <div id="view_project" style="display:none">
+    <div class="card">
+      <h2>项目列表</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <button class="btn green sm" onclick="projAdd()">＋ 添加项目</button>
+        <label style="margin:0 0 0 12px;display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--sub)">
+          <input type="checkbox" id="proj_show_done" onchange="toggleProjShowDone()"> 显示已完结项目
+        </label>
+      </div>
+      <div class="stat" id="proj_stat"></div>
+      <div id="proj_list"></div>
+    </div>
+    <div class="card">
+      <h2>说明</h2>
+      <div class="muted" style="line-height:1.8">
+        <p style="margin:0">· 项目是任务的上级分类，任务挂在项目下；日报录入时选任务即可自动带入项目。</p>
+        <p style="margin:4px 0 0"><b>完结项目</b>：项目完成后点击「✔ 完结」，完结项目默认不出现在日报/任务的项目下拉中（勾选「显示已完结项目」可恢复查看）。历史日报/任务数据不受影响。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 任务管理 ============ -->
+  <div id="view_task" style="display:none">
+    <div class="card">
+      <h2>任务管理（任务 = 项目下的进一步细分）</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn" onclick="openTaskModal()">＋ 新增任务</button>
+        <span class="muted">任务的实际完成工时 = 挂载到该任务下的日报工时 <b>自动累加</b>；在「日报录入」选择「所属任务」即可挂载。</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <label style="font-size:13px">按月导出任务列表：</label>
+        <input type="month" id="tk_export_month" value="'+thisMonth()+'" style="padding:6px">
+        <button class="btn green" onclick="downloadTaskMonth('xls')">⬇ 导出 Excel(.xls)</button>
+        <button class="btn" onclick="downloadTaskMonth('md')">⬇ 导出 Markdown</button>
+        <span class="muted" style="font-size:12px">按任务「计划完成 / 计划开始 / 实际完成」时间中任一落在所选月份筛选</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>任务列表（<span id="tk_count">0</span> 个）</h2>
+      <div class="stat" id="tk_stat"></div>
+      <div id="task_list"><div class="empty">还没有任务，先在上方添加</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 周报 ============ -->
+  <!-- ============ 任务日历 ============ -->
+  <div id="view_calendar" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn gray sm" onclick="calPrev()">◀ 上月</button>
+        <h2 style="margin:0;flex:1;border:none;padding:0;text-align:center;font-size:18px" id="cal_title">2026年9月</h2>
+        <button class="btn gray sm" onclick="calToday()">今天</button>
+        <button class="btn gray sm" onclick="calNext()">下月 ▶</button>
+      </div>
+      <div id="cal_grid" class="cal-grid"></div>
+      <div class="muted" style="margin-top:8px">📌 日历显示各任务的<b>计划完成日期</b>与当天日报工时；点击任意日期查看当天计划详情。</div>
+    </div>
+    <div class="card" id="cal_detail_card" style="display:none">
+      <h2 id="cal_detail_title">当天计划</h2>
+      <div id="cal_detail"></div>
+    </div>
+  </div>
+
+  <div id="view_weekly" style="display:none">
+    <div class="card">
+      <h2>选择周次</h2>
+      <div class="row">
+        <div style="flex:2"><label>本周任意一天</label><input type="date" id="wk_date"></div>
+        <div><label>完成进度（% 默认值）</label><input type="number" id="wk_progress" value="100" min="0" max="100"></div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn gray" onclick="shiftWeek(-7)">← 上一周</button>
+        <button class="btn gray" onclick="shiftWeek(7)">下一周 →</button>
+        <span class="muted" id="wk_range"></span>
+      </div>
+      <label style="margin-top:10px"><input type="checkbox" id="wk_include_todo" checked> 周报末尾包含「本周未完成（留待填写）」栏目</label>
+    </div>
+
+    <div class="card">
+      <h2>📄 周报模板（可导入自定义模板 / AI 解析）</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="tpl_mode_weekly" onchange="setTplMode('weekly',this.value)" style="max-width:200px">
+          <option value="builtin">内置模板（默认）</option>
+          <option value="placeholder">占位符模板</option>
+          <option value="ai">AI 套模板（解析示例）</option>
+        </select>
+        <button class="btn gray sm" onclick="document.getElementById('tpl_file_weekly').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
+        <input type="file" id="tpl_file_weekly" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importTplFile('weekly',this)">
+        <button class="btn gray sm" onclick="loadTpl('weekly')">↻ 载入已保存模板</button>
+        <button class="btn green sm" id="tpl_dl_weekly" style="display:none" onclick="downloadTplFile('weekly')">⬇ 按模板生成 Word/Excel</button>
+        <span class="muted" id="tpl_hint_weekly" style="display:none">
+          可用占位符：{姓名} {部门} {岗位} {周期} {周起始} {周结束} {出勤天数} {总工时} {日报条数} {项目明细}
+        </span>
+      </div>
+      <textarea id="tpl_text_weekly" style="display:none;min-height:140px;margin-top:8px" placeholder="粘贴你的周报模板…&#10;支持占位符：{姓名} {部门} {周期} {出勤天数} {总工时} {项目明细} 等&#10;或选择「AI 套模板」粘贴参考样例，点下方按钮让 AI 按样例格式生成"></textarea>
+      <div id="tpl_ai_weekly" style="display:none;margin-top:8px">
+        <button class="btn warn" id="btn_tpl_ai_weekly" onclick="aiApply('weekly')">🤖 AI 按模板生成周报</button>
+        <span class="muted" style="margin-left:8px">需要先在「数据管理 → AI设置」配置 Key；AI 会按模板结构填入本周数据。</span>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn green sm" onclick="saveTplText('weekly')">💾 保存模板</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>本周周报（参考模板格式）</h2>
+      <div class="stat" id="wk_stat"></div>
+      <div class="toolbar">
+        <button class="btn warn" id="btn_ai_weekly" onclick="aiWeekly()">🤖 AI 汇总周报</button>
+        <button class="btn" onclick="copyWeekly()">📋 复制周报文本</button>
+        <button class="btn green" onclick="downloadWeekly('md')">⬇ 下载 Markdown</button>
+        <button class="btn green" onclick="downloadWeekly('xls')">⬇ 下载 Excel(.xls)</button>
+      </div>
+      <div class="pre" id="wk_preview"></div>
+    </div>
+  </div>
+
+  <!-- ============ 月报 ============ -->
+  <div id="view_monthly" style="display:none">
+    <div class="card">
+      <h2>选择月份</h2>
+      <div class="row">
+        <div><label>月份</label><input type="month" id="mo_month"></div>
+        <div style="flex:2"><label>完成进度（% 默认值，用于月报）</label><input type="number" id="mo_progress" value="100" min="0" max="100"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>① 月度绩效考核评分表（评分列留空，供填写）</h2>
+      <details>
+        <summary>📄 评分表模板（可导入自定义模板 / AI 解析）</summary>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+          <select id="tpl_mode_score" onchange="setTplMode('score',this.value)" style="max-width:200px">
+            <option value="builtin">内置模板（默认）</option>
+            <option value="placeholder">占位符模板</option>
+            <option value="ai">AI 套模板（解析示例）</option>
+          </select>
+          <button class="btn gray sm" onclick="document.getElementById('tpl_file_score').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
+          <input type="file" id="tpl_file_score" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importTplFile('score',this)">
+          <button class="btn gray sm" onclick="loadTpl('score')">↻ 载入已保存模板</button>
+          <button class="btn green sm" id="tpl_dl_score" style="display:none" onclick="downloadTplFile('score')">⬇ 按模板生成 Word/Excel</button>
+          <span class="muted" id="tpl_hint_score" style="display:none">
+            占位符：{姓名} {部门} {岗位} {月份} {月份短} {出勤天数} {应出勤} {缺报天数} {总工时} {日报条数}
+          </span>
+        </div>
+        <textarea id="tpl_text_score" style="display:none;min-height:120px;margin-top:8px" placeholder="粘贴你的考核评分表模板…&#10;支持占位符：{姓名} {部门} {月份} {出勤天数} {总工时} 等&#10;或选「AI 套模板」粘贴参考样例，AI 按样例格式生成"></textarea>
+        <div id="tpl_ai_score" style="display:none;margin-top:8px">
+          <button class="btn warn" id="btn_tpl_ai_score" onclick="aiApply('score')">🤖 AI 按模板生成评分表</button>
+          <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key。</span>
+        </div>
+        <div style="margin-top:8px"><button class="btn green sm" onclick="saveTplText('score')">💾 保存模板</button></div>
+      </details>
+      <div class="stat" id="mo_att"></div>
+      <div class="toolbar">
+        <button class="btn" onclick="copyMonthlyScore()">📋 复制</button>
+        <button class="btn green" onclick="downloadMonthlyScore('md')">⬇ MD</button>
+        <button class="btn green" onclick="downloadMonthlyScore('xls')">⬇ Excel</button>
+      </div>
+      <div class="pre" id="mo_score_preview"></div>
+    </div>
+
+    <div class="card">
+      <h2>② OKR绩效考核表（按项目自动生成目标与KR）</h2>
+      <details>
+        <summary>📄 OKR 模板（可导入自定义模板 / AI 解析）</summary>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+          <select id="tpl_mode_okr" onchange="setTplMode('okr',this.value)" style="max-width:200px">
+            <option value="builtin">内置模板（默认）</option>
+            <option value="placeholder">占位符模板</option>
+            <option value="ai">AI 套模板（解析示例）</option>
+          </select>
+          <button class="btn gray sm" onclick="document.getElementById('tpl_file_okr').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
+          <input type="file" id="tpl_file_okr" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importTplFile('okr',this)">
+          <button class="btn gray sm" onclick="loadTpl('okr')">↻ 载入已保存模板</button>
+          <button class="btn green sm" id="tpl_dl_okr" style="display:none" onclick="downloadTplFile('okr')">⬇ 按模板生成 Word/Excel</button>
+          <span class="muted" id="tpl_hint_okr" style="display:none">
+            占位符：{姓名} {部门} {岗位} {月份} {月份短} {出勤天数} {总工时} {日报条数}
+          </span>
+        </div>
+        <textarea id="tpl_text_okr" style="display:none;min-height:120px;margin-top:8px" placeholder="粘贴你的OKR模板…&#10;支持占位符：{姓名} {部门} {月份} {总工时} 等&#10;或选「AI 套模板」粘贴参考样例，AI 按样例格式生成"></textarea>
+        <div id="tpl_ai_okr" style="display:none;margin-top:8px">
+          <button class="btn warn" id="btn_tpl_ai_okr" onclick="aiApply('okr')">🤖 AI 按模板生成 OKR 表</button>
+          <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key。</span>
+        </div>
+        <div style="margin-top:8px"><button class="btn green sm" onclick="saveTplText('okr')">💾 保存模板</button></div>
+      </details>
+      <div class="toolbar">
+        <button class="btn warn" id="btn_ai_okr" onclick="aiOKR()">🤖 AI 润色复盘</button>
+        <button class="btn" onclick="copyMonthlyOKR()">📋 复制</button>
+        <button class="btn green" onclick="downloadMonthlyOKR('md')">⬇ MD</button>
+        <button class="btn green" onclick="downloadMonthlyOKR('xls')">⬇ Excel</button>
+      </div>
+      <div class="pre" id="mo_okr_preview"></div>
+    </div>
+  </div>
+
+  <!-- ============ 数据管理 ============ -->
+  <div id="view_data" style="display:none">
+    <div class="card">
+      <h2>个人信息（用于报表头部）</h2>
+      <div class="row">
+        <div><label>姓名</label><input type="text" id="set_name" value="张三"></div>
+        <div><label>部门/事业部</label><input type="text" id="set_dept" value="研发部"></div>
+        <div><label>岗位名称</label><input type="text" id="set_post" value="开发工程师"></div>
+      </div>
+      <div style="margin-top:10px"><button class="btn" onclick="saveProfile()">保存个人信息</button></div>
+    </div>
+
+    <div class="card">
+      <h2>🤖 AI 设置（可选，OpenAI 兼容接口）</h2>
+      <div class="row">
+        <div style="flex:2"><label>API Base URL</label><input type="text" id="ai_base" placeholder="https://api.deepseek.com/v1"></div>
+        <div style="flex:2"><label>API Key</label><input type="password" id="ai_key" placeholder="sk-..."></div>
+        <div><label>模型名称</label><input type="text" id="ai_model" placeholder="deepseek-chat"></div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="saveAI()">保存AI设置</button>
+        <button class="btn gray" id="ai_test" onclick="testAI()">测试连接</button>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn green" onclick="importCC()">⚡ 从 CC Switch 一键导入</button>
+        <select id="ai_cc_select" style="max-width:340px;flex:1">
+          <option value="">（导入后在此选择供应商）</option>
+        </select>
+      </div>
+      <div class="muted" id="ai_cc_note" style="margin-top:6px">使用 AI 汇总前请先双击「启动服务.bat」启动本地服务，并通过 <b>http://localhost:8080</b> 访问页面；未配置 Key 或未启动服务时，周报/月报仍可正常使用规则版生成。</div>
+    </div>
+
+    <div class="card">
+      <h2>🗄️ MySQL 数据存储（多入口共享数据，防止数据丢失）</h2>
+      <div class="muted" style="margin-bottom:8px">配置后，日报/任务/项目/模板/设置全部保存在 MySQL 中，无论用 <b>localhost、127.0.0.1、手机</b> 哪个入口打开都读到同一份数据，再也不怕"换入口数据丢失"。</div>
+      <div class="row">
+        <div><label>主机</label><input type="text" id="db_host" value="127.0.0.1"></div>
+        <div><label>端口</label><input type="text" id="db_port" value="3306"></div>
+        <div><label>用户名</label><input type="text" id="db_user" value="root"></div>
+      </div>
+      <div class="row">
+        <div><label>密码</label><input type="password" id="db_pass" placeholder="MySQL 密码"></div>
+        <div><label>数据库名</label><input type="text" id="db_name" value="jzd_daily"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" id="db_btn" onclick="dbSaveConfig()">🔌 保存并测试连接</button></div>
+      </div>
+      <div class="muted" id="db_status" style="margin-top:6px">未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。</div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn green" onclick="dbPush()">⬆ 上传本地数据到服务器</button>
+        <button class="btn blue" onclick="dbPull()">⬇ 从服务器恢复数据</button>
+        <span class="muted" style="align-self:center">首次启用：先在录入过数据的浏览器里点「⬆ 上传」，之后任意入口打开数据一致。</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔔 Windows 通知（任务计划开始提醒）</h2>
+      <div class="muted" style="margin-bottom:8px">开启后，服务端会每 30 秒检查一次任务：当任务的<b>计划开始时间</b>到达时，弹出 Windows 原生通知提醒你开始处理（无需打开页面）。</div>
+      <div class="row">
+        <div style="display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="nt_enabled" checked> 启用任务开始提醒</label></div>
+        <div><label>提前提醒（分钟）</label><input type="number" id="nt_advance" min="0" max="120" value="5"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="ntSave()">💾 保存通知设置</button></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn green" onclick="ntTest()">🔔 发送测试通知</button></div>
+      </div>
+      <div class="muted" id="nt_status" style="margin-top:6px">通知服务状态：检查中…</div>
+      <div class="muted" style="margin-top:6px">💡 在「③ 任务管理」添加/编辑任务时填写「计划开始时间」，到点即提醒。</div>
+    </div>
+
+    <div class="card">
+      <h2>数据备份 / 恢复</h2>
+      <div class="toolbar">
+        <button class="btn" onclick="exportJSON()">⬇ 导出数据(JSON)</button>
+        <button class="btn green" onclick="importJSON()">⬆ 导入数据(JSON)</button>
+        <button class="btn blue" onclick="loadHistory()">📥 一键载入历史日报（2025-05~2026-09）</button>
+        <button class="btn warn" onclick="loadSeed()">载入8月示例数据（演示）</button>
+        <button class="btn danger" onclick="clearAll()">清空全部数据</button>
+      </div>
+      <input type="file" id="file_input" accept=".json,text/plain" style="display:none" onchange="handleFile(this)">
+      <details>
+        <summary>📖 使用说明</summary>
+        <div class="muted" style="margin-top:6px">
+          <p>1. <b>日报录入</b>：每天选择项目、填写工作内容保存即可，一天可多条。</p>
+          <p>2. <b>周报生成</b>：自动按「周一~周日」汇总本周，按项目生成总工时与任务总结（参考模板格式），可复制/下载 MD、Excel。</p>
+          <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤，周六日计入休息）、月度评分表与 OKR绩效考核表。</p>
+          <p>4. <b>数据存储</b>：默认保存在本浏览器 localStorage。若要防止换入口/清缓存丢数据，可在「数据管理 → MySQL 数据存储」配置本机 MySQL（主机/端口/用户名/密码/库名），保存并测试连接后点「⬆ 上传本地数据到服务器」，之后无论用 localhost、127.0.0.1 还是手机打开，都自动读到同一份 MySQL 数据。未配置 MySQL 时请定期「导出数据(JSON)」备份。</p>
+          <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
+          <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后双击「启动服务.bat」通过 http://localhost:8080 打开页面，周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置或不启动服务时，规则版照常可用。</p>
+          <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
+          <p>8. <b>一键载入历史日报</b>：数据管理 →「📥 一键载入历史日报（2025-05~2026-09）」可把入职至今的 333 条日报（历史日报.xlsx 转换而来，已含 8月/9月初）合并进应用，自动去重；或点「⬆ 导入数据(JSON)」手动选择「日报工具/历史日报备份.json」。之后周报/月报即可基于完整历史生成。</p>
+          <p>9. <b>项目管理</b>：「② 项目管理」可添加/改名/删除项目，并可将项目<b>完结</b>（完成后点「✔ 完结」，默认不再出现在日报/任务的项目下拉中；勾选「显示已完结项目」可恢复查看）。项目完结不影响历史日报/任务数据。</p>
+          <p>10. <b>任务管理</b>：「③ 任务管理」可把项目细分为任务（任务名称、<b>计划开始时间</b>、计划完成时间、实际完成时间）。<b>日报录入时只需选「所属任务」，项目自动带入</b>（任务=项目细分）；无合适任务时（如学习/会议）再直接选项目。任务的<b>实际完成工时 = 挂载日报工时自动累加</b>。状态自动判定：已填实际完成时间=已完成；超过计划时间未完成=已逾期；其余=进行中。任务随 JSON 备份一起导出/导入。</p>
+          <p>11. <b>Windows 任务开始提醒</b>：任务填写「计划开始时间」（如 09:00），服务端每 30 秒自动检查，到点（可设提前 5 分钟）弹出 <b>Windows 原生通知</b>提醒开始处理，无需打开页面。在「数据管理 → Windows 通知」可开关/调提前量/发测试通知。需保持「启动服务.bat」运行。</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>CSV 快速导入（从Excel复制/导出）</h2>
+      <textarea id="csv_input" style="min-height:120px" placeholder="2026-09-07,泊州市星河制药MES系统,8,完成XX功能开发,,&#10;2026-09-07,澄湾市蓝湾食品MOM系统,4,修复XX BUG,,&#10;..."></textarea>
+      <div style="margin-top:8px"><button class="btn" onclick="importCSV()">导入 CSV</button></div>
+      <div class="muted" style="margin-top:6px">支持逗号或制表符(Tab)分隔；日期格式 YYYY-MM-DD；小时数为数字；今日工作必须填写。</div>
+    </div>
+
+    <div class="card">
+      <h2>🤖 AI 智能导入（任意格式日程 → 日报）</h2>
+      <div class="muted" style="margin-bottom:6px">把任意格式的日程 / 日历 / 聊天记录 / Excel 复制内容粘贴到下方（<b>不限定格式</b>），AI 会自动识别日期、项目、工时与工作内容，生成日报预览后再一键导入。需要已配置 AI（数据管理 → AI设置）。</div>
+      <textarea id="ai_imp_text" style="min-height:140px" placeholder="例如：
+9月3日 上午：退料单标签打印开发 4小时
+9/3 下午 开会1小时
+2026-09-04 完成完工入库撤销修复 bug 8h
+9月5日 项目例会 半天
+...（任意格式均可，AI 自动分析）"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <button class="btn green" onclick="aiImportAnalyze()">🤖 AI 分析并预览</button>
+        <button class="btn" onclick="aiImportConfirm()" id="ai_imp_btn" style="display:none">✅ 确认导入（0 条）</button>
+        <button class="btn gray" onclick="aiImportClear()">清空</button>
+        <span class="muted" style="font-size:12px" id="ai_imp_status"></span>
+      </div>
+      <div id="ai_imp_preview" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+<!-- ===== 通用弹窗 ===== -->
+<div id="modal_mask">
+  <div id="modal_box" role="dialog" aria-modal="true">
+    <div id="modal_head">
+      <h3 id="modal_title">操作</h3>
+      <button id="modal_close" onclick="closeModal()" title="关闭">✕</button>
+    </div>
+    <div id="modal_body"></div>
+    <div id="modal_foot"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ================= 数据存储 ================= */
+var KEY = "jzd_daily_v1";
+var PKEY = "jzd_profile_v1";
+var PROJKEY = "jzd_projects_v1";
+var TASKKEY = "jzd_tasks_v1";
+var DEFAULT_PROJECTS = ["澄湾市蓝湾食品MOM系统","泊州市星河制药MES系统","云岚市云启精密QMS系统","示例项目：内部工具开发","示例项目：数据平台建设","极造数字自研产品/学习"];
+
+function getEntries(){ try{ return JSON.parse(localStorage.getItem(KEY)||"[]"); }catch(e){ return []; } }
+function saveEntries(list){ localStorage.setItem(KEY, JSON.stringify(list)); pushStateDebounced(); }
+function getTasks(){ try{ var a=JSON.parse(localStorage.getItem(TASKKEY)); if(a&&a.length)return a; }catch(e){} return []; }
+function saveTasks(a){ localStorage.setItem(TASKKEY, JSON.stringify(a)); pushStateDebounced(); }
+function getTask(id){ if(!id) return null; var t=getTasks(),i; for(i=0;i<t.length;i++){ if(t[i].id===id) return t[i]; } return null; }
+function taskName(id){ var t=getTask(id); return t?t.name:""; }
+function taskHours(id){ var t=getTasks(), found={}; t.forEach(function(x){ if(x.id===id) found[x.id]=1; }); var h=0; getEntries().forEach(function(e){ if(e.taskId && found[e.taskId]) h+=(parseFloat(e.hours)||0); }); return h; }
+function getProfile(){ try{ return JSON.parse(localStorage.getItem(PKEY)) || {name:"张三",dept:"研发部",post:"开发工程师"}; }catch(e){ return {name:"张三",dept:"研发部",post:"开发工程师"}; } }
+function saveProfileData(p){ localStorage.setItem(PKEY, JSON.stringify(p)); pushStateDebounced(); }
+
+/* ================= MySQL 数据持久化（客户端） ================= */
+// 全部需要同步到 MySQL 的 localStorage key（含模板/AI/任务/项目/日报/个人信息）
+// 注：AIKEY/AI_LASTCC/TWKEY 等在下方才声明，这里用字符串字面量，避免顺序问题
+var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1"];
+
+var dbSyncing=false;
+
+// 收集当前 localStorage 全部数据
+function collectState(){
+  var items={};
+  DB_KEYS.forEach(function(k){
+    var v=localStorage.getItem(k);
+    if(v!==null && v!==undefined) items[k]=v;
+  });
+  return items;
+}
+
+// 推送本地全部数据到服务器（MySQL）
+async function dbPush(){
+  var items=collectState();
+  try{
+    var r=await fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:items})});
+    var j=await r.json().catch(function(){return {};});
+    if(j.ok && j.available){
+      toast("✅ 已上传 "+ (j.count||Object.keys(items).length) +" 项数据到 MySQL");
+    }else{
+      toast("❌ 上传失败："+(j.error||"服务器未连接MySQL，请先保存并测试连接"));
+    }
+  }catch(e){
+    toast("❌ 上传失败："+e.message+"（请确认已启动服务）");
+  }
+}
+window.dbPush=dbPush;
+
+// 从服务器拉取数据覆盖本地并刷新全部视图
+async function dbPull(){
+  try{
+    var r=await fetch("/api/state");
+    var j=await r.json().catch(function(){return {};});
+    if(!j.ok || !j.available){
+      toast("❌ 服务器未连接 MySQL，无法恢复："+(j.error||""));
+      return;
+    }
+    var items=j.items||{};
+    var n=Object.keys(items).length;
+    if(!n){ toast("服务器 MySQL 中没有数据"); return; }
+    if(!confirm("将从服务器覆盖当前浏览器数据（共 "+n+" 项），继续？")) return;
+    Object.keys(items).forEach(function(k){ localStorage.setItem(k, items[k]); });
+    refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
+    loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+    refreshHeaderStats();
+    // 回填个人信息/AI设置输入框
+    var p=getProfile();
+    document.getElementById("set_name").value=p.name;
+    document.getElementById("set_dept").value=p.dept;
+    document.getElementById("set_post").value=p.post;
+    var a=getAI();
+    document.getElementById("ai_base").value=a.base;
+    document.getElementById("ai_key").value=a.key;
+    document.getElementById("ai_model").value=a.model;
+    ntRefreshStatus();
+    toast("✅ 已从服务器恢复数据");
+  }catch(e){
+    toast("❌ 恢复失败："+e.message+"（请确认已启动服务）");
+  }
+}
+window.dbPull=dbPull;
+
+// 连接后自动同步：服务器空→上传本地；服务器有数据→询问；本地空→拉取服务器
+async function dbAutoSync(){
+  try{
+    var r=await fetch("/api/state");
+    var j=await r.json().catch(function(){return {};});
+    if(!j.ok || !j.available) return;
+    var serverItems=j.items||{};
+    var hasServer=Object.keys(serverItems).length>0;
+    var local=collectState();
+    var hasLocal=Object.keys(local).length>0;
+    if(!hasServer && hasLocal){
+      // 服务器为空、本地有数据 → 自动上传（首次迁移）
+      await dbPush();
+      toast("✅ 已自动上传本地数据到 MySQL（共 "+Object.keys(local).length+" 项）");
+    } else if(hasServer && hasLocal){
+      // 两边都有 → 询问覆盖方向
+      var act=confirm("服务器 MySQL 已有 "+Object.keys(serverItems).length+" 项数据。\n确定用本地浏览器数据覆盖服务器吗？\n（选「取消」则保留服务器数据，可用「⬇ 从服务器恢复」拉取）");
+      if(act){
+        await dbPush();
+        toast("✅ 已用本地数据覆盖服务器数据");
+      } else {
+        toast("提示：保留服务器数据。如需用服务器恢复本地，请点「⬇ 从服务器恢复数据」");
+      }
+    } else if(hasServer && !hasLocal){
+      // 本地为空、服务器有数据 → 自动恢复
+      if(confirm("检测到服务器 MySQL 有 "+Object.keys(serverItems).length+" 项数据，当前浏览器无数据。\n是否从服务器恢复？")){
+        await dbPull();
+      }
+    }
+  }catch(e){
+    toast("❌ 自动同步失败："+e.message);
+  }
+}
+window.dbAutoSync=dbAutoSync;
+
+/* ================= Windows 通知（客户端） ================= */
+// 保存通知设置
+async function ntSave(){
+  var cfg={
+    enabled: document.getElementById("nt_enabled").checked,
+    advanceMin: parseInt(document.getElementById("nt_advance").value)||5,
+    sound: true
+  };
+  try{
+    var r=await fetch("/api/notify/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg)});
+    var j=await r.json().catch(function(){return {};});
+    if(j.ok){ toast("✅ 通知设置已保存（提前 "+cfg.advanceMin+" 分钟提醒）"); }
+    else{ toast("❌ 保存失败："+(j.error||"")); }
+    ntRefreshStatus();
+  }catch(e){
+    toast("❌ 保存失败："+e.message+"（请确认已启动服务）");
+  }
+}
+window.ntSave=ntSave;
+
+// 测试通知
+async function ntTest(){
+  try{
+    var r=await fetch("/api/notify/test", {method:"POST"});
+    var j=await r.json().catch(function(){return {};});
+    toast(j.msg || (j.ok?"已发送测试通知":"测试失败"));
+  }catch(e){
+    toast("❌ 测试失败："+e.message);
+  }
+}
+window.ntTest=ntTest;
+
+// 刷新通知状态
+async function ntRefreshStatus(){
+  var el=document.getElementById("nt_status"); if(!el) return;
+  try{
+    var r=await fetch("/api/notify/status");
+    var j=await r.json().catch(function(){return {};});
+    if(j.dbConnected===false){ el.innerHTML="⚠️ MySQL 未连接，通知暂不可用（请先在「MySQL 数据存储」配置）。"; return; }
+    el.innerHTML=(j.enabled?"🟢 通知已启用":"⚪ 通知已关闭")+"，提前 <b>"+(j.advanceMin||5)+"</b> 分钟提醒，每 30 秒检查一次。";
+  }catch(e){
+    el.innerHTML="⚠️ 无法连接服务（请先双击「启动服务.bat」）。";
+  }
+}
+window.ntRefreshStatus=ntRefreshStatus;
+
+// 保存并测试 MySQL 连接（前端填好配置后调用）
+async function dbSaveConfig(){
+  var cfg={
+    host: document.getElementById("db_host").value.trim()||"127.0.0.1",
+    port: parseInt(document.getElementById("db_port").value)||3306,
+    user: document.getElementById("db_user").value.trim()||"root",
+    password: document.getElementById("db_pass").value,
+    database: document.getElementById("db_name").value.trim()||"jzd_daily"
+  };
+  var btn=document.getElementById("db_btn");
+  if(btn){ btn.disabled=true; btn.textContent="连接中…"; }
+  try{
+    var r=await fetch("/api/db/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg)});
+    var j=await r.json().catch(function(){return {};});
+    if(j.ok){
+      toast("✅ MySQL 连接成功！数据库：「"+j.database+"」");
+      dbRefreshStatus();
+      // 连接成功后自动把浏览器数据同步到服务器（服务器为空则直接上传；有数据则询问）
+      dbAutoSync();
+    }else{
+      toast("❌ 连接失败："+(j.error||"未知错误"));
+      dbRefreshStatus();
+    }
+  }catch(e){
+    toast("❌ 连接失败："+e.message+"（请确认已双击「启动服务.bat」）");
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent="🔌 保存并测试连接"; }
+  }
+}
+window.dbSaveConfig=dbSaveConfig;
+
+// 刷新 MySQL 连接状态显示
+async function dbRefreshStatus(){
+  var el=document.getElementById("db_status"); if(!el) return;
+  try{
+    var r=await fetch("/api/db/status");
+    var j=await r.json().catch(function(){return {};});
+    if(j.active){
+      el.innerHTML="🟢 已连接 MySQL：<b>"+j.host+":"+j.port+"</b> / 用户 <b>"+j.user+"</b> / 数据库 <b>"+j.database+"</b> —— 数据自动同步到服务器";
+    }else if(j.hasConfig){
+      el.innerHTML="🟡 已保存配置但当前未连接（服务重启后自动重连；若仍失败请检查密码/服务）";
+    }else{
+      el.innerHTML="🔴 未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。";
+    }
+  }catch(e){
+    el.innerHTML="🔴 无法连接本地服务（请先双击「启动服务.bat」再刷新）。";
+  }
+}
+window.dbRefreshStatus=dbRefreshStatus;
+
+// 所有保存操作的统一推送（防抖：300ms 内多次保存只推送一次）
+var dbPushTimer=null;
+function pushStateDebounced(){
+  clearTimeout(dbPushTimer);
+  dbPushTimer=setTimeout(function(){
+    if(dbSyncing) return;
+    dbSyncing=true;
+    dbPush().finally(function(){ dbSyncing=false; });
+  }, 300);
+}
+window.pushStateDebounced=pushStateDebounced;
+function getProjects(){
+  try{
+    var a=JSON.parse(localStorage.getItem(PROJKEY));
+    if(a&&a.length){
+      // 归一化旧版字符串数组 -> 对象数组
+      if(typeof a[0]==="string"){
+        return a.map(function(n){ return {id:"p_"+n, name:n, status:"active", doneDate:""}; });
+      }
+      return a;
+    }
+  }catch(e){}
+  return DEFAULT_PROJECTS.map(function(n){ return {id:"p_"+n, name:n, status:"active", doneDate:""}; });
+}
+function saveProjects(a){ localStorage.setItem(PROJKEY, JSON.stringify(a)); pushStateDebounced(); }
+function getProjectNames(){ return getProjects().map(function(p){ return p.name; }); }
+function getProjectName(p){
+  if(!p) return "";
+  if(typeof p==="string") return p;
+  return p.name||"";
+}
+function getProjectByName(name){
+  var ps=getProjects(), i;
+  for(i=0;i<ps.length;i++){ if(ps[i].name===name) return ps[i]; }
+  return null;
+}
+function isProjectDone(name){
+  var p=getProjectByName(name);
+  return !!(p && p.status==="done");
+}
+function activeProjectNames(){ return getProjects().filter(function(p){ return p.status!=="done"; }).map(function(p){ return p.name; }); }
+function doneProjectNames(){ return getProjects().filter(function(p){ return p.status==="done"; }).map(function(p){ return p.name; }); }
+window.getProjectNames=getProjectNames; window.getProjectName=getProjectName;
+window.getProjectByName=getProjectByName; window.isProjectDone=isProjectDone;
+window.activeProjectNames=activeProjectNames; window.doneProjectNames=doneProjectNames;
+
+function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+day; }
+function today(){ return iso(new Date()); }
+function thisMonth(){ return today().slice(0,7); }
+
+/* ================= 通用弹窗 ================= */
+function openModal(title, bodyHtml, footHtml, width){
+  document.getElementById("modal_title").textContent=title;
+  document.getElementById("modal_body").innerHTML=bodyHtml||"";
+  document.getElementById("modal_foot").innerHTML=footHtml||'<button class="btn gray" onclick="closeModal()">关闭</button>';
+  if(width) document.getElementById("modal_box").style.width=width;
+  var mask=document.getElementById("modal_mask");
+  mask.classList.add("show");
+  // 重置滚动位置
+  document.getElementById("modal_body").scrollTop=0;
+  // 聚焦第一个输入
+  var first=document.querySelector("#modal_body input, #modal_body select, #modal_body textarea");
+  if(first) setTimeout(function(){ try{ first.focus(); }catch(e){} }, 50);
+}
+window.openModal=openModal;
+
+function closeModal(){
+  document.getElementById("modal_mask").classList.remove("show");
+}
+window.closeModal=closeModal;
+
+// ESC 关闭 + 点击遮罩关闭
+document.addEventListener("keydown", function(ev){
+  if(ev.key==="Escape"){
+    var mask=document.getElementById("modal_mask");
+    if(mask && mask.classList.contains("show")) closeModal();
+  }
+});
+document.getElementById("modal_mask").addEventListener("click", function(ev){
+  if(ev.target && ev.target.id==="modal_mask") closeModal();
+});
+
+/* ================= 工具 ================= */
+function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove("show");},1800); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function sentences(text){ return String(text||"").split(/[\n。；;]+/).map(function(s){return s.trim();}).filter(Boolean); }
+function clause(s){ var m=s.match(/^(.{1,18}?)[，,：:；;]/); if(m){ var rest=s.slice(m[0].length).replace(/^[，,：:；;、\s]+/,""); return {t:m[1].trim(), r:rest||s}; } return {t:"", r:s}; }
+function sumHours(list){ return list.reduce(function(a,e){ return a + (parseFloat(e.hours)||0); },0); }
+function sumH(v){ var n=Math.round(v*100)/100; return (n%1===0)?String(n):String(n); }
+function inRange(e,from,to){ return e.date>=from && e.date<=to; }
+function weekRange(dateStr){
+  var d=new Date(dateStr+"T00:00:00"); var day=d.getDay()||7;
+  var mon=new Date(d); mon.setDate(d.getDate()-day+1);
+  var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  return {monday:iso(mon), sunday:iso(sun)};
+}
+function monthBounds(ym){ var y=+ym.slice(0,4), m=+ym.slice(5,7); var first=ym+"-01"; var last=iso(new Date(y,m,0)); return {first:first, last:last}; }
+function uniq(a){ var o={},r=[]; a.forEach(function(x){ if(!o[x]){o[x]=1;r.push(x);} }); return r; }
+function groupByProject(entries){ var map={},order=[]; entries.forEach(function(e){ if(!map[e.project]){map[e.project]=[];order.push(e.project);} map[e.project].push(e); }); return {map:map, order:order}; }
+
+/* ================= 标签页 ================= */
+function switchTab(t){
+  ["daily","project","task","calendar","weekly","monthly","data"].forEach(function(x){
+    document.getElementById("view_"+x).style.display = (x===t)?"":"none";
+    document.getElementById("tab_"+x).classList.toggle("on", x===t);
+  });
+  if(t==="daily"){ refreshDaily(); fillTaskSelect(); }
+  if(t==="project") renderProjects();
+  if(t==="task") renderTasks();
+  if(t==="calendar") renderCalendar();
+  if(t==="weekly") renderWeekly();
+  if(t==="monthly") renderMonthly();
+}
+window.switchTab=switchTab;
+
+/* ================= 日报录入 ================= */
+var projShowDone=false;
+function projectOptionHtml(p){
+  var done=(p.status==="done");
+  var name=esc(p.name)+(done?"（已完结）":"");
+  return '<option value="'+esc(p.name)+'"'+(done?' class="proj-done"':'')+'>'+name+'</option>';
+}
+function fillProjectSelect(){
+  var sel=document.getElementById("in_project");
+  var cur=sel.value;
+  sel.innerHTML="";
+  getProjects().forEach(function(p){
+    if(p.status==="done" && !projShowDone) return;
+    sel.innerHTML+=projectOptionHtml(p);
+  });
+  if(cur && sel.querySelector && sel.querySelector('option[value="'+cur+'"]')) sel.value=cur;
+  var tksel=document.getElementById("tk_project");
+  if(tksel){
+    var tcur=tksel.value;
+    tksel.innerHTML="";
+    getProjects().forEach(function(p){
+      if(p.status==="done" && !projShowDone) return;
+      tksel.innerHTML+=projectOptionHtml(p);
+    });
+    if(tcur && tksel.querySelector && tksel.querySelector('option[value="'+tcur+'"]')) tksel.value=tcur;
+  }
+}
+window.fillProjectSelect=fillProjectSelect;
+
+function addProject(){
+  var inp=document.getElementById("in_project_new");
+  var v=inp.value.trim(); if(!v){toast("请输入项目名称");return;}
+  var ps=getProjects();
+  var exists=ps.some(function(p){ return p.name===v; });
+  if(!exists){ ps.push({id:"p_"+Date.now()+"_"+Math.random().toString(36).slice(2,6), name:v, status:"active", doneDate:""}); saveProjects(ps); }
+  inp.value=""; fillProjectSelect(); document.getElementById("in_project").value=v; toast("已添加项目："+v);
+}
+window.addProject=addProject;
+
+// 已完结项目显示开关（作用于日报/任务表单的项目下拉 + 任务下拉）
+function toggleProjShowDone(){
+  projShowDone=!projShowDone;
+  var cb=document.getElementById("proj_show_done");
+  if(cb) cb.checked=projShowDone;
+  var cb2=document.getElementById("in_proj_show_done");
+  if(cb2) cb2.checked=projShowDone;
+  fillProjectSelect();
+  fillTaskSelect();
+}
+window.toggleProjShowDone=toggleProjShowDone;
+
+function fillTaskSelect(){
+  var sel=document.getElementById("in_task"); if(!sel) return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">（无任务，直接选项目）</option>';
+  var tasks=getTasks();
+  var byProj={};
+  tasks.forEach(function(t){ if(!byProj[t.project]) byProj[t.project]=[]; byProj[t.project].push(t); });
+  Object.keys(byProj).sort().forEach(function(p){
+    var projDone=isProjectDone(p);
+    if(projDone && !projShowDone) return; // 已完结项目默认隐藏其任务
+    var og=document.createElement("optgroup"); og.label=p+(projDone?"（已完结）":"");
+    byProj[p].forEach(function(t){
+      if(t.cancelled || t.done) return; // 已取消/已完成任务不提供选择
+      var o=document.createElement("option"); o.value=t.id; o.textContent=t.name; og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+  if(cur && sel.querySelector && sel.querySelector('option[value="'+cur+'"]')) sel.value=cur;
+  else sel.value="";
+  onTaskPick();
+}
+window.fillTaskSelect=fillTaskSelect;
+
+function onTaskPick(){
+  var sel=document.getElementById("in_task");
+  var projSel=document.getElementById("in_project");
+  var box=document.getElementById("in_task_done_box");
+  var chk=document.getElementById("in_task_done");
+  if(!sel||!projSel) return;
+  var tid=sel.value;
+  if(tid){
+    var t=getTask(tid);
+    if(t){ projSel.value=t.project; projSel.disabled=true; }
+    if(box){ box.style.display="flex"; if(chk) chk.checked=false; }
+    // 已完成的：提示"已完成于 xx"
+    if(t && t.done && box){ box.style.color="var(--ok)"; box.title="该任务已完成于 "+t.done; }
+    else if(box){ box.style.color=""; box.title=""; }
+  }else{
+    projSel.disabled=false;
+    if(box){ box.style.display="none"; if(chk) chk.checked=false; }
+  }
+}
+window.onTaskPick=onTaskPick;
+
+function saveEntry(){
+  var date=document.getElementById("in_date").value || today();
+  var taskId=document.getElementById("in_task").value||"";
+  var project=document.getElementById("in_project").value;
+  if(taskId){ var _t=getTask(taskId); if(_t) project=_t.project; }
+  var hours=parseFloat(document.getElementById("in_hours").value);
+  var work=document.getElementById("in_work").value.trim();
+  var plan=document.getElementById("in_plan").value.trim();
+  var remark=document.getElementById("in_remark").value.trim();
+  if(!project){toast("请选择任务或填写项目名称");return;}
+  if(!(hours>0)){toast("请填写有效工作时长");return;}
+  if(!work){toast("请填写今日工作内容");return;}
+  var list=getEntries();
+  list.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), date:date, project:project, taskId:taskId, hours:hours, work:work, plan:plan, remark:remark});
+  list.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:(a.project<b.project?-1:1)); });
+  saveEntries(list);
+  // 勾选了"任务已完成"→ 更新对应任务的实际完成时间
+  var doneChk=document.getElementById("in_task_done");
+  if(doneChk && doneChk.checked && taskId){
+    var tlist=getTasks();
+    var updated=false;
+    tlist.forEach(function(t){ if(t.id===taskId && !t.done){ t.done=date; updated=true; } });
+    if(updated){ saveTasks(tlist); renderTasks(); fillTaskSelect(); toast("✅ 任务已标记完成："+taskName(taskId)); }
+  }
+  toast("✅ 日报已保存："+date+" "+project);
+  clearForm(); refreshDaily();
+  renderCalendar(); // 保持日历同步
+}
+window.saveEntry=saveEntry;
+
+function clearForm(){
+  document.getElementById("in_hours").value="8";
+  document.getElementById("in_work").value="";
+  document.getElementById("in_plan").value="";
+  document.getElementById("in_remark").value="";
+  var ts=document.getElementById("in_task"); if(ts){ ts.value=""; }
+  var ps=document.getElementById("in_project"); if(ps) ps.disabled=false;
+}
+window.clearForm=clearForm;
+
+var entryEditingId=null;
+
+// 打开日报编辑弹框
+function openEntryModal(id){
+  var list=getEntries(); var e=null; list.forEach(function(x){ if(x.id===id) e=x; }); if(!e) return;
+  entryEditingId=id;
+  var projects=getProjects();
+  var projOpts='';
+  projects.forEach(function(p){
+    if(p.status==="done" && !projShowDone) return;
+    projOpts+='<option value="'+esc(p.name)+'"'+(p.name===e.project?' selected':'')+'>'+esc(p.name)+(p.status==="done"?"（已完结）":"")+'</option>';
+  });
+  var taskOpts='<option value="">（无任务，直接选项目）</option>';
+  getTasks().forEach(function(t){
+    if(isProjectDone(t.project) && !projShowDone) return;
+    if(t.done && t.id!==e.taskId) return; // 已完成任务不提供选择（当前日报已挂载的除外，避免丢失）
+    taskOpts+='<option value="'+t.id+'"'+(t.id===e.taskId?' selected':'')+'>'+esc(t.project)+' · '+esc(t.name)+(t.done?"（已完成）":"")+'</option>';
+  });
+  // 工整分区布局：
+  //   第1行 日期 | 所属任务；第2行 项目 | 工时；任务完成勾选；分隔线；新增任务分区；工作内容/明日计划/备注
+  var body='<div class="modal-row">'+
+    '<div><label>日期</label><input type="date" id="em_date" value="'+esc(e.date)+'"></div>'+
+    '<div><label>所属任务（选任务自动带入项目）</label><select id="em_task" onchange="onEntryModalTaskPick()">'+taskOpts+'</select></div>'+
+    '</div>'+
+    '<div class="modal-row">'+
+    '<div><label>项目名称（选任务后自动带入）</label><select id="em_project">'+projOpts+'</select></div>'+
+    '<div><label>工作时长（小时）</label><input type="number" id="em_hours" min="0" max="24" step="0.5" value="'+esc(e.hours)+'"></div>'+
+    '</div>'+
+    '<label id="em_task_done_box" style="display:none;align-items:center;gap:5px;font-size:12.5px;color:var(--sub);cursor:pointer;margin:2px 0 10px"><input type="checkbox" id="em_task_done"> ✔ 勾选表示该任务已完成（自动填入实际完成时间）</label>'+
+    '<div style="border-top:1px dashed var(--line);margin:4px 0 10px"></div>'+
+    '<div id="em_newtask_box" style="padding:12px;background:#fbfcfe;border:1px solid var(--line);border-radius:10px;margin-bottom:12px">'+
+      '<div style="font-weight:600;font-size:13px;margin-bottom:8px">➕ 在弹框中新增任务（下拉里没有？直接创建）</div>'+
+      '<div class="modal-row" style="margin-bottom:8px">'+
+        '<div style="flex:2"><label>任务名称</label><input type="text" id="em_nt_name" placeholder="输入新任务名称" style="width:100%;box-sizing:border-box"></div>'+
+        '<div><label>计划完成时间</label><input type="date" id="em_nt_plan" style="width:100%;box-sizing:border-box"></div>'+
+      '</div>'+
+      '<div class="modal-row" style="margin-bottom:8px">'+
+        '<div><label>计划开始时间（可选，到点提醒）</label><input type="datetime-local" id="em_nt_start" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="display:flex;align-items:flex-end"><button class="btn green" onclick="addTaskFromEntry()" style="width:100%;padding:8px 0">＋ 添加任务并挂载到本日报</button></div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--sub)">添加到当前项目（'+esc(e.project)+'），计划完成时间会显示在日历上</div>'+
+    '</div>'+
+    '<label>工作内容</label><textarea id="em_work">'+esc(e.work)+'</textarea>'+
+    '<label>明日计划（可选）</label><textarea id="em_plan" style="min-height:40px">'+esc(e.plan||"")+'</textarea>'+
+    '<label>备注（可选）</label><input type="text" id="em_remark" value="'+esc(e.remark||"")+'">';
+  var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
+    '<button class="btn" onclick="submitEntryModal()">💾 保存修改</button>';
+  openModal("编辑日报（"+e.date+"）", body, foot);
+  // 选任务后带入项目
+  if(e.taskId) onEntryModalTaskPick();
+}
+window.openEntryModal=openEntryModal;
+
+// 展开/收起"新增任务"输入区
+function toggleEntryNewTask(){
+  var box=document.getElementById("em_newtask_box");
+  if(!box) return;
+  box.style.display=(box.style.display==="none"||!box.style.display)?"block":"none";
+}
+
+// 从日报弹框直接新增任务（可指定计划完成时间）并挂载到当前日报
+function addTaskFromEntry(){
+  var project=document.getElementById("em_project").value;
+  var name=document.getElementById("em_nt_name").value.trim();
+  var plan=document.getElementById("em_nt_plan").value||"";
+  var start=document.getElementById("em_nt_start").value||"";
+  if(!project){ toast("请先选择或填写项目名称"); return; }
+  if(!name){ toast("请输入新任务名称"); return; }
+  var list=getTasks();
+  if(list.some(function(t){ return t.project===project && t.name===name && !t.cancelled; })){
+    toast("该项目下已有同名任务"); return;
+  }
+  var nid=Date.now()+"_"+Math.random().toString(36).slice(2,7);
+  list.push({id:nid, project:project, name:name, plan:plan, done:"", start:start});
+  saveTasks(list);
+  // 重建任务下拉并选中新任务
+  refreshEntryTaskSelect(nid);
+  // 一条日报只能挂载一条任务：任务已选中后，隐藏新增任务分区
+  document.getElementById("em_nt_name").value="";
+  document.getElementById("em_nt_plan").value="";
+  document.getElementById("em_nt_start").value="";
+  document.getElementById("em_newtask_box").style.display="none";
+  toast("✅ 已新增任务："+name+(plan?"（计划完成 "+plan+"）":"")+"，已挂载到本日报");
+}
+
+// 重建编辑弹框的任务下拉（保留当前挂载任务），选中指定任务
+function refreshEntryTaskSelect(selectedId){
+  var sel=document.getElementById("em_task");
+  if(!sel) return;
+  var curId=selectedId||sel.value;
+  var e=null;
+  getEntries().forEach(function(x){ if(x.id===entryEditingId) e=x; });
+  var cur=e?e.taskId:"";
+  var opt='<option value="">（无任务，直接选项目）</option>';
+  getTasks().forEach(function(t){
+    if(isProjectDone(t.project) && !projShowDone) return;
+    if(t.done && t.id!==cur) return;
+    opt+='<option value="'+t.id+'"'+(t.id===curId?' selected':'')+'>'+esc(t.project)+' · '+esc(t.name)+(t.done?"（已完成）":"")+'</option>';
+  });
+  sel.innerHTML=opt;
+  if(curId && sel.querySelector('option[value="'+curId+'"]')) sel.value=curId;
+  else sel.value=cur||"";
+  onEntryModalTaskPick();
+}
+window.toggleEntryNewTask=toggleEntryNewTask;
+window.addTaskFromEntry=addTaskFromEntry;
+window.refreshEntryTaskSelect=refreshEntryTaskSelect;
+
+function onEntryModalTaskPick(){
+  var tid=document.getElementById("em_task").value;
+  var projSel=document.getElementById("em_project"); if(!projSel) return;
+  var box=document.getElementById("em_task_done_box");
+  var chk=document.getElementById("em_task_done");
+  if(tid){
+    var t=getTask(tid); if(t){ projSel.value=t.project; projSel.disabled=true; }
+    if(box){ box.style.display="flex"; if(chk){ chk.checked=false; chk.disabled=false; } }
+    if(t && t.done && box){ box.style.color="var(--ok)"; box.title="该任务已完成于 "+t.done; }
+    else if(box){ box.style.color=""; box.title=""; }
+  }else{
+    projSel.disabled=false;
+    if(box){ box.style.display="none"; if(chk) chk.checked=false; }
+  }
+}
+window.onEntryModalTaskPick=onEntryModalTaskPick;
+
+// 提交编辑
+function submitEntryModal(){
+  var date=document.getElementById("em_date").value || today();
+  var taskId=document.getElementById("em_task").value||"";
+  var project=document.getElementById("em_project").value;
+  if(taskId){ var _t=getTask(taskId); if(_t) project=_t.project; }
+  var hours=parseFloat(document.getElementById("em_hours").value);
+  var work=document.getElementById("em_work").value.trim();
+  var plan=document.getElementById("em_plan").value.trim();
+  var remark=document.getElementById("em_remark").value.trim();
+  if(!project){toast("请选择任务或填写项目名称");return;}
+  if(!(hours>0)){toast("请填写有效工作时长");return;}
+  if(!work){toast("请填写工作内容");return;}
+  var list=getEntries();
+  list.forEach(function(x){
+    if(x.id===entryEditingId){ x.date=date; x.project=project; x.taskId=taskId; x.hours=hours; x.work=work; x.plan=plan; x.remark=remark; }
+  });
+  list.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:(a.project<b.project?-1:1)); });
+  saveEntries(list);
+  // 勾选了"任务已完成"→ 更新对应任务的实际完成时间
+  var doneChk=document.getElementById("em_task_done");
+  if(doneChk && doneChk.checked && taskId){
+    var tlist=getTasks();
+    var updated=false;
+    tlist.forEach(function(t){ if(t.id===taskId && !t.done){ t.done=date; updated=true; } });
+    if(updated){ saveTasks(tlist); renderTasks(); fillTaskSelect(); toast("✅ 任务已标记完成："+taskName(taskId)); }
+  }
+  closeModal();
+  entryEditingId=null;
+  toast("✅ 日报已更新");
+  refreshDaily();
+  // 刷新日历视图：网格 + 当前选中日期的详情卡片
+  renderCalendar();
+  if(calSel) selectDay(calSel);
+}
+window.submitEntryModal=submitEntryModal;
+
+// 兼容旧调用：editEntry 现在打开弹框
+function editEntry(id){ openEntryModal(id); }
+window.editEntry=editEntry;
+
+function delEntry(id){
+  if(!confirm("确认删除这条日报记录？")) return;
+  saveEntries(getEntries().filter(function(x){return x.id!==id;}));
+  refreshDaily();
+}
+window.delEntry=delEntry;
+
+/* ================= 项目管理 ================= */
+function renderProjects(){
+  var box=document.getElementById("proj_list"); if(!box) return;
+  var stat=document.getElementById("proj_stat"); if(!stat) return;
+  var ps=getProjects();
+  var active=ps.filter(function(p){ return p.status!=="done"; });
+  var done=ps.filter(function(p){ return p.status==="done"; });
+  var tasks=getTasks();
+  var entries=getEntries();
+
+  stat.innerHTML='<div class="item">项目总数：<b>'+ps.length+'</b></div>'+
+    '<div class="item">进行中：<b>'+active.length+'</b></div>'+
+    '<div class="item">已完结：<b>'+(done.length?'<span class="badge ok">'+done.length+'</span>':0)+'</b></div>'+
+    '<div class="item">任务总数：<b>'+tasks.length+'</b></div>';
+
+  if(ps.length===0){
+    box.innerHTML='<div class="empty">还没有项目，输入名称点击「＋ 添加项目」创建</div>';
+    return;
+  }
+  var h="";
+  // 进行中项目
+  active.forEach(function(p){
+    h+=projRowHtml(p, tasks, entries);
+  });
+  // 已完结项目（默认折叠显示在底部）
+  if(done.length){
+    h+='<h3 style="margin-top:18px">已完结项目（'+done.length+'）</h3>';
+    done.forEach(function(p){
+      h+=projRowHtml(p, tasks, entries);
+    });
+  }
+  box.innerHTML=h;
+}
+window.renderProjects=renderProjects;
+
+function projRowHtml(p, tasks, entries){
+  var done=(p.status==="done");
+  var taskN=tasks.filter(function(t){ return t.project===p.name; }).length;
+  var hours=0, dayN=0;
+  entries.forEach(function(e){ if(e.project===p.name){ hours+=(parseFloat(e.hours)||0); dayN++; } });
+  var h='<div class="proj-row'+(done?' done':'')+'">';
+  h+='<div class="pn">'+esc(p.name);
+  if(done) h+='<span class="badge ok tag">已完结'+(p.doneDate?' '+esc(p.doneDate):'')+'</span>';
+  else h+='<span class="badge info tag">进行中</span>';
+  h+='</div>';
+  h+='<div class="pm">';
+  h+='<span class="muted">'+taskN+' 任务 · '+sumH(hours)+' 小时</span>';
+  if(!done){
+    h+='<button class="btn green sm" onclick="projDone(\''+esc(p.name)+'\')">✔ 完结</button>';
+  }else{
+    h+='<button class="btn gray sm" onclick="projUndoDone(\''+esc(p.name)+'\')">↩ 恢复</button>';
+  }
+  h+='<button class="btn gray sm" onclick="projEdit(\''+esc(p.name)+'\')">✎ 改名</button>';
+  h+='<button class="btn danger sm" onclick="projDel(\''+esc(p.name)+'\')">删除</button>';
+  h+='</div></div>';
+  return h;
+}
+
+var projEditingName=null;
+
+// 打开项目弹框（name 为空=新增，有 name=改名）
+function openProjModal(name){
+  projEditingName=name||null;
+  var body='<label>项目名称</label><input type="text" id="pm_name" value="'+esc(name||"")+'" placeholder="输入项目名称">';
+  var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
+    '<button class="btn" onclick="projSave()">'+(name?'💾 保存改名':'＋ 添加项目')+'</button>';
+  openModal(name?"改名项目":"新增项目", body, foot);
+}
+window.openProjModal=openProjModal;
+
+function projSave(){
+  var v=document.getElementById("pm_name").value.trim();
+  if(!v){toast("请输入项目名称");return;}
+  var ps=getProjects();
+  if(projEditingName){
+    if(ps.some(function(p){ return p.name===v && p.name!==projEditingName; })){ toast("已存在同名项目："+v); return; }
+    var p=ps.find(function(x){ return x.name===projEditingName; });
+    if(p) p.name=v;
+    var tasks=getTasks();
+    tasks.forEach(function(t){ if(t.project===projEditingName) t.project=v; });
+    saveTasks(tasks);
+    var entries=getEntries();
+    entries.forEach(function(e){ if(e.project===projEditingName) e.project=v; });
+    saveEntries(entries);
+    saveProjects(ps);
+    toast("已改名："+projEditingName+" → "+v);
+  }else{
+    if(ps.some(function(p){ return p.name===v; })){ toast("项目已存在："+v); return; }
+    ps.push({id:"p_"+Date.now()+"_"+Math.random().toString(36).slice(2,6), name:v, status:"active", doneDate:""});
+    saveProjects(ps);
+    toast("已添加项目："+v);
+  }
+  closeModal(); projEditingName=null;
+  fillProjectSelect(); fillTaskSelect(); renderProjects(); renderTasks(); refreshDaily();
+}
+window.projSave=projSave;
+
+function projAdd(){ openProjModal(); }
+window.projAdd=projAdd;
+
+// 完结项目
+function projDone(name){
+  var ps=getProjects();
+  var p=ps.find(function(x){ return x.name===name; });
+  if(!p) return;
+  p.status="done"; p.doneDate=today();
+  saveProjects(ps);
+  fillProjectSelect(); fillTaskSelect(); renderProjects();
+  toast("项目已完结："+name+"（默认不再出现在录入下拉，可勾选「显示已完结项目」查看）");
+}
+window.projDone=projDone;
+
+function projUndoDone(name){
+  var ps=getProjects();
+  var p=ps.find(function(x){ return x.name===name; });
+  if(!p) return;
+  p.status="active"; p.doneDate="";
+  saveProjects(ps);
+  fillProjectSelect(); fillTaskSelect(); renderProjects();
+  toast("已恢复为进行中："+name);
+}
+window.projUndoDone=projUndoDone;
+
+function projEdit(name){
+  openProjModal(name);
+}
+window.projEdit=projEdit;
+
+function projDel(name){
+  var taskN=getTasks().filter(function(t){ return t.project===name; }).length;
+  var entryN=getEntries().filter(function(e){ return e.project===name; }).length;
+  var msg="确定删除项目「"+name+"」吗？";
+  if(taskN>0||entryN>0) msg+="\n\n该项目下还有 "+taskN+" 个任务、"+entryN+" 条日报记录，删除后这些记录将保留但项目名不再在列表中出现。";
+  if(!confirm(msg)) return;
+  var ps=getProjects().filter(function(p){ return p.name!==name; });
+  saveProjects(ps);
+  fillProjectSelect(); fillTaskSelect(); renderProjects(); renderTasks(); refreshDaily();
+  toast("已删除项目："+name);
+}
+window.projDel=projDel;
+
+/* ================= 任务日历 ================= */
+var calYM=thisMonth();
+var calSel="";
+
+function calTitle(){
+  var y=+calYM.slice(0,4), m=+calYM.slice(5,7);
+  return y+"年"+m+"月";
+}
+
+function calPrev(){ calYM=shiftMonth(calYM,-1); renderCalendar(); }
+function calNext(){ calYM=shiftMonth(calYM,1); renderCalendar(); }
+function calToday(){
+  calYM=thisMonth();
+  calSel=today();
+  renderCalendar();
+  selectDay(today());
+}
+window.calPrev=calPrev; window.calNext=calNext; window.calToday=calToday;
+
+function shiftMonth(ym, delta){
+  var y=+ym.slice(0,4), m=+ym.slice(5,7);
+  m+=delta;
+  if(m<1){ m+=12; y--; }
+  if(m>12){ m-=12; y++; }
+  return y+"-"+String(m).padStart(2,"0");
+}
+
+function renderCalendar(){
+  document.getElementById("cal_title").textContent=calTitle();
+  var y=+calYM.slice(0,4), m=+calYM.slice(5,7);
+  // 当月 1 号的星期几（0=周日）
+  var first=new Date(y, m-1, 1).getDay();
+  var daysInMonth=new Date(y, m, 0).getDate();
+  var prevDays=new Date(y, m-1, 0).getDate();
+  var t=today();
+
+  // 收集日历数据
+  var tasks=getTasks();
+  var entries=getEntries();
+  var byPlan={};   // plan日期 -> [tasks]
+  var byDate={};   // 日期 -> {hours, count}
+  tasks.forEach(function(task){
+    if(task.cancelled) return; // 已取消任务不出现在日历
+    if(task.plan){ (byPlan[task.plan]=byPlan[task.plan]||[]).push(task); }
+  });
+  entries.forEach(function(e){
+    var d=e.date;
+    byDate[d]=byDate[d]||{hours:0, count:0, list:[]};
+    byDate[d].hours+= (+e.hours||0);
+    byDate[d].count++;
+    byDate[d].list.push(e);
+  });
+
+  var hd=['一','二','三','四','五','六','日'];
+  var h="";
+  hd.forEach(function(w,i){
+    var cls="cal-hd"+(i===5?" sat":(i===6?" sun":""));
+    h+='<div class="'+cls+'">'+w+'</div>';
+  });
+
+  // 上月补齐（周一开始）
+  var startOffset=(first+6)%7;
+  for(var i=startOffset-1;i>=0;i--){
+    var d=prevDays-i;
+    var ds=monthStr(y,m-1,d);
+    h+=dayCell(ds, d, "other");
+  }
+
+  // 当月
+  for(var d=1; d<=daysInMonth; d++){
+    var ds=monthStr(y,m,d);
+    var cls = (ds===t)?"today":(ds===calSel?"sel":"");
+    h+=dayCell(ds, d, cls, byPlan[ds], byDate[ds]);
+  }
+
+  // 下月补齐
+  var endCells=(7-((startOffset+daysInMonth)%7))%7;
+  for(var i=1;i<=endCells;i++){
+    var ds=monthStr(y,m+1,i);
+    h+=dayCell(ds, i, "other");
+  }
+
+  document.getElementById("cal_grid").innerHTML=h;
+  // 如果选中日期不在当前月，保持详情
+  if(calSel && calSel.slice(0,7)!==calYM){ /* keep detail visible */ }
+}
+
+function monthStr(y,m,d){
+  if(m<1){ m+=12; y--; }
+  if(m>12){ m-=12; y++; }
+  return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+}
+
+function dayCell(ds, dnum, cls, planTasks, dayInfo){
+  var h='<div class="cal-day '+cls+'" data-ds="'+ds+'" onclick="selectDay(\''+ds+'\')">';
+  h+='<div style="display:flex;align-items:center">';
+  h+='<span class="cd-num">'+dnum+'</span>';
+  if(dayInfo && dayInfo.hours>0){
+    h+='<span class="cd-hours">'+sumH(dayInfo.hours)+'h</span>';
+  }
+  h+='</div>';
+  var shown=0;
+  if(planTasks){
+    planTasks.slice(0,3).forEach(function(t){
+      var st=taskStatus(t);
+      var tagCls = t.urgent?"urgent":((st.badge==="ok")?"done":(st.badge==="err")?"over":"plan");
+      h+='<div class="cal-tag '+tagCls+'" title="'+(t.urgent?"⚡紧急 · ":"")+esc(t.project)+' · '+esc(t.name)+'">'+(t.urgent?"⚡":"")+esc(t.name)+'</div>';
+      shown++;
+    });
+    if(planTasks.length>3){
+      h+='<div class="cal-more">+'+ (planTasks.length-3) +' 项任务</div>';
+    }
+  }
+  if(dayInfo && dayInfo.count>0){
+    if(dayInfo.list && dayInfo.list.length===1){
+      // 单条日报：点击直接编辑
+      h+='<div class="cal-tag entry" onclick="event.stopPropagation();openEntryModal(\''+dayInfo.list[0].id+'\')" title="点击编辑日报：'+esc(dayInfo.list[0].work)+'">📝 '+sumH(dayInfo.hours)+'h</div>';
+    }else{
+      // 多条日报：点击查看列表
+      h+='<div class="cal-tag entry" onclick="event.stopPropagation();openDayEntriesModal(\''+ds+'\')" title="点击查看当天 '+dayInfo.count+' 条日报">📝 '+dayInfo.count+' 条 · '+sumH(dayInfo.hours)+'h</div>';
+    }
+  }
+  h+='</div>';
+  return h;
+}
+window.renderCalendar=renderCalendar;
+window.selectDay=selectDay;
+
+// 点击日期：显示当天计划详情
+function selectDay(ds){
+  calSel=ds;
+  var tasks=getTasks();
+  var entries=getEntries();
+  var t=today();
+  var planTasks=tasks.filter(function(t){ return !t.cancelled && (t.plan===ds || (t.start && t.start.slice(0,10)===ds)); });
+  var dayEntries=entries.filter(function(e){ return e.date===ds; });
+
+  var card=document.getElementById("cal_detail_card");
+  var title=document.getElementById("cal_detail_title");
+  var box=document.getElementById("cal_detail");
+  if(!card||!box) return;
+  var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
+  var isT = (ds===t)?"（今天）":(isWorkday(ds)?"":"（周末）");
+  title.textContent=ds+" 星期"+wd+isT+" · 当天计划";
+  card.style.display="";
+
+  var h="";
+  if(planTasks.length===0 && dayEntries.length===0){
+    h='<div class="cal-empty">当天没有任务计划，也没有日报记录</div>';
+  }else{
+    if(planTasks.length>0){
+      h+='<h3 style="margin-top:0">📌 任务计划（'+planTasks.length+'）</h3>';
+      h+='<table><tr><th>项目</th><th>任务名称</th><th>开始时间</th><th>状态</th><th>实际完成工时</th></tr>';
+      planTasks.forEach(function(t){
+        var st=taskStatus(t);
+        var stTxt=t.start && t.start.slice(0,10)===ds ? '<b>'+esc(t.start.replace("T"," ").slice(11))+'</b>' : '<span class="muted">—</span>';
+        h+='<tr'+(t.urgent?' style="background:var(--err-l)"':'')+'><td>'+esc(t.project)+'</td><td>'+esc(t.name)+(t.urgent?' <span class="badge err">⚡紧急</span>':'')+'</td><td>'+stTxt+'</td>'+
+           '<td><span class="badge '+st.badge+'">'+st.label+'</span></td>'+
+           '<td><b>'+sumH(taskHours(t.id))+' 小时</b></td></tr>';
+      });
+      h+='</table>';
+    }
+    if(dayEntries.length>0){
+      var total=dayEntries.reduce(function(s,e){return s+(+e.hours||0);},0);
+      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）</h3>';
+      h+='<table><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
+      dayEntries.forEach(function(e){
+        h+='<tr style="cursor:pointer" onclick="openEntryModal(\''+e.id+'\')" title="点击编辑该日报">'+
+           '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td>'+
+           '<td style="white-space:nowrap;color:var(--main)">✏️ 编辑</td></tr>';
+      });
+      h+='</table>';
+    }
+  }
+  box.innerHTML=h;
+
+  // 高亮选中：重新渲染网格（sel 类由 renderCalendar 计算）
+  renderCalendar();
+}
+window.selectDay=selectDay;
+
+// 点击日格上的"多条日报"：弹出当天日报列表，每条可直接编辑
+function openDayEntriesModal(ds){
+  var entries=getEntries().filter(function(e){ return e.date===ds; });
+  if(!entries.length){ toast("当天没有日报"); return; }
+  var total=entries.reduce(function(s,e){ return s+(+e.hours||0); },0);
+  var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
+  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。点击任意一行可编辑。</div>'+
+    '<table style="width:100%"><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
+  entries.forEach(function(e){
+    body+='<tr style="cursor:pointer" onclick="closeModal();openEntryModal(\''+e.id+'\')" title="点击编辑">'+
+      '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td>'+
+      '<td>'+esc(e.work)+'</td><td style="white-space:nowrap">✏️ 编辑</td></tr>';
+  });
+  body+='</table>';
+  var foot='<button class="btn gray" onclick="closeModal()">关闭</button>';
+  openModal(ds+" 星期"+wd+" · 当天日报", body, foot);
+}
+window.openDayEntriesModal=openDayEntriesModal;
+
+function isWorkday(dateStr){
+  var d=new Date(dateStr+"T00:00:00");
+  var wd=d.getDay();
+  return wd>=1 && wd<=5;
+}
+window.isWorkday=isWorkday;
+
+// 工作日日报未填写提醒：今天/昨天是工作日且未填 → 显示横幅
+function checkDailyReminder(){
+  var el=document.getElementById("daily_reminder"); if(!el) return;
+  var t=today();
+  var list=getEntries();
+  var hasToday=list.some(function(e){ return e.date===t; });
+  if(isWorkday(t) && !hasToday){
+    var y=new Date(); y.setDate(y.getDate()-1);
+    var yStr=iso(y);
+    var hasYesterday=list.some(function(e){ return e.date===yStr; });
+    var yMsg = (isWorkday(yStr)&&!hasYesterday) ? "昨天（"+yStr+"）也是工作日且未填写。" : "";
+    document.getElementById("rm_title").textContent="今天（"+t+"）是工作日，还未填写日报！";
+    document.getElementById("rm_sub").textContent=yMsg?("💡 "+yMsg+" 建议现在补上，以便周报/月报自动汇总。"):"填写后本提醒自动消失。";
+    el.style.display="flex";
+  }else{
+    el.style.display="none";
+  }
+}
+window.checkDailyReminder=checkDailyReminder;
+
+function refreshHeaderStats(){
+  var list=getEntries();
+  var ym=thisMonth();
+  var ml=list.filter(function(e){return e.date.slice(0,7)===ym;});
+  var days=uniq(ml.map(function(e){return e.date;})).length;
+  var h=Math.round(sumHours(ml)*10)/10;
+  // 只统计进行中任务（排除已完成、已取消）
+  var tasks=getTasks();
+  var todo=0;
+  tasks.forEach(function(t){ if(t.cancelled || t.done) return; todo++; });
+  var e1=document.getElementById("hdr_days"); if(e1) e1.textContent=days;
+  var e2=document.getElementById("hdr_hours"); if(e2) e2.textContent=sumH(h);
+  var e5=document.getElementById("hdr_todo"); if(e5) e5.textContent=todo;
+}
+window.refreshHeaderStats=refreshHeaderStats;
+
+function refreshDaily(){
+  var list=getEntries();
+  var ym=thisMonth();
+  var monthList=list.filter(function(e){return e.date.slice(0,7)===ym;});
+  document.getElementById("month_count").textContent=monthList.length;
+  var dates=uniq(monthList.map(function(e){return e.date;}));
+  var att=attendance(monthList, ym);
+  var statHtml="";
+  statHtml+='<div class="item">出勤天数：<b>'+dates.length+'</b></div>';
+  statHtml+='<div class="item">本月总工时：<b>'+sumH(sumHours(monthList))+' 小时</b></div>';
+  statHtml+='<div class="item">工作日应出勤：<b>'+att.workdays+'</b> 天</div>';
+  statHtml+='<div class="item">工作日缺报：<b>'+(att.missing>0?'<span style="color:var(--err)">'+att.missing+'</span>':0)+'</b> 天</div>';
+  statHtml+='<div class="item">周六日休息：<b>'+att.weekends+'</b> 天</div>';
+  document.getElementById("month_stat").innerHTML=statHtml;
+
+  var box=document.getElementById("daily_list");
+  if(!monthList.length){ box.innerHTML='<div class="empty">本月还没有记录</div>'; return; }
+  var h='<table><tr><th>日期</th><th>项目</th><th>任务</th><th>时长</th><th>今日工作</th><th>明日计划</th><th>备注</th><th>操作</th></tr>';
+  monthList.forEach(function(e){
+    var tn=taskName(e.taskId);
+    var tk=e.taskId?getTask(e.taskId):null;
+    var tnHtml = tn ? (tk&&tk.done?'<span class="badge ok" title="已完成">✓ '+esc(tn)+'</span>':'<span class="badge info">'+esc(tn)+'</span>') : '<span class="muted">—</span>';
+    h+='<tr><td>'+esc(e.date)+'</td><td>'+esc(e.project)+'</td><td>'+tnHtml+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td><td>'+esc(e.plan||"")+'</td><td>'+esc(e.remark||"")+'</td>'+
+       '<td style="white-space:nowrap"><button class="btn gray sm" onclick="editEntry(\''+e.id+'\')">编辑</button> <button class="btn danger sm" onclick="delEntry(\''+e.id+'\')">删</button></td></tr>';
+  });
+  h+='</table>';
+  box.innerHTML=h;
+  refreshHeaderStats();
+  checkDailyReminder();
+}
+
+function attendance(monthList, ym){
+  var y=+ym.slice(0,4), m=+ym.slice(5,7);
+  var daysInMonth=new Date(y,m,0).getDate();
+  var workdays=0, weekends=0, weekendWork=0, workDates={};
+  monthList.forEach(function(e){ workDates[e.date]=1; });
+  for(var d=1; d<=daysInMonth; d++){
+    var dt=new Date(y,m-1,d); var wd=dt.getDay();
+    var key=ym+"-"+String(d).padStart(2,"0");
+    if(wd===0||wd===6){ weekends++; if(workDates[key]) weekendWork++; }
+    else workdays++;
+  }
+  var submitted=0, missing=0, passedWorkdays=0;
+  var tdy=today(); // 今天的日期（YYYY-MM-DD）
+  for(var d2=1; d2<=daysInMonth; d2++){
+    var dt2=new Date(y,m-1,d2); var wd2=dt2.getDay();
+    if(wd2===0||wd2===6) continue;
+    var key2=ym+"-"+String(d2).padStart(2,"0");
+    if(key2>tdy) break; // 还没到来的工作日不算缺报
+    passedWorkdays++;
+    if(workDates[key2]) submitted++; else missing++;
+  }
+  return {workdays:workdays, submitted:submitted, missing:missing, weekends:weekends, weekendWork:weekendWork, passedWorkdays:passedWorkdays};
+}
+
+/* ================= 任务管理 ================= */
+var tk_editing=null;
+var tk_editing=null;
+
+// 打开任务弹框（id 为空=新增，有 id=编辑）
+function openTaskModal(id){
+  var t = id ? getTask(id) : null;
+  tk_editing = id || null;
+  var projects=getProjects();
+  var projOpts='<option value="">（请选择项目）</option>';
+  projects.forEach(function(p){
+    if(p.status==="done" && !projShowDone) return;
+    projOpts+='<option value="'+esc(p.name)+'"'+(t&&p.name===t.project?' selected':'')+'>'+esc(p.name)+(p.status==="done"?"（已完结）":"")+'</option>';
+  });
+  var body='<div class="modal-row">'+
+    '<div><label>所属项目</label><select id="tm_project">'+projOpts+'</select></div>'+
+    '<div style="flex:2"><label>任务名称</label><input type="text" id="tm_name" value="'+esc(t?t.name:"")+'" placeholder="如：补料申请流程开发"></div>'+
+    '</div>'+
+    '<div class="modal-row">'+
+    '<div><label>计划开始时间（到点 Windows 提醒）</label><input type="datetime-local" id="tm_start" value="'+esc(t&&t.start||"")+'"></div>'+
+    '<div><label>计划完成时间</label><input type="date" id="tm_plan" value="'+esc(t&&t.plan||"")+'"></div>'+
+    '</div>'+
+    '<div class="modal-row">'+
+    '<div><label>实际完成时间（留空=进行中）</label><input type="date" id="tm_done" value="'+esc(t&&t.done||"")+'"></div>'+
+    (t&&!t.done?'<div style="display:flex;align-items:flex-end;padding-bottom:2px"><button class="btn green sm" onclick="markTaskDone()">✔ 标记完成</button></div>':'')+
+    '</div>'+
+    '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;background:var(--err-l);border:1px solid var(--err-l);border-radius:6px;cursor:pointer">'+
+    '<input type="checkbox" id="tm_urgent"'+(t&&t.urgent?' checked':'')+'>'+
+    '<b style="color:var(--err)">⚡ 紧急任务（临时插入）</b>'+
+    '<span class="muted" style="font-size:12px">勾选后保存时，会检测与原计划的冲突并<u>自动顺延冲突任务的计划时间</u>（需填写计划开始 + 计划完成时间作为占用时段）</span>'+
+    '</label>'+
+    (t&&t.cancelled?'<div style="margin-top:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12.5px">该任务当前为<b>已取消</b>状态，保存后仍保持取消；如需恢复，请在任务列表点「↩ 恢复」。</div>':'')+
+    (t&&!t.cancelled&&!t.done?'<label style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer">'+
+      '<input type="checkbox" id="tm_cancel_here"> <span style="font-size:12.5px;color:var(--sub)">同时<b>取消此任务</b>（保存后自动重新排期）</span>'+
+    '</label>':'');
+  var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
+    '<button class="btn" onclick="saveTask()">'+(id?'💾 保存修改':'＋ 添加任务')+'</button>';
+  openModal(id?"编辑任务":"新增任务", body, foot);
+}
+window.openTaskModal=openTaskModal;
+
+function saveTask(){
+  var project=document.getElementById("tm_project").value;
+  var name=document.getElementById("tm_name").value.trim();
+  var plan=document.getElementById("tm_plan").value||"";
+  var done=document.getElementById("tm_done").value||"";
+  var start=document.getElementById("tm_start").value||"";
+  var urgent=document.getElementById("tm_urgent") ? document.getElementById("tm_urgent").checked : false;
+  var cancelHere=document.getElementById("tm_cancel_here") ? document.getElementById("tm_cancel_here").checked : false;
+  if(!project){toast("请选择所属项目");return;}
+  if(!name){toast("请输入任务名称");return;}
+  var savedId=null;
+  var list=getTasks();
+  if(tk_editing){
+    list.forEach(function(t){ if(t.id===tk_editing){ t.project=project; t.name=name; t.plan=plan; t.done=done; t.start=start; t.urgent=urgent; if(cancelHere) t.cancelled=true; savedId=t.id; } });
+    toast("✅ 任务已更新");
+  }else{
+    var dup=list.some(function(t){ return t.project===project && t.name===name; });
+    if(dup){ toast("该项目下已有同名任务"); return; }
+    savedId=Date.now()+"_"+Math.random().toString(36).slice(2,7);
+    list.push({id:savedId, project:project, name:name, plan:plan, done:done, start:start, urgent:urgent, cancelled:cancelHere?true:undefined});
+    toast("✅ 任务已添加："+name);
+  }
+  saveTasks(list);
+  // 紧急任务 → 自动顺延冲突的原计划（异步处理，避免阻塞弹窗关闭）
+  if(urgent && savedId){
+    setTimeout(function(){ applyUrgentShift(savedId); }, 100);
+  }
+  // 同时取消任务 → 自动重新排期
+  if(cancelHere && savedId){
+    setTimeout(function(){ applyCancelResched(savedId); }, 100);
+  }
+  tk_editing=null;
+  closeModal();
+  fillTaskSelect();
+  renderTasks();
+}
+window.saveTask=saveTask;
+
+function clearTaskForm(){
+  tk_editing=null;
+}
+window.clearTaskForm=clearTaskForm;
+
+function editTask(id){
+  openTaskModal(id);
+}
+window.editTask=editTask;
+
+function markTaskDone(){
+  if(!tk_editing) return;
+  var d=document.getElementById("tm_done"); if(d) d.value=today();
+  saveTask();
+}
+window.markTaskDone=markTaskDone;
+
+function delTask(id){
+  if(!confirm("删除该任务？其下挂载的日报不会被删除，仅解除挂载关系。")) return;
+  var list=getEntries();
+  list.forEach(function(e){ if(e.taskId===id) e.taskId=""; });
+  saveEntries(list);
+  saveTasks(getTasks().filter(function(t){return t.id!==id;}));
+  fillTaskSelect();
+  renderTasks();
+}
+window.delTask=delTask;
+
+function taskStatus(t){
+  if(t.done) return {label:"已完成", badge:"ok"};
+  if(t.cancelled) return {label:"已取消", badge:"gray"};
+  if(t.plan && t.plan < today()) return {label:"已逾期", badge:"err"};
+  return {label:"进行中", badge:"warn"};
+}
+
+/* ============ 紧急任务：自动顺延冲突的原计划 ============ */
+function _dayDiff(a,b){ // b-a 天数
+  var pa=a.split("-").map(Number), pb=b.split("-").map(Number);
+  return Math.round((new Date(pb[0],pb[1]-1,pb[2]) - new Date(pa[0],pa[1]-1,pa[2])) / 86400000);
+}
+function _shiftDate(d,n){ // 日期顺延 n 天（保留本地时区）
+  var p=d.split("-").map(Number);
+  var dt=new Date(p[0],p[1]-1,p[2]);
+  dt.setDate(dt.getDate()+n);
+  var z=function(x){ return (x<10?"0":"")+x; };
+  return dt.getFullYear()+"-"+z(dt.getMonth()+1)+"-"+z(dt.getDate());
+}
+// 紧急任务占用时段 [start 日期, plan 日期]；顺延所有"计划时间落入该时段"的未完成任务
+function applyUrgentShift(taskId){
+  var urgent=getTask(taskId);
+  if(!urgent) return;
+  var es=urgent.start ? String(urgent.start).slice(0,10) : "";
+  var ep=urgent.plan || "";
+  if(!es || !ep){ toast("⚡ 紧急任务请填写「计划开始时间」和「计划完成时间」作为占用时段，才能自动顺延"); return; }
+  if(ep < es){ toast("⚡ 计划完成时间不能早于计划开始时间"); return; }
+  var days=_dayDiff(es,ep)+1; // 占用天数（含首尾）
+  if(days<=0) return;
+  var all=getTasks();
+  var shifted=[];
+  var newList=all.map(function(t){
+    if(t.id===taskId || t.done) return t; // 跳过紧急任务本身和已完成任务
+    var ts=t.start ? String(t.start).slice(0,10) : "";
+    var tp=t.plan || "";
+    // 冲突判定：任务计划开始/完成落入紧急时段，或完全包住紧急时段
+    var conflict=false;
+    if(ts && tp){
+      if((ts>=es && ts<=ep) || (tp>=es && tp<=ep) || (ts<es && tp>ep)) conflict=true;
+    }else if(ts){
+      if(ts>=es && ts<=ep) conflict=true;
+    }else if(tp){
+      if(tp>=es && tp<=ep) conflict=true;
+    }
+    if(!conflict) return t;
+    var newStart=ts ? _shiftDate(ts,days) : ts;
+    var newPlan=tp ? _shiftDate(tp,days) : tp;
+    if(t.start && ts) t.start=newStart + String(t.start).slice(10); // 保留时刻
+    if(tp) t.plan=newPlan;
+    t.shiftedBy=taskId; // 记录由哪个紧急任务顺延（取消时按此还原）
+    shifted.push({ name:t.name, from:ts||tp||"", to:newStart||newPlan||"" });
+    return t;
+  });
+  if(shifted.length){
+    saveTasks(newList);
+    fillTaskSelect();
+    renderTasks();
+    renderCalendar();
+    var brief=shifted.slice(0,3).map(function(s){ return s.name+"("+s.from+"→"+s.to+")"; }).join("，");
+    toast("⚡ 紧急任务占用 "+days+" 天，已自动顺延 "+shifted.length+" 个任务："+brief+(shifted.length>3?" 等":""));
+  }else{
+    toast("⚡ 无冲突任务需要顺延");
+  }
+}
+window.applyUrgentShift=applyUrgentShift;
+
+/* ============ 取消任务：自动重新排期（提前回填释放的时段） ============ */
+// 取消任务后：释放占用时段并自动重新排期
+// 规则：1) 若该任务顺延过其他任务（shiftedBy 记录）→ 将这些任务提前还原
+//       2) 否则（普通任务）→ 将计划开始时间紧邻其后的最早未完成任务提前，填补空档
+function applyCancelResched(taskId){
+  var cancelled=getTask(taskId);
+  if(!cancelled || !cancelled.cancelled) return;
+  var cs=cancelled.start ? String(cancelled.start).slice(0,10) : "";
+  var ce=cancelled.plan || "";
+  if(!cs || !ce){ return; } // 无占用时段，无需重排
+  var days=_dayDiff(cs,ce)+1;
+  if(days<=0) return;
+  var tdy=today();
+  var all=getTasks();
+  var shifted=[];
+  // 情况1：还原被本任务顺延过的任务
+  var affected=all.filter(function(t){ return t.id!==taskId && !t.done && !t.cancelled && t.shiftedBy===taskId; });
+  if(affected.length===0){
+    // 情况2：普通任务取消 → 找计划开始时间 > ce 的最早未完成任务（一个），提前填补
+    var cands=all.filter(function(t){
+      if(t.id===taskId || t.done || t.cancelled) return false;
+      var anchor=(t.start?String(t.start).slice(0,10):"")||(t.plan||"");
+      return !!anchor && anchor>ce;
+    });
+    if(cands.length){
+      cands.sort(function(a,b){
+        var aa=(a.start?String(a.start).slice(0,10):"")||(a.plan||""), bb=(b.start?String(b.start).slice(0,10):"")||(b.plan||"");
+        return aa<bb?-1:(aa>bb?1:0);
+      });
+      affected=[cands[0]];
+    }
+  }
+  var newList=all.map(function(t){
+    if(affected.indexOf(t)<0) return t;
+    var ts=t.start ? String(t.start).slice(0,10) : "";
+    var tp=t.plan || "";
+    var newStart=ts ? _shiftDate(ts,-days) : ts;
+    var newPlan=tp ? _shiftDate(tp,-days) : tp;
+    // 不早于今天
+    if(newStart && newStart<tdy) newStart=tdy;
+    if(newPlan && newPlan<tdy) newPlan=tdy;
+    if(t.start && ts) t.start=newStart + String(t.start).slice(10); // 保留时刻
+    if(tp) t.plan=newPlan;
+    delete t.shiftedBy; // 已还原
+    shifted.push({ name:t.name, from:(ts||tp||""), to:(newStart||newPlan||"") });
+    return t;
+  });
+  if(shifted.length){
+    saveTasks(newList);
+    fillTaskSelect();
+    renderTasks();
+    renderCalendar();
+    var brief=shifted.slice(0,3).map(function(s){ return s.name+"("+s.from+"→"+s.to+")"; }).join("，");
+    toast("🗓 已释放 "+days+" 天，自动提前排期 "+shifted.length+" 个任务："+brief+(shifted.length>3?" 等":""));
+  }else{
+    toast("🗓 任务已取消，无后续任务需要提前排期");
+  }
+}
+window.applyCancelResched=applyCancelResched;
+
+// 取消任务（标记取消 + 触发自动重排）
+function cancelTask(id){
+  var t=getTask(id); if(!t) return;
+  if(t.done){ toast("已完成的任务无需取消"); return; }
+  if(t.cancelled){ toast("该任务已取消"); return; }
+  if(!confirm("取消该任务「"+t.name+"」？\n其占用的计划时段将释放，系统会<u>自动将后续任务提前排期</u>。\n（可随时恢复）")) return;
+  var list=getTasks();
+  list.forEach(function(x){ if(x.id===id) x.cancelled=true; });
+  saveTasks(list);
+  fillTaskSelect();
+  renderTasks();
+  renderCalendar();
+  // 异步触发自动重排
+  setTimeout(function(){ applyCancelResched(id); }, 100);
+}
+window.cancelTask=cancelTask;
+
+// 恢复已取消的任务
+function restoreTask(id){
+  var list=getTasks();
+  var found=false;
+  list.forEach(function(x){ if(x.id===id && x.cancelled){ delete x.cancelled; found=true; } });
+  if(!found){ return; }
+  saveTasks(list);
+  fillTaskSelect();
+  renderTasks();
+  renderCalendar();
+  toast("✅ 任务已恢复为进行中（如需可手动调整计划时间）");
+}
+window.restoreTask=restoreTask;
+
+function renderTasks(){
+  var list=getTasks();
+  document.getElementById("tk_count").textContent=list.length;
+  var doneN=0, hoursTotal=0, overdueN=0, cancelledN=0;
+  list.forEach(function(t){
+    if(t.cancelled){ cancelledN++; return; } // 已取消不计工时
+    var h=taskHours(t.id); hoursTotal+=h;
+    var st=taskStatus(t);
+    if(st.label==="已完成") doneN++;
+    if(st.label==="已逾期") overdueN++;
+  });
+  var statHtml='';
+  statHtml+='<div class="item">任务总数：<b>'+list.length+'</b></div>';
+  statHtml+='<div class="item">已完成：<b>'+doneN+'</b></div>';
+  statHtml+='<div class="item">已逾期：<b>'+(overdueN?'<span class="badge err">'+overdueN+'</span>':0)+'</b></div>';
+  statHtml+='<div class="item">已取消：<b>'+(cancelledN?'<span class="badge gray">'+cancelledN+'</span>':0)+'</b></div>';
+  statHtml+='<div class="item">任务实际总工时：<b>'+sumH(hoursTotal)+' 小时</b></div>';
+  document.getElementById("tk_stat").innerHTML=statHtml;
+
+  var box=document.getElementById("task_list");
+  if(!list.length){ box.innerHTML='<div class="empty">还没有任务，先在上方添加</div>'; return; }
+  var h='<table><tr><th>项目</th><th>任务名称</th><th>计划开始</th><th>计划完成</th><th>实际完成</th><th>状态</th><th>实际完成工时</th><th>挂载日报</th><th>操作</th></tr>';
+  list.slice().sort(function(a,b){
+    var au=a.urgent&&!a.done&&!a.cancelled?0:(a.urgent?1:(a.cancelled?3:2));
+    var bu=b.urgent&&!b.done&&!b.cancelled?0:(b.urgent?1:(b.cancelled?3:2));
+    if(au!==bu) return au-bu;
+    return a.project<b.project?-1:(a.project>b.project?1:(a.plan<b.plan?-1:1));
+  }).forEach(function(t){
+    var st=taskStatus(t);
+    var n=0; getEntries().forEach(function(e){ if(e.taskId===t.id) n++; });
+    var startTxt=t.start?esc(t.start.replace("T"," ")):'<span class="muted">—</span>';
+    var urgentBadge=t.urgent?'<span class="badge err" style="margin-left:4px" title="临时插入的紧急任务">⚡紧急</span>':'';
+    var nameHtml='<span'+(t.cancelled?' style="text-decoration:line-through;color:var(--sub)"':'')+'>'+esc(t.name)+'</span>'+urgentBadge;
+    var rowBg=t.urgent?' style="background:var(--err-l)"':(t.cancelled?' style="opacity:.65"':'');
+    var act='';
+    if(t.cancelled){
+      act='<button class="btn gray sm" onclick="restoreTask(\''+t.id+'\')">↩ 恢复</button> <button class="btn danger sm" onclick="delTask(\''+t.id+'\')">删</button>';
+    }else if(t.done){
+      act='<button class="btn gray sm" onclick="editTask(\''+t.id+'\')">编辑</button> <button class="btn danger sm" onclick="delTask(\''+t.id+'\')">删</button>';
+    }else{
+      act='<button class="btn gray sm" onclick="editTask(\''+t.id+'\')">编辑</button> <button class="btn warn sm" onclick="cancelTask(\''+t.id+'\')" title="取消任务并自动重新排期">✖ 取消</button> <button class="btn danger sm" onclick="delTask(\''+t.id+'\')">删</button>';
+    }
+    h+='<tr'+rowBg+'><td>'+esc(t.project)+'</td><td>'+nameHtml+'</td><td>'+startTxt+'</td><td>'+(t.plan?esc(t.plan):'<span class="muted">—</span>')+'</td><td>'+(t.done?esc(t.done):'<span class="muted">—</span>')+'</td>'+
+       '<td><span class="badge '+st.badge+'">'+st.label+'</span></td><td><b>'+sumH(taskHours(t.id))+' 小时</b></td><td>'+n+' 条</td>'+
+       '<td style="white-space:nowrap">'+act+'</td></tr>';
+  });
+  h+='</table>';
+  box.innerHTML=h;
+  refreshHeaderStats();
+}
+window.renderTasks=renderTasks;
+
+// 按月导出任务列表：按 计划完成/计划开始/实际完成 任一落在所选月份过滤
+function downloadTaskMonth(kind){
+  var ym=document.getElementById("tk_export_month").value || thisMonth();
+  var tasks=getTasks().filter(function(t){
+    if(!t) return false;
+    if(t.plan && t.plan.slice(0,7)===ym) return true;
+    if(t.start && t.start.slice(0,7)===ym) return true;
+    if(t.done && t.done.slice(0,7)===ym) return true;
+    return false;
+  });
+  if(!tasks.length){ toast("所选月份没有任务"); return; }
+  // 排序：项目 → 计划完成 → 计划开始
+  tasks.sort(function(a,b){
+    return (a.project<b.project?-1:(a.project>b.project?1:((a.plan||"9999")<(b.plan||"9999")?-1:1)));
+  });
+  var ylabel=ym.slice(0,4)+" 年 "+String(+ym.slice(5,7))+" 月";
+  var fname="任务列表-"+ym.replace("-",".");
+  if(kind==="xls"){
+    var h='<table border="1"><tr><th>序号</th><th>项目</th><th>任务名称</th><th>计划开始</th><th>计划完成</th><th>实际完成</th><th>状态</th><th>实际完成工时</th><th>挂载日报</th><th>备注</th></tr>';
+    tasks.forEach(function(t,i){
+      var st=taskStatus(t);
+      h+='<tr><td>'+(i+1)+'</td><td>'+esc(t.project)+'</td><td>'+esc(t.name)+(t.urgent?'（紧急）':'')+'</td>'+
+         '<td>'+(t.start?esc(t.start.replace("T"," ")):'—')+'</td><td>'+(t.plan?esc(t.plan):'—')+'</td><td>'+(t.done?esc(t.done):'—')+'</td>'+
+         '<td>'+st.label+(t.cancelled?'（已取消）':'')+'</td><td>'+sumH(taskHours(t.id))+' 小时</td><td>'+countEntryByTask(t.id)+' 条</td><td></td></tr>';
+    });
+    h+='</table>';
+    downloadText(fname+".xls", toExcelHtml(ylabel+" 任务列表（共 "+tasks.length+" 条）", [h]), "application/vnd.ms-excel;charset=utf-8");
+    toast("✅ 已导出 "+ym+" 任务列表 Excel（"+tasks.length+" 条）");
+  }else{
+    var md="# "+ylabel+" 任务列表（共 "+tasks.length+" 条）\n\n";
+    md+="| 序号 | 项目 | 任务名称 | 计划开始 | 计划完成 | 实际完成 | 状态 | 实际完成工时 | 挂载日报 |\n";
+    md+="|---|---|---|---|---|---|---|---|---|\n";
+    tasks.forEach(function(t,i){
+      var st=taskStatus(t);
+      md+="| "+(i+1)+" | "+esc(t.project)+" | "+esc(t.name)+(t.urgent?"（紧急）":"")+" | "+(t.start?esc(t.start.replace("T"," ")):"—")+" | "+(t.plan?esc(t.plan):"—")+" | "+(t.done?esc(t.done):"—")+" | "+st.label+(t.cancelled?"（已取消）":"")+" | "+sumH(taskHours(t.id))+" 小时 | "+countEntryByTask(t.id)+" 条 |\n";
+    });
+    downloadText(fname+".md", md, "text/markdown;charset=utf-8");
+    toast("✅ 已导出 "+ym+" 任务列表 Markdown（"+tasks.length+" 条）");
+  }
+}
+window.downloadTaskMonth=downloadTaskMonth;
+
+// 统计某任务挂载的日报条数
+function countEntryByTask(taskId){
+  var n=0;
+  getEntries().forEach(function(e){ if(e.taskId===taskId) n++; });
+  return n;
+}
+window.countEntryByTask=countEntryByTask;
+
+/* ================= 周报 ================= */
+function renderWeekly(){
+  var wk=document.getElementById("wk_date").value || today();
+  var range=weekRange(wk);
+  document.getElementById("wk_date").value=wk;
+  document.getElementById("wk_range").textContent="本周： "+range.monday+"（周一） ～ "+range.sunday+"（周日）";
+  var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+  var totalH=sumHours(list);
+  var workDates=uniq(list.map(function(e){return e.date;}));
+  document.getElementById("wk_stat").innerHTML=
+    '<div class="item">日报条目：<b>'+list.length+'</b></div>'+
+    '<div class="item">出勤天数：<b>'+workDates.length+'</b></div>'+
+    '<div class="item">本周总工时：<b>'+sumH(totalH)+' 小时</b></div>';
+  var tplText=buildWeeklyTplText(range, list);
+  document.getElementById("wk_preview").textContent = (tplText!=null) ? tplText : buildWeeklyText(range, list);
+}
+
+function buildWeeklyText(range, list){
+  var prof=getProfile();
+  var g=groupByProject(list);
+  var progress=document.getElementById("wk_progress").value||"100";
+  var out="";
+  out+="周报（"+range.monday.replace(/-/g,".")+" – "+range.sunday.replace(/-/g,".")+"）\n";
+  out+="汇报人："+prof.name+"　周次："+range.monday+"（周一）～ "+range.sunday+"（周日）\n";
+  var ds=uniq(list.map(function(e){return e.date;}));
+  out+="出勤：本周日报 "+list.length+" 条，出勤 "+ds.length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n";
+  out+="\n";
+  g.order.forEach(function(p){
+    var entries=g.map[p];
+    var hours=sumHours(entries);
+    var sents=[];
+    entries.forEach(function(e){ sentences(e.work).forEach(function(s){ sents.push(s); }); });
+    sents=uniq(sents);
+    var parts=sents.map(clause);
+    var topics=uniq(parts.map(function(x){ return x.t || x.r.slice(0,10); })).slice(0,5);
+    var opening = topics.length>1
+      ? "本周工作重点围绕"+p+"展开，涵盖"+topics.join("、")+"等，具体如下："
+      : "本周工作重点围绕"+p+"的"+(topics[0]||"相关工作")+"展开，具体如下：";
+    out+="## "+p+"\n\n";
+    out+="总工时： "+sumH(hours)+" 小时 | 完成进度： "+progress+"%\n\n";
+    out+="任务总结：\n\n";
+    out+=opening+"\n\n";
+    parts.forEach(function(pp){ out+=(pp.t? pp.t+"："+pp.r : "· "+pp.r)+"\n\n"; });
+  });
+  var todo=document.getElementById("wk_include_todo").checked;
+  if(todo) out+="## 本周未完成\n\n（待填写）\n\n";
+  return out.replace(/\n+$/,"");
+}
+
+function shiftWeek(days){
+  var inp=document.getElementById("wk_date");
+  var d=new Date((inp.value||today())+"T00:00:00");
+  d.setDate(d.getDate()+days);
+  inp.value=iso(d); renderWeekly();
+}
+window.shiftWeek=shiftWeek;
+
+function copyText(t, msg){
+  function fb(){ var ta=document.createElement("textarea"); ta.value=t; ta.style.position="fixed"; ta.style.left="-9999px"; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast(msg||"✅ 已复制"); }catch(e){ toast("复制失败，请手动选择复制"); } document.body.removeChild(ta); }
+  if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(t).then(function(){ toast(msg||"✅ 已复制"); }, fb); } else fb();
+}
+window.copyText=copyText;
+
+function copyWeekly(){ var t=document.getElementById("wk_preview").textContent; if(!t.trim()){toast("本周暂无日报");return;} copyText(t); }
+window.copyWeekly=copyWeekly;
+
+function downloadText(name, text, mime){
+  var blob=new Blob([text], {type:mime});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+window.downloadText=downloadText;
+
+function toExcelHtml(title, tables){
+  var h='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>报表</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+  h+='<h3>'+title+'</h3>';
+  tables.forEach(function(t){ h+=t; });
+  h+='</body></html>';
+  return h;
+}
+
+function weeklyTablesText(){
+  var wk=document.getElementById("wk_date").value||today();
+  var range=weekRange(wk);
+  var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+  var g=groupByProject(list);
+  var t1='<table border="1"><tr><th>项目名称</th><th>总工时</th><th>完成进度</th><th>任务总结</th></tr>';
+  g.order.forEach(function(p){
+    var sents=uniq(g.map[p].reduce(function(a,e){return a.concat(sentences(e.work));},[]));
+    var detail=sents.map(clause).map(function(c){return c.t? c.t+"："+c.r : "· "+c.r;}).join("\n");
+    t1+='<tr><td>'+esc(p)+'</td><td>'+sumH(sumHours(g.map[p]))+' 小时</td><td>'+(document.getElementById("wk_progress").value||"100")+'%</td><td>'+esc(detail)+'</td></tr>';
+  });
+  t1+='</table>';
+  var t2='<table border="1"><tr><th>日期</th><th>项目</th><th>时长</th><th>今日工作</th><th>明日计划</th><th>备注</th></tr>';
+  list.forEach(function(e){ t2+='<tr><td>'+esc(e.date)+'</td><td>'+esc(e.project)+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td><td>'+esc(e.plan||"")+'</td><td>'+esc(e.remark||"")+'</td></tr>'; });
+  t2+='</table>';
+  return {t1:t1,t2:t2};
+}
+
+function downloadWeekly(kind){
+  var wk=document.getElementById("wk_date").value||today();
+  var range=weekRange(wk);
+  var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+  if(!list.length){ toast("本周暂无日报"); return; }
+  var text=buildWeeklyText(range, list);
+  var fname="周报-"+range.monday.replace(/-/g,".")+"-"+range.sunday.replace(/-/g,".")+"."+(kind==="md"?"md":"xls");
+  if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
+  else {
+    var tt=weeklyTablesText();
+    downloadText(fname, toExcelHtml("周报 "+range.monday+" ~ "+range.sunday, [tt.t1, tt.t2]), "application/vnd.ms-excel;charset=utf-8");
+  }
+  toast("已下载 "+fname);
+}
+window.downloadWeekly=downloadWeekly;
+
+/* ================= 月度考核报表 ================= */
+function renderMonthly(){
+  var mo=document.getElementById("mo_month").value || thisMonth();
+  document.getElementById("mo_month").value=mo;
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  var att=attendance(list, mo);
+  var dates=uniq(list.map(function(e){return e.date;}));
+  var html='<div class="item">出勤天数：<b>'+dates.length+'</b> / 工作日应出勤 '+att.workdays+' 天</div>'+
+           '<div class="item">总工时：<b>'+sumH(sumHours(list))+' 小时</b></div>'+
+           '<div class="item">工作日缺报：<b>'+(att.missing>0?'<span style="color:var(--err)">'+att.missing+'</span>':0)+'</b> 天</div>'+
+           '<div class="item">周六日休息：<b>'+att.weekends+'</b> 天</div>'+
+           '<div class="item">休息日加班：<b>'+att.weekendWork+'</b> 天</div>';
+  document.getElementById("mo_att").innerHTML=html;
+  var scoreTpl=buildMonthlyTplText("score", mo, list, att);
+  var okrTpl=buildMonthlyTplText("okr", mo, list, att);
+  document.getElementById("mo_score_preview").textContent = (scoreTpl!=null) ? scoreTpl : buildScoreCard(mo, list, att);
+  document.getElementById("mo_okr_preview").textContent = (okrTpl!=null) ? okrTpl : buildOKR(mo, list, att);
+}
+
+function buildScoreCard(mo, list, att){
+  var prof=getProfile();
+  var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
+  var out="";
+  out+=ym+"开发人员月度绩效考核评分表\n";
+  out+="姓名："+prof.name+"　　部门："+prof.dept+"　　岗位名称："+prof.post+"　　考核日期：\n\n";
+  out+="考核项目\t具体指标\t满分\t自评分\t项目经理审核\n";
+  var rows=[
+    ["工作业绩(50%)","需求交付准时率 100%","20"],
+    ["","代码规范违规次数 ≤3 次/月","15"],
+    ["","单元测试覆盖率 ≥80%","15"],
+    ["工作能力(25%)","系统核心模块开发贡献度","10"],
+    ["","跨部门协作效率","10"],
+    ["","技术文档编写完整度","5"],
+    ["工作态度(25%)","考勤达标率 100%","10"],
+    ["","每日工作日报填写","5"],
+    ["","协助排查他人问题次数≥2 次/月","5"],
+    ["","技术阻塞主动上报及时性","5"],
+    ["加分项（≤10分）","重大技术攻关（如高并发优化）","≤10"]
+  ];
+  rows.forEach(function(r){ out+=r[0]+"\t"+r[1]+"\t"+r[2]+"\t\t\n"; });
+  out+="\n出勤情况（依据日报自动统计）：\n";
+  out+="本月工作日应出勤 "+att.workdays+" 天，实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；周六日休息 "+att.weekends+" 天"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n";
+  out+="（若本月存在迟到、早退、请假、旷工，请在评分时按标准扣分）\n\n";
+  out+="自我评价：\n\n";
+  out+="考核人签名："+prof.name+"　　项目经理确认：　　事业部负责人确认：\n";
+  return out;
+}
+
+function buildOKR(mo, list, att){
+  var prof=getProfile();
+  var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
+  var g=groupByProject(list);
+  var out="";
+  out+=ym+"  "+prof.dept+"OKR绩效考核表\n";
+  out+="姓名："+prof.name+"　　部门/事业部："+prof.dept+"　　岗位：开发工程师\n\n";
+  out+="一、OKR目标与关键结果（70分）\n\n";
+
+  function krBlock(no, project, weight, maxKrs){
+    var entries=g.map[project]||[];
+    var sents=uniq(entries.reduce(function(a,e){return a.concat(sentences(e.work));},[]));
+    out+="O"+no+"（"+weight+"分）　"+project+"\n";
+    if(sents.length){
+      sents.slice(0,maxKrs||6).forEach(function(s,i){
+        out+="KR"+(i+1)+": "+s+"\n";
+      });
+    } else {
+      out+="KR1: （本月暂无该项目的日报记录，待补充）\n";
+    }
+    out+="\n";
+  }
+  if(g.order.length===0){
+    out+="（本月暂无日报数据，请先在「日报录入」填写）\n\n";
+  } else if(g.order.length===1){
+    krBlock(1, g.order[0], 40, 6);
+    out+="O2（20分）　项目质量与线上稳定性保障\n";
+    out+="KR1: 持续修复线上问题，保障系统稳定运行，减少一线报障。\n\n";
+    out+="O3（10分）　客户沟通与跨项目协作\n";
+    out+="KR1: 及时响应客户需求与方案确认，保持与项目干系人的有效沟通。\n\n";
+  } else {
+    krBlock(1, g.order[0], 40, 6);
+    krBlock(2, g.order[1], 20, 3);
+    out+="O3（10分）　客户沟通与跨项目协作\n";
+    out+="KR1: 及时响应客户需求与方案确认，保持与项目干系人的有效沟通。\n";
+    if(g.order.length>2){ out+="KR2: 参与"+g.order.slice(2).join("、")+"等项目的支持与推进。\n"; }
+    out+="\n";
+  }
+  out+="OKR目标与关键结果总计：70 分\n\n";
+  out+="二、基础行为考核（30分）\n";
+  out+="考勤\t考勤达标率 100%\t迟到/早退1次扣2分；旷工1次扣10分；出差按差旅制度执行\t10\n";
+  out+="周报\t每周周报填写\t未提交周报每次扣1分\t10\n";
+  out+="协作态度\t协同支撑团队问题排查，及时上报技术阻塞\t跨部门协作投诉1次扣5分；问题隐瞒导致延期1次扣5分\t10\n";
+  out+="基础考核总计：30 分\n\n";
+  out+="三、加分项（≤10分，事业部负责人填写）\n";
+  out+="加分原因：\n\n";
+  out+="四、本月复盘（必填）\n";
+  var sentsAll=uniq(list.reduce(function(a,e){return a.concat(sentences(e.work));},[]));
+  var best=sentsAll.slice(0,3).map(clause).map(function(c){return c.t||c.r.slice(0,10);}).join("、");
+  out+="本月最大成果：本月围绕"+(g.order.join("、"))+"等项目开展工作，累计出勤"+att.submitted+"天、总工时"+sumH(sumHours(list))+"小时，重点完成"+(best||"各项既定任务")+"等工作，主要成果如下：\n";
+  g.order.forEach(function(p){
+    var es=g.map[p]||[];
+    out+="· "+p+"："+uniq(es.reduce(function(a,e){return a.concat(sentences(e.work));},[])).slice(0,5).join("；")+"。\n";
+  });
+  out+="\n未达成目标分析：本月各项目关键结果均按计划推进并交付，未出现明显未达成项。\n";
+  out+="出勤情况：本月工作日应出勤 "+att.workdays+" 天，实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；周六日休息 "+att.weekends+" 天"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n\n";
+  out+="下月目标方向：\n1. \n2. \n\n";
+  out+="员工确认：　　事业部负责人确认：　　总经办确认：\n";
+  return out;
+}
+
+function copyMonthlyScore(){ var t=document.getElementById("mo_score_preview").textContent; if(!t.trim()){toast("本月暂无数据");return;} copyText(t); }
+function copyMonthlyOKR(){ var t=document.getElementById("mo_okr_preview").textContent; if(!t.trim()){toast("本月暂无数据");return;} copyText(t); }
+window.copyMonthlyScore=copyMonthlyScore; window.copyMonthlyOKR=copyMonthlyOKR;
+
+function downloadMonthlyScore(kind){
+  var mo=document.getElementById("mo_month").value||thisMonth();
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  var att=attendance(list, mo);
+  var text=buildScoreCard(mo, list, att);
+  var fname="月度绩效考核评分表-"+mo+"."+(kind==="md"?"md":"xls");
+  if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
+  else {
+    var rows=text.split("\n").map(function(line){ return "<tr>"+line.split("\t").map(function(c){return "<td>"+esc(c)+"</td>";}).join("")+"</tr>"; }).join("");
+    downloadText(fname, toExcelHtml("月度绩效考核评分表 "+mo, ['<table border="1">'+rows+'</table>']), "application/vnd.ms-excel;charset=utf-8");
+  }
+  toast("已下载 "+fname);
+}
+window.downloadMonthlyScore=downloadMonthlyScore;
+
+function downloadMonthlyOKR(kind){
+  var mo=document.getElementById("mo_month").value||thisMonth();
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  var att=attendance(list, mo);
+  var text=buildOKR(mo, list, att);
+  var fname="OKR绩效考核表-"+mo+"."+(kind==="md"?"md":"xls");
+  if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
+  else {
+    var rows=text.split("\n").map(function(line){ return "<tr><td>"+esc(line)+"</td></tr>"; }).join("");
+    downloadText(fname, toExcelHtml("OKR绩效考核表 "+mo, ['<table border="1">'+rows+'</table>']), "application/vnd.ms-excel;charset=utf-8");
+  }
+  toast("已下载 "+fname);
+}
+window.downloadMonthlyOKR=downloadMonthlyOKR;
+
+/* ================= AI 汇总（可选，OpenAI 兼容接口） ================= */
+/* ================= Word/Excel 模板引擎（纯前端 zip 解析） ================= */
+// CRC32
+function crc32(buf){
+  var table=crc32.table;
+  if(!table){
+    table=crc32.table=new Uint32Array(256);
+    for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++){ c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); } table[n]=c; }
+  }
+  var crc=0xFFFFFFFF;
+  for(var i=0;i<buf.length;i++){ crc=(crc>>>8)^table[(crc^buf[i])&0xFF]; }
+  return (crc^0xFFFFFFFF)>>>0;
+}
+window.crc32=crc32;
+
+// 解压 zip（读取全部条目；deflate 用浏览器 DecompressionStream）
+async function unzipBuf(buf){
+  var entries={};
+  var dv=new DataView(buf);
+  var i=0;
+  var dec=new TextDecoder("utf-8");
+  while(i+30<=buf.byteLength){
+    var sig=dv.getUint32(i,true);
+    if(sig===0x04034b50){
+      var method=dv.getUint16(i+8,true);
+      var compSize=dv.getUint32(i+18,true);
+      var nameLen=dv.getUint16(i+26,true);
+      var extraLen=dv.getUint16(i+28,true);
+      var name=dec.decode(new Uint8Array(buf,i+30,nameLen));
+      var dataStart=i+30+nameLen+extraLen;
+      var data=new Uint8Array(buf,dataStart,compSize);
+      if(method===8){
+        try{
+          var ds=new DecompressionStream("deflate-raw");
+          var stream=new Blob([data]).stream().pipeThrough(ds);
+          data=new Uint8Array(await new Response(stream).arrayBuffer());
+        }catch(err){ data=null; }
+      }
+      if(data) entries[name]=data;
+      i=dataStart+compSize;
+    } else if(sig===0x02014b50){ break; }
+    else { i++; }
+  }
+  return entries;
+}
+window.unzipBuf=unzipBuf;
+
+// 打包 zip（store 不压缩，含 CRC32）
+function zipStore(entries){
+  var enc=new TextEncoder();
+  var parts=[], central=[];
+  var offset=0;
+  var names=Object.keys(entries);
+  for(var n=0;n<names.length;n++){
+    var name=names[n], data=entries[name];
+    var nameBytes=enc.encode(name);
+    var local=new Uint8Array(30+nameBytes.length);
+    var dv=new DataView(local.buffer);
+    dv.setUint32(0,0x04034b50,true);
+    dv.setUint16(4,20,true); dv.setUint16(6,0,true); dv.setUint16(8,0,true);
+    dv.setUint16(10,0,true); dv.setUint16(12,0,true);
+    dv.setUint32(14,crc32(data),true);
+    dv.setUint32(18,data.length,true); dv.setUint32(22,data.length,true);
+    dv.setUint16(26,nameBytes.length,true); dv.setUint16(28,0,true);
+    local.set(nameBytes,30);
+    parts.push(local,data);
+    var cen=new Uint8Array(46+nameBytes.length);
+    var cdv=new DataView(cen.buffer);
+    cdv.setUint32(0,0x02014b50,true);
+    cdv.setUint16(4,20,true); cdv.setUint16(6,20,true); cdv.setUint16(8,0,true);
+    cdv.setUint16(10,0,true); cdv.setUint16(12,0,true);
+    cdv.setUint32(16,crc32(data),true);
+    cdv.setUint32(20,data.length,true); cdv.setUint32(24,data.length,true);
+    cdv.setUint16(28,nameBytes.length,true); cdv.setUint32(42,offset,true);
+    cen.set(nameBytes,46);
+    central.push(cen);
+    offset += local.length+data.length;
+  }
+  var cenSize=0; central.forEach(function(c){ cenSize+=c.length; });
+  var eocd=new Uint8Array(22);
+  var edv=new DataView(eocd.buffer);
+  edv.setUint32(0,0x06054b50,true);
+  edv.setUint16(8,names.length,true); edv.setUint16(10,names.length,true);
+  edv.setUint32(12,cenSize,true); edv.setUint32(16,offset,true);
+  return new Blob([].concat(parts,central,eocd), {type:"application/octet-stream"});
+}
+window.zipStore=zipStore;
+
+// XML 转义/反转义
+function xmlUnescape(s){
+  return String(s||"").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&");
+}
+function xmlEscape(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// 解析 docx：提取段落/表格文本（含结构）
+function parseDocx(entries){
+  var xml=new TextDecoder("utf-8").decode(entries["word/document.xml"]||new Uint8Array(0));
+  var doc=new DOMParser().parseFromString(xml,"application/xml");
+  var out=[];
+  function walkTable(tbl){
+    var rows=tbl.getElementsByTagName("w:tr");
+    for(var r=0;r<rows.length;r++){
+      var cells=rows[r].getElementsByTagName("w:tc");
+      var line=[];
+      for(var c=0;c<cells.length;c++){
+        var texts=cells[c].getElementsByTagName("w:t");
+        var cell="";
+        for(var t=0;t<texts.length;t++) cell+=xmlUnescape(texts[t].textContent);
+        line.push(cell.replace(/\s+/g," ").trim());
+      }
+      out.push(line.join("\t"));
+    }
+    out.push(""); // 表格后空行
+  }
+  function walkBody(node){
+    for(var i=0;i<node.childNodes.length;i++){
+      var el=node.childNodes[i];
+      if(el.nodeType!==1) continue;
+      var tag=el.tagName||"";
+      if(tag==="w:tbl"){ walkTable(el); }
+      else if(tag==="w:p"){
+        var texts=el.getElementsByTagName("w:t");
+        var line="";
+        for(var t=0;t<texts.length;t++) line+=xmlUnescape(texts[t].textContent);
+        out.push(line.replace(/\s+/g," ").trim());
+      }
+      else if(tag==="w:sectPr"){ continue; }
+      else { walkBody(el); }
+    }
+  }
+  walkBody(doc.documentElement||doc);
+  return out.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+window.parseDocx=parseDocx;
+
+// 解析 xlsx：提取所有 sheet 为制表符表格
+function parseXlsx(entries){
+  var dec=new TextDecoder("utf-8");
+  var shared=[];
+  var ss=entries["xl/sharedStrings.xml"];
+  if(ss){
+    var sdoc=new DOMParser().parseFromString(dec.decode(ss),"application/xml");
+    var sis=sdoc.getElementsByTagName("si");
+    for(var i=0;i<sis.length;i++){
+      var ts=sis[i].getElementsByTagName("t");
+      var s="";
+      for(var j=0;j<ts.length;j++) s+=xmlUnescape(ts[j].textContent);
+      shared.push(s);
+    }
+  }
+  var out=[];
+  var sheetNames=Object.keys(entries).filter(function(k){ return /^xl\/worksheets\/sheet\d+\.xml$/.test(k); }).sort();
+  sheetNames.forEach(function(sn){
+    var xdoc=new DOMParser().parseFromString(dec.decode(entries[sn]),"application/xml");
+    out.push("【工作表 "+sn.replace(/^xl\/worksheets\/sheet(\d+)\.xml$/,"$1")+"】");
+    var rows=xdoc.getElementsByTagName("row");
+    for(var r=0;r<rows.length;r++){
+      var cells=rows[r].getElementsByTagName("c");
+      var line=[];
+      for(var c=0;c<cells.length;c++){
+        var cell=cells[c];
+        var t=cell.getAttribute("t")||"";
+        var v=cell.getElementsByTagName("v")[0];
+        var is=cell.getElementsByTagName("is");
+        var val="";
+        if(t==="s" && v){ val=shared[+v.textContent]||""; }
+        else if(is.length){ var ts=is[0].getElementsByTagName("t"); for(var j=0;j<ts.length;j++) val+=xmlUnescape(ts[j].textContent); }
+        else if(v){ val=xmlUnescape(v.textContent); }
+        line.push(val.replace(/\s+/g," ").trim());
+      }
+      out.push(line.join("\t"));
+    }
+    out.push("");
+  });
+  return out.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+window.parseXlsx=parseXlsx;
+
+// 模板文件存储（base64）
+function bufToBase64(buf){
+  var bytes=new Uint8Array(buf);
+  var chunk=0x8000, bin="";
+  for(var i=0;i<bytes.length;i+=chunk){
+    bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+chunk));
+  }
+  return btoa(bin);
+}
+function base64ToUint8(b64){
+  var bin=atob(b64);
+  var out=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+window.bufToBase64=bufToBase64; window.base64ToUint8=base64ToUint8;
+
+/* ================= 模板管理（周报/月考核） ================= */
+var TPL_WEEK="jzd_tpl_weekly_v1";
+var TPL_SCORE="jzd_tpl_score_v1";
+var TPL_OKR="jzd_tpl_okr_v1";
+var TPL_AI_WEEK="jzd_tpl_ai_weekly_v1";
+var TPL_AI_SCORE="jzd_tpl_ai_score_v1";
+var TPL_AI_OKR="jzd_tpl_ai_okr_v1";
+
+function getTpl(key){ try{ return JSON.parse(localStorage.getItem(key))||{mode:"builtin", text:""}; }catch(e){ return {mode:"builtin", text:""}; } }
+function saveTpl(key, t){ localStorage.setItem(key, JSON.stringify(t)); pushStateDebounced(); }
+
+// 周报/月报模板上下文数据
+function weeklyCtx(range, list){
+  var prof=getProfile();
+  var ds=uniq(list.map(function(e){return e.date;}));
+  var g=groupByProject(list);
+  var projLines=[];
+  g.order.forEach(function(p){
+    var es=g.map[p];
+    var sents=uniq(es.reduce(function(a,e){return a.concat(sentences(e.work));},[]));
+    var items=sents.map(function(s){ return "- "+s; }).join("\n");
+    projLines.push("## "+p+"\n\n总工时："+sumH(sumHours(es))+" 小时\n\n任务总结：\n"+items);
+  });
+  return {
+    "姓名": prof.name, "部门": prof.dept, "岗位": prof.post,
+    "周期": range.monday.replace(/-/g,".")+" – "+range.sunday.replace(/-/g,"."),
+    "周起始": range.monday, "周结束": range.sunday,
+    "出勤天数": String(ds.length),
+    "总工时": sumH(sumHours(list))+" 小时",
+    "日报条数": String(list.length),
+    "项目明细": projLines.join("\n\n")
+  };
+}
+
+function monthlyCtx(mo, list, att){
+  var prof=getProfile();
+  return {
+    "姓名": prof.name, "部门": prof.dept, "岗位": prof.post,
+    "月份": mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月",
+    "月份短": mo.slice(5,7)+" 月",
+    "出勤天数": String(uniq(list.map(function(e){return e.date;})).length),
+    "应出勤": String(att.workdays),
+    "缺报天数": String(att.missing>0?att.missing:0),
+    "总工时": sumH(sumHours(list))+" 小时",
+    "日报条数": String(list.length)
+  };
+}
+
+// 占位符替换
+function applyPlaceholders(tpl, ctx){
+  var out=String(tpl||"");
+  Object.keys(ctx).forEach(function(k){
+    out=out.split("{"+k+"}").join(ctx[k]);
+  });
+  return out;
+}
+
+// 保存模板模式
+function setTplMode(type, mode){
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var t=getTpl(key); t.mode=mode; saveTpl(key,t);
+  var sel=document.getElementById("tpl_mode_"+type); if(sel) sel.value=mode;
+  var tplBox=document.getElementById("tpl_text_"+type); if(tplBox) tplBox.style.display=(mode==="builtin"?"none":"");
+  var hint=document.getElementById("tpl_hint_"+type); if(hint) hint.style.display=(mode==="builtin"?"none":"");
+  var aiRow=document.getElementById("tpl_ai_"+type); if(aiRow) aiRow.style.display=(mode==="ai"?"":"none");
+  var dl=document.getElementById("tpl_dl_"+type); if(dl) dl.style.display=(t.fileData&&mode!=="builtin")?"":"none";
+  toast("模板模式已切换："+(mode==="builtin"?"内置模板":(mode==="placeholder"?"占位符模板":"AI 套模板")));
+  refreshTplPreview(type);
+}
+window.setTplMode=setTplMode;
+
+// 保存模板文本
+function saveTplText(type){
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var t=getTpl(key);
+  t.text=document.getElementById("tpl_text_"+type).value;
+  saveTpl(key,t);
+  refreshTplPreview(type);
+  toast("✅ 模板已保存");
+}
+window.saveTplText=saveTplText;
+
+// 载入模板文本到编辑区
+function loadTpl(type){
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var t=getTpl(key);
+  var sel=document.getElementById("tpl_mode_"+type); if(sel) sel.value=t.mode;
+  var tplBox=document.getElementById("tpl_text_"+type); if(tplBox){ tplBox.value=t.text; tplBox.style.display=(t.mode==="builtin"?"none":""); }
+  var hint=document.getElementById("tpl_hint_"+type); if(hint) hint.style.display=(t.mode==="builtin"?"none":"");
+  var aiRow=document.getElementById("tpl_ai_"+type); if(aiRow) aiRow.style.display=(t.mode==="ai"?"":"none");
+  var dl=document.getElementById("tpl_dl_"+type); if(dl) dl.style.display=(t.fileData&&t.mode!=="builtin")?"":"none";
+  refreshTplPreview(type);
+}
+window.loadTpl=loadTpl;
+
+// 从文件导入模板（.txt/.md/.docx/.xlsx）
+function importTplFile(type, input){
+  var f=input.files && input.files[0];
+  if(!f) return;
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var isOffice = /.(docx|xlsx)$/i.test(f.name);
+  var reader=new FileReader();
+  reader.onload=async function(ev){
+    var t=getTpl(key);
+    try{
+      if(isOffice){
+        // Word/Excel：解析文本 + 保存原文件（用于占位符替换生成）
+        var entries=await unzipBuf(ev.target.result);
+        var txt = /.docx$/i.test(f.name) ? parseDocx(entries) : parseXlsx(entries);
+        t.text=txt;
+        t.fileName=f.name;
+        t.fileType=/.docx$/i.test(f.name)?"docx":"xlsx";
+        t.fileData=bufToBase64(ev.target.result);
+        if(!t.mode || t.mode==="builtin") t.mode="placeholder";
+        saveTpl(key,t);
+        var box=document.getElementById("tpl_text_"+type); if(box) box.value=txt;
+        var sel=document.getElementById("tpl_mode_"+type); if(sel) sel.value=t.mode;
+        var dl=document.getElementById("tpl_dl_"+type); if(dl) dl.style.display=(t.mode!=="builtin"?"":"none");
+        var modeSel=document.getElementById("tpl_mode_"+type);
+        if(modeSel && t.mode) setTplMode(type, t.mode);
+        toast("✅ 已导入 "+f.name+"（"+f.name.match(/\.(\w+)$/)[1].toUpperCase()+"，已解析"+txt.length+" 字符）");
+      } else {
+        t.text=String(ev.target.result||"");
+        t.mode=(t.mode==="builtin"?"placeholder":t.mode);
+        saveTpl(key,t);
+        var box2=document.getElementById("tpl_text_"+type); if(box2) box2.value=t.text;
+        var sel2=document.getElementById("tpl_mode_"+type); if(sel2) sel2.value=t.mode;
+        var dl2=document.getElementById("tpl_dl_"+type); if(dl2) dl2.style.display="none";
+        refreshTplPreview(type);
+        toast("✅ 已导入模板文件："+f.name);
+      }
+    }catch(err){
+      toast("❌ 解析失败："+err.message);
+    }
+  };
+  if(isOffice) reader.readAsArrayBuffer(f);
+  else reader.readAsText(f);
+}
+window.importTplFile=importTplFile;
+
+// 用模板原文件 + 占位符替换生成 Word/Excel 并下载
+function downloadTplFile(type){
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var t=getTpl(key);
+  if(!t || !t.fileData){ toast("请先导入 .docx/.xlsx 模板文件"); return; }
+  var ctx = type==="weekly"
+    ? (function(){ var wk=document.getElementById("wk_date").value||today(); var r=weekRange(wk); return weeklyCtx(r, getEntries().filter(function(e){return inRange(e,r.monday,r.sunday);})); })()
+    : (function(){ var mo=document.getElementById("mo_month").value||thisMonth(); var b=monthBounds(mo); var l=getEntries().filter(function(e){return inRange(e,b.first,b.last);}); return monthlyCtx(mo,l,attendance(l,mo)); })();
+  try{
+    var buf=base64ToUint8(t.fileData).buffer;
+    var done=applyPlaceholdersToFile(t.fileType, buf, ctx);
+    var blob=zipStore(done);
+    var ext=t.fileType;
+    var fname = (type==="weekly"?"周报":(type==="score"?"月度绩效考核评分表":"OKR绩效考核表"))+"-"+today()+"."+ext;
+    downloadBlob(blob, fname);
+    toast("✅ 已按模板生成："+fname);
+  }catch(err){
+    toast("❌ 生成失败："+err.message);
+  }
+}
+window.downloadTplFile=downloadTplFile;
+
+// 在 docx/xlsx 原文件 XML 中替换占位符
+async function applyPlaceholdersToFile(fileType, buf, ctx){
+  var entries=await unzipBuf(buf);
+  if(!entries || !Object.keys(entries).length) throw new Error("无法读取文件结构");
+  var dec=new TextDecoder("utf-8");
+  function repl(s){
+    var out=s;
+    Object.keys(ctx).forEach(function(k){
+      out=out.split("{"+k+"}").join(xmlEscape(ctx[k]));
+    });
+    return out;
+  }
+  if(fileType==="docx"){
+    if(entries["word/document.xml"]){
+      entries["word/document.xml"]=new TextEncoder().encode(repl(dec.decode(entries["word/document.xml"])));
+    }
+    // 表头/页脚也可能有占位符
+    Object.keys(entries).forEach(function(k){
+      if(/^word\/(header|footer)\d+\.xml$/.test(k)){
+        entries[k]=new TextEncoder().encode(repl(dec.decode(entries[k])));
+      }
+    });
+  } else {
+    // xlsx：sharedStrings + inline
+    if(entries["xl/sharedStrings.xml"]){
+      entries["xl/sharedStrings.xml"]=new TextEncoder().encode(repl(dec.decode(entries["xl/sharedStrings.xml"])));
+    }
+    Object.keys(entries).forEach(function(k){
+      if(/^xl\/worksheets\/sheet\d+\.xml$/.test(k)){
+        entries[k]=new TextEncoder().encode(repl(dec.decode(entries[k])));
+      }
+    });
+  }
+  return entries;
+}
+window.applyPlaceholdersToFile=applyPlaceholdersToFile;
+
+function downloadBlob(blob, filename){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); document.body.removeChild(a); }, 500);
+}
+window.downloadBlob=downloadBlob;
+
+// 模板预览刷新
+function refreshTplPreview(type){
+  if(type==="weekly") renderWeekly();
+  else renderMonthly();
+}
+
+// 生成使用模板的周报文本
+function buildWeeklyTplText(range, list){
+  var t=getTpl(TPL_WEEK);
+  if(!t || t.mode==="builtin") return null;
+  var ctx=weeklyCtx(range, list);
+  if(t.mode==="placeholder") return applyPlaceholders(t.text, ctx);
+  // ai 模式：使用保存的 AI 生成结果（如果没有则提示）
+  var ai=JSON.parse(localStorage.getItem(TPL_AI_WEEK)||"null");
+  return ai && ai.range===range.monday ? ai.text : null;
+}
+
+// 生成使用模板的月考核文本
+function buildMonthlyTplText(type, mo, list, att){
+  var key = type==="score"?TPL_SCORE:TPL_OKR;
+  var t=getTpl(key);
+  if(!t || t.mode==="builtin") return null;
+  var ctx=monthlyCtx(mo, list, att);
+  if(t.mode==="placeholder") return applyPlaceholders(t.text, ctx);
+  var ai=JSON.parse(localStorage.getItem(type==="score"?TPL_AI_SCORE:TPL_AI_OKR)||"null");
+  return ai && ai.month===mo ? ai.text : null;
+}
+window.buildWeeklyTplText=buildWeeklyTplText;
+window.buildMonthlyTplText=buildMonthlyTplText;
+
+var AIKEY="jzd_ai_v1";
+function getAI(){ try{ return JSON.parse(localStorage.getItem(AIKEY))||{base:"https://api.deepseek.com/v1",key:"",model:"deepseek-chat"}; }catch(e){ return {base:"https://api.deepseek.com/v1",key:"",model:"deepseek-chat"}; } }
+function saveAI(){
+  var a={base:document.getElementById("ai_base").value.trim()||"https://api.deepseek.com/v1",
+         key:document.getElementById("ai_key").value.trim(),
+         model:document.getElementById("ai_model").value.trim()||"deepseek-chat"};
+  localStorage.setItem(AIKEY, JSON.stringify(a));
+  toast("✅ AI 设置已保存");
+  pushStateDebounced();
+}
+window.saveAI=saveAI;
+
+function aiEndpoint(){
+  if(location.protocol==="file:" || location.port!=="8080"){ return "http://127.0.0.1:8080/api/ai/chat"; }
+  return "/api/ai/chat";
+}
+async function aiChat(messages){
+  var a=getAI();
+  if(!a.key){ throw new Error("未配置 API Key（请在「数据管理 → AI设置」填写）"); }
+  var resp=await fetch(aiEndpoint(),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base:a.base,key:a.key,model:a.model,messages:messages})});
+  var j=await resp.json().catch(function(){return{};});
+  if(!resp.ok) throw new Error(j.error||("HTTP "+resp.status));
+  return j.content||"";
+}
+window.aiChat=aiChat;
+
+// ---------- AI 智能导入（任意格式日程 → 日报） ----------
+var aiImpResult=null;
+
+// AI 分析粘贴的任意格式日程，生成日报 JSON 预览
+async function aiImportAnalyze(){
+  var raw=document.getElementById("ai_imp_text").value.trim();
+  if(!raw){ toast("请先粘贴需要导入的日程内容"); return; }
+  var st=document.getElementById("ai_imp_status"); st.textContent="🤖 AI 分析中…";
+  var btn=document.querySelector("#view_data button[onclick=\"aiImportAnalyze()\"]");
+  if(btn) btn.disabled=true;
+  var sys="你是日报数据解析助手。用户会粘贴任意格式的日程/日历/会议记录/Excel复制文本（可能是中文日期、斜杠日期、英文日期、模糊描述等）。"+
+    "请识别出每条工作记录，输出严格 JSON（不要 markdown 代码块、不要多余文字）：{\"entries\":[{\"date\":\"YYYY-MM-DD\",\"project\":\"项目名\",\"hours\":数字或null,\"work\":\"工作内容\",\"plan\":\"明日计划或空\",\"remark\":\"备注或空\"}]}\n"+
+    "规则：\n1. date 必须输出 YYYY-MM-DD；未写年份默认当前年；只有星期几无法确定日期时用 null。\n"+
+    "2. project：能识别项目名就用项目名；识别不出时用\"未分类\"。\n"+
+    "3. hours：能估算就填数字（半天=4，全天=8，会议按小时）；无法估算用 null，前端会要求补填。\n"+
+    "4. work：完整保留用户描述的工作内容（可适当整理，不要遗漏）。\n"+
+    "5. 若文本不含任何日期信息，返回 {\"entries\":[]}。";
+  try{
+    var txt=await aiChat([{role:"system",content:sys},{role:"user",content:raw}]);
+    txt=txt.trim();
+    // 去掉可能的 markdown 代码块围栏
+    txt=txt.replace(/^```[a-zA-Z]*\n?/,"").replace(/```\s*$/,"");
+    var arr;
+    try{ arr=JSON.parse(txt).entries; }
+    catch(e2){
+      // 尝试提取 JSON 对象
+      var st2=txt.indexOf("{"); var en2=txt.lastIndexOf("}");
+      if(st2>=0&&en2>st2) arr=JSON.parse(txt.slice(st2,en2+1)).entries;
+      else throw e2;
+    }
+    if(!arr||!arr.length){ st.textContent="未识别到有效记录（确认包含日期信息）"; toast("未识别到有效记录"); aiImpResult=null; return; }
+    // 校验/清洗
+    var bad=0;
+    arr.forEach(function(x){
+      if(!x||typeof x!=="object") x={};
+      if(!x.date || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)){ x.date=null; bad++; }
+      x.project=x.project||"未分类";
+      x.work=x.work||"";
+      x.hours=(x.hours==null||isNaN(+x.hours))?null:(+x.hours);
+      x.plan=x.plan||""; x.remark=x.remark||"";
+    });
+    aiImpResult=arr;
+    renderAiImportPreview();
+    if(bad) st.textContent="AI 分析完成（"+arr.length+" 条，其中 "+bad+" 条缺日期需补填）";
+    else st.textContent="AI 分析完成，共 "+arr.length+" 条，请核对后确认导入";
+  }catch(e){
+    st.textContent="";
+    toast("❌ AI 分析失败："+e.message);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+// 渲染预览表格（缺日期/缺工时的行可补填）
+function renderAiImportPreview(){
+  var box=document.getElementById("ai_imp_preview");
+  var btn=document.getElementById("ai_imp_btn");
+  if(!aiImpResult||!aiImpResult.length){ box.innerHTML=""; btn.style.display="none"; return; }
+  var h='<table><tr><th>日期</th><th>项目</th><th>工时</th><th>工作内容</th><th>明日计划</th><th>备注</th><th>去重</th></tr>';
+  aiImpResult.forEach(function(x,i){
+    // 已存在同日期同内容 → 标记重复
+    var dup=getEntries().some(function(e){ return e.date===x.date && e.work===x.work; });
+    h+='<tr style="'+(x.date? '':'background:var(--err-l)')+'">'+
+      '<td><input type="date" value="'+(x.date||"")+'" onchange="aiImpFix('+i+',\'date\',this.value)" style="width:130px"></td>'+
+      '<td><input type="text" value="'+esc(x.project)+'" onchange="aiImpFix('+i+',\'project\',this.value)" style="width:100%"></td>'+
+      '<td><input type="number" min="0" max="24" step="0.5" value="'+(x.hours!=null?x.hours:"")+'" placeholder="必填" onchange="aiImpFix('+i+',\'hours\',this.value)" style="width:60px"></td>'+
+      '<td>'+esc(x.work)+'</td>'+
+      '<td>'+esc(x.plan||"")+'</td>'+
+      '<td>'+esc(x.remark||"")+'</td>'+
+      '<td>'+(dup?'<span class="badge warn">重复</span>':'')+'</td></tr>';
+  });
+  h+='</table>';
+  h+='<div class="muted" style="margin-top:6px;font-size:12px">⚠ 红色行缺日期、工时列空的需补填后再导入；标注「重复」的会自动跳过（同日同内容）。</div>';
+  box.innerHTML=h;
+  btn.style.display="";
+  btn.textContent="✅ 确认导入（"+aiImpResult.length+" 条）";
+}
+
+// 预览表格补填回调
+function aiImpFix(idx, field, val){
+  if(!aiImpResult||!aiImpResult[idx]) return;
+  if(field==="hours") aiImpResult[idx].hours=(val===""||isNaN(+val))?null:(+val);
+  else aiImpResult[idx][field]=val;
+  var bad=aiImpResult.filter(function(x){ return !x.date || x.hours==null || !x.work; }).length;
+  document.getElementById("ai_imp_btn").textContent="✅ 确认导入（"+aiImpResult.length+" 条"+(bad?"，"+bad+" 条待补":"")+"）";
+}
+
+// 确认导入：去重合并
+function aiImportConfirm(){
+  if(!aiImpResult||!aiImpResult.length){ toast("请先 AI 分析"); return; }
+  var need=aiImpResult.filter(function(x){ return !x.date || x.hours==null || !x.work; });
+  if(need.length){ toast("还有 "+need.length+" 条缺日期/工时/内容，请补填"); return; }
+  var list=getEntries();
+  var added=0, skipped=0;
+  aiImpResult.forEach(function(x){
+    if(getEntries().some(function(e){ return e.date===x.date && e.work===x.work; })){ skipped++; return; }
+    list.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), date:x.date, project:x.project, taskId:"", hours:x.hours, work:x.work, plan:x.plan||"", remark:x.remark||""});
+    added++;
+  });
+  if(added){
+    list.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+    saveEntries(list);
+    refreshDaily(); renderCalendar(); renderProjects(); renderTasks();
+  }
+  aiImpResult=null;
+  document.getElementById("ai_imp_preview").innerHTML="";
+  document.getElementById("ai_imp_btn").style.display="none";
+  document.getElementById("ai_imp_status").textContent="✅ 已导入 "+added+" 条"+(skipped?"，跳过重复 "+skipped+" 条":"");
+  toast("✅ AI 导入完成："+added+" 条"+(skipped?"，跳过重复 "+skipped+" 条":""));
+}
+
+function aiImportClear(){
+  document.getElementById("ai_imp_text").value="";
+  document.getElementById("ai_imp_preview").innerHTML="";
+  document.getElementById("ai_imp_btn").style.display="none";
+  document.getElementById("ai_imp_status").textContent="";
+  aiImpResult=null;
+}
+window.aiImportAnalyze=aiImportAnalyze;
+window.aiImportConfirm=aiImportConfirm;
+window.aiImportClear=aiImportClear;
+window.aiImpFix=aiImpFix;
+
+async function testAI(){
+  var btn=document.getElementById("ai_test"); btn.disabled=true; btn.textContent="测试中…";
+  try{
+    var c=await aiChat([{role:"system",content:"只回复OK"},{role:"user",content:"ping"}]);
+    toast("✅ AI 连接成功："+c.slice(0,40));
+  }catch(e){
+    toast("❌ "+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent="测试连接";
+  }
+}
+window.testAI=testAI;
+
+function loadingBtn(id, loading, text){
+  var b=document.getElementById(id);
+  if(b){ b.disabled=loading; b.textContent=loading?text:b.getAttribute("data-orig")||text; }
+}
+function origBtn(id, text){ var b=document.getElementById(id); if(b&&!b.getAttribute("data-orig")) b.setAttribute("data-orig", text); }
+
+async function aiWeekly(){
+  var wk=document.getElementById("wk_date").value||today();
+  var range=weekRange(wk);
+  var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+  if(!list.length){ toast("本周暂无日报"); return; }
+  origBtn("btn_ai_weekly","🤖 AI 汇总周报");
+  loadingBtn("btn_ai_weekly", true, "AI 汇总中…");
+  try{
+    var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work+(e.plan?" | 明日计划:"+e.plan:""); });
+    var prompt="本周："+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
+      "出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
+      "日报条目：\n"+lines.join("\n");
+    var txt=await aiChat([
+      {role:"system",content:"你是周报撰写助手。严格根据日报条目生成周报，不得编造日报中不存在的任务或数据。输出 Markdown：首行“周报（起始日期 – 结束日期）”，然后每个项目一个板块，格式：\n## 项目名称\n\n总工时： X 小时 | 完成进度： 100%\n\n任务总结：\n\n（一段总起句，概括本周该项目的工作重点）\n\n（每个工作项一段，自然成文，可用“标题：描述”的句式，优先提炼专业小标题）\n\n最后加：\n## 本周未完成\n\n（待填写）"},
+      {role:"user",content:prompt}
+    ]);
+    document.getElementById("wk_preview").textContent=txt.trim();
+    toast("✅ AI 周报已生成，可复制/下载");
+  }catch(e){
+    toast("❌ AI 失败："+e.message+"（已保留规则版）");
+  }finally{
+    loadingBtn("btn_ai_weekly", false, "🤖 AI 汇总周报");
+  }
+}
+window.aiWeekly=aiWeekly;
+
+async function aiOKR(){
+  var mo=document.getElementById("mo_month").value||thisMonth();
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  if(!list.length){ toast("本月暂无日报"); return; }
+  origBtn("btn_ai_okr","🤖 AI 润色复盘");
+  loadingBtn("btn_ai_okr", true, "AI 润色中…");
+  try{
+    var rule=document.getElementById("mo_okr_preview").textContent;
+    var txt=await aiChat([
+      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"},
+      {role:"user",content:rule}
+    ]);
+    document.getElementById("mo_okr_preview").textContent=txt.trim();
+    toast("✅ 复盘已由 AI 润色");
+  }catch(e){
+    toast("❌ AI 失败："+e.message);
+  }finally{
+    loadingBtn("btn_ai_okr", false, "🤖 AI 润色复盘");
+  }
+}
+window.aiOKR=aiOKR;
+
+/* ================= AI 套用模板生成 ================= */
+// 通用：读取模板 + 数据上下文，让 AI 按模板格式生成
+async function aiApply(type){
+  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var t=getTpl(key);
+  if(!t || !t.text.trim()){ toast("请先粘贴/导入模板内容（模板示例）"); return; }
+  var btnId = type==="weekly"?"btn_tpl_ai_weekly":(type==="score"?"btn_tpl_ai_score":"btn_tpl_ai_okr");
+  var origLabel = type==="weekly"?"🤖 AI 按模板生成":(type==="score"?"🤖 AI 按模板生成":"🤖 AI 按模板生成");
+  origBtn(btnId, origLabel);
+  loadingBtn(btnId, true, "AI 解析模板中…");
+  try{
+    var tpl=t.text;
+    var system, user;
+    if(type==="weekly"){
+      var wk=document.getElementById("wk_date").value||today();
+      var range=weekRange(wk);
+      var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+      if(!list.length){ toast("本周暂无日报，无法生成"); return; }
+      var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work+(e.plan?" | 明日计划:"+e.plan:""); });
+      system="你是周报模板解析助手。用户会提供一份「参考周报模板」（可能是公司格式的周报样例，含表头/栏目/排版），以及本周的日报数据。请完全按照模板的结构与格式生成本周周报：保留模板的标题、表头、栏目名、分隔线等固定文字；把数据填入对应位置；若模板有表格（用 | 分隔），生成同样列数的表格；不得编造日报中不存在的任务。直接输出最终周报全文（Markdown/文本），不要解释。";
+      user="【参考周报模板】\n"+tpl+"\n\n【本周日报数据】\n本周："+range.monday+"（周一）～ "+range.sunday+"（周日）\n出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时，日报 "+list.length+" 条\n\n"+lines.join("\n");
+    } else {
+      var mo=document.getElementById("mo_month").value||thisMonth();
+      var b=monthBounds(mo);
+      var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+      if(!list.length){ toast("本月暂无日报，无法生成"); return; }
+      var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work; });
+      var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
+      var prof=getProfile();
+      system = (type==="score")
+        ? "你是月度绩效考核表模板解析助手。用户提供一份「参考考核评分表模板」和本月出勤/工时数据。请完全按照模板结构生成本月考核评分表：保留模板标题、表头（考核项目/具体指标/满分/自评分/项目经理审核等）、行格式；把姓名/部门/岗位/考核日期、出勤情况填入；自评分与审核列留空（不填数字）。直接输出全文，不要解释。"
+        : "你是OKR绩效考核表模板解析助手。用户提供一份「参考OKR模板」和本月日报数据（含项目与工作内容）。请完全按照模板结构生成本月OKR绩效考核表：保留模板的O/KR标题、表格列、栏目（如目标与关键结果、基础行为、加分项、本月复盘）；把姓名/部门/岗位/月份填入；根据日报按项目提炼O与KR（每个项目一个O，工作内容归纳为KR）；复盘部分可写框架留待补充，不编造。直接输出全文，不要解释。";
+      user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n\n日报明细：\n"+lines.join("\n");
+    }
+    var txt=await aiChat([{role:"system",content:system},{role:"user",content:user}]);
+    txt=txt.trim();
+    // 保存 AI 结果
+    var aiKey = type==="weekly"?TPL_AI_WEEK:(type==="score"?TPL_AI_SCORE:TPL_AI_OKR);
+    if(type==="weekly"){
+      var wk2=document.getElementById("wk_date").value||today();
+      var range2=weekRange(wk2);
+      localStorage.setItem(aiKey, JSON.stringify({range:range2.monday, text:txt}));
+      // 显示到预览
+      document.getElementById("wk_preview").textContent=txt;
+      toast("✅ AI 已按模板生成周报");
+    } else {
+      var mo2=document.getElementById("mo_month").value||thisMonth();
+      localStorage.setItem(aiKey, JSON.stringify({month:mo2, text:txt}));
+      document.getElementById(type==="score"?"mo_score_preview":"mo_okr_preview").textContent=txt;
+      toast("✅ AI 已按模板生成"+(type==="score"?"评分表":"OKR表"));
+    }
+  }catch(e){
+    toast("❌ AI 失败："+e.message);
+  }finally{
+    loadingBtn(btnId, false, origLabel);
+  }
+}
+window.aiApply=aiApply;
+
+/* ================= 从 CC Switch 一键导入 ================= */
+async function importCC(){
+  var sel=document.getElementById("ai_cc_select");
+  var btn=document.querySelector('button[onclick="importCC()"]');
+  if(btn){ btn.disabled=true; btn.textContent="读取中…"; }
+  try{
+    var url = (location.protocol==="file:" || location.port!=="8080") ? "http://127.0.0.1:8080/api/import/cc-switch" : "/api/import/cc-switch";
+    var resp=await fetch(url, {method:"GET"});
+    var j=await resp.json().catch(function(){return{};});
+    if(!j.ok) throw new Error(j.error||"读取失败");
+    if(!j.providers || !j.providers.length) throw new Error("CC Switch 中未找到带 API Key 的供应商");
+    sel.innerHTML="";
+    j.providers.forEach(function(p,i){
+      var o=document.createElement("option");
+      o.value=String(i);
+      o.textContent=(p.current?"★ ":"")+p.name+" ["+p.app_type+"] "+(p.model?("· "+p.model):"")+" · "+(p.base||"无BaseURL");
+      sel.appendChild(o);
+    });
+    sel.disabled=false;
+    // 自动选中上次使用的供应商（记忆上次选择）
+    var last=getLastCC(); var idx=0;
+    if(last){
+      for(var i=0;i<j.providers.length;i++){
+        if(j.providers[i].base===last.base && j.providers[i].key===last.key){ idx=i; break; }
+      }
+    }
+    sel.value=String(idx);
+    applyCCProvider(j.providers, idx);
+    sel.onchange=function(){ applyCCProvider(j.providers, parseInt(sel.value||"0",10)); };
+    var selName=j.providers[idx]?j.providers[idx].name:"";
+    document.getElementById("ai_cc_note").textContent="✅ 已从 CC Switch 读取 " + j.providers.length + " 个供应商（来源：" + (j.source||"") + "）。"+(last?"已自动选中上次使用的：「"+selName+"」；":"")+"选择上方供应商即自动填入，点「保存AI设置」生效。";
+    toast("✅ 已从 CC Switch 导入"+(last?"，自动选中上次的「"+selName+"」":""));
+  }catch(e){
+    document.getElementById("ai_cc_note").textContent="❌ 导入失败："+e.message+"（请先双击「启动服务.bat」并刷新页面）";
+    toast("❌ 导入失败："+e.message);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent="⚡ 从 CC Switch 一键导入"; }
+  }
+}
+window.importCC=importCC;
+
+var LASTCC_KEY="jzd_ai_lastcc_v1";
+function getLastCC(){ try{ return JSON.parse(localStorage.getItem(LASTCC_KEY))||null; }catch(e){ return null; } }
+function setLastCC(p){ if(p){ localStorage.setItem(LASTCC_KEY, JSON.stringify({name:p.name, app_type:p.app_type, base:p.base, key:p.key, model:p.model})); } }
+
+function applyCCProvider(list, idx){
+  var p=list[idx]; if(!p) return;
+  document.getElementById("ai_base").value=p.base||"";
+  document.getElementById("ai_key").value=p.key||"";
+  document.getElementById("ai_model").value=p.model||"";
+  setLastCC(p);   // 记忆本次选择的供应商
+}
+window.applyCCProvider=applyCCProvider;
+window.getLastCC=getLastCC; window.setLastCC=setLastCC;
+
+/* ================= 数据管理 ================= */
+function saveProfile(){
+  var p={name:document.getElementById("set_name").value.trim()||"张三",
+         dept:document.getElementById("set_dept").value.trim()||"研发部",
+         post:document.getElementById("set_post").value.trim()||"开发工程师"};
+  saveProfileData(p); toast("✅ 个人信息已保存");
+}
+window.saveProfile=saveProfile;
+
+function exportJSON(){
+  var data={version:1, profile:getProfile(), projects:getProjects(), tasks:getTasks(), entries:getEntries()};
+  downloadText("工作日报数据备份-"+today()+".json", JSON.stringify(data,null,2), "application/json;charset=utf-8");
+  toast("已导出备份文件");
+}
+window.exportJSON=exportJSON;
+
+function importJSON(){ document.getElementById("file_input").click(); }
+window.importJSON=importJSON;
+
+function handleFile(input){
+  var f=input.files[0]; if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var data=JSON.parse(r.result);
+      var list=data.entries||[];
+      if(!list.length){ toast("备份中没有日报记录"); return; }
+      if(!confirm("将导入 "+list.length+" 条记录（会合并到现有数据，重复记录自动跳过），继续？")) return;
+      var cur=getEntries(); var merged=cur.concat(list);
+      // 去重：优先按 id，其次按 日期|项目|时长|内容
+      var seen={};
+      merged=merged.filter(function(e){
+        var k=(e.id&&String(e.id))||(e.date+"|"+e.project+"|"+e.hours+"|"+e.work);
+        if(seen[k]) return false; seen[k]=1; return true;
+      });
+      merged.sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0);});
+      saveEntries(merged);
+      if(data.profile) saveProfileData(data.profile);
+      if(data.projects&&data.projects.length) saveProjects(data.projects);
+      if(data.tasks&&data.tasks.length){
+        var tseen={}; var tm=getTasks().concat(data.tasks).filter(function(t){
+          if(tseen[t.id]) return false; tseen[t.id]=1; return true;
+        });
+        saveTasks(tm);
+      }
+      toast("✅ 已导入 "+list.length+" 条记录"+(data.tasks&&data.tasks.length?("、"+(data.tasks.length)+" 个任务"):""));
+      refreshDaily();
+    }catch(e){ toast("❌ 导入失败："+e.message); }
+  };
+  r.readAsText(f,"UTF-8");
+  input.value="";
+}
+window.handleFile=handleFile;
+
+// 一键载入历史日报（2025-05 ~ 2026-09，来源：日报工具/历史日报备份.json）
+function mergeImport(data, tag){
+  var list=data.entries||[];
+  if(!list.length){ toast("备份中没有日报记录"); return; }
+  var cur=getEntries(); var merged=cur.concat(list);
+  var seen={};
+  merged=merged.filter(function(e){
+    var k=(e.id&&String(e.id))||(e.date+"|"+e.project+"|"+e.hours+"|"+e.work);
+    if(seen[k]) return false; seen[k]=1; return true;
+  });
+  merged.sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0);});
+  saveEntries(merged);
+  if(data.profile) saveProfileData(data.profile);
+  if(data.projects&&data.projects.length) saveProjects(data.projects);
+  if(data.tasks&&data.tasks.length){
+    var tseen={}; var tm=getTasks().concat(data.tasks).filter(function(t){
+      if(tseen[t.id]) return false; tseen[t.id]=1; return true;
+    });
+    saveTasks(tm);
+  }
+  toast("✅ "+(tag||"")+"已导入 "+list.length+" 条历史记录"+(data.tasks&&data.tasks.length?("、"+(data.tasks.length)+" 个任务"):""));
+  refreshDaily();
+  refreshHeaderStats();
+  renderCalendar();
+}
+window.mergeImport=mergeImport;
+
+async function loadHistory(){
+  var btn=document.querySelector('button[onclick="loadHistory()"]');
+  if(btn){ btn.disabled=true; btn.textContent="载入中…"; }
+  try{
+    var url = (location.protocol==="file:" || location.port!=="8080") ? "http://127.0.0.1:8080/历史日报备份.json" : "/历史日报备份.json";
+    var resp=await fetch(url);
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    var data=await resp.json();
+    if(!confirm("将导入历史日报 "+data.entries.length+" 条（2025-05 ~ 2026-09），与现有数据合并且自动去重，继续？")) return;
+    mergeImport(data, "历史日报");
+  }catch(e){
+    toast("❌ 载入失败："+e.message+"（请先双击「启动服务.bat」并刷新页面）");
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent="📥 一键载入历史日报（2025-05~2026-09）"; }
+  }
+}
+window.loadHistory=loadHistory;
+
+function importCSV(){
+  var txt=document.getElementById("csv_input").value.trim();
+  if(!txt){toast("请先粘贴CSV内容");return;}
+  var lines=txt.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  var added=0, err=0;
+  var list=getEntries();
+  lines.forEach(function(line){
+    var sep=line.indexOf("\t")>=0?"\t":",";
+    var cols=line.split(sep).map(function(c){return c.trim();});
+    if(cols.length<4) return;
+    var date=cols[0], project=cols[1], hours=parseFloat(cols[2]), work=cols[3];
+    var plan=cols[4]||"", remark=cols[5]||"";
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ err++; return; }
+    if(!project||!(hours>0)||!work){ err++; return; }
+    list.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), date:date, project:project, hours:hours, work:work, plan:plan, remark:remark});
+    added++;
+  });
+  if(added){
+    list.sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0);});
+    saveEntries(list);
+    toast("✅ 导入 "+added+" 条"+(err?("，跳过 "+err+" 条格式错误"):""));
+  } else { toast("❌ 没有可导入的有效行（需≥4列：日期,项目,时长,工作内容）"); }
+  document.getElementById("csv_input").value="";
+  refreshDaily();
+  refreshHeaderStats();
+}
+window.importCSV=importCSV;
+
+function clearAll(){ if(!confirm("确定清空全部数据（日报+任务）？此操作不可恢复，请先导出备份！")) return; localStorage.removeItem(KEY); localStorage.removeItem(TASKKEY); toast("已清空"); refreshDaily(); renderTasks(); }
+window.clearAll=clearAll;
+
+function loadSeed(){
+  if(!confirm("将导入 2026年8月+9月初 的示例日报（约32条）用于演示周报/月报，是否继续？")) return;
+  var seed=[
+    ["2026-08-03","澄湾市蓝湾食品MOM系统",8,"梳理蓝湾食品原料入库检验流程，确认检验项目、抽样规则和判定条件，输出配置说明。"],
+    ["2026-08-04","泊州市星河制药MES系统",8,"与星河制药质量部确认批记录模板字段，整理偏差处理节点的需求变更清单。"],
+    ["2026-08-05","澄湾市蓝湾食品MOM系统",8,"配置云启精密来料检验单页面，调整字段校验规则并完成基础数据初始化。"],
+    ["2026-08-06","泊州市星河制药MES系统",4,"开发蓝湾食品生产日报导出功能，按班组和产线汇总产量、损耗与工时数据。"],
+    ["2026-08-06","澄湾市蓝湾食品MOM系统",4,"修复星河制药电子批记录中工序状态回写异常的缺陷，完成回归验证。"],
+    ["2026-08-07","泊州市星河制药MES系统",8,"整理云启精密不合格品处置流程，补充返工、让步接收和报废场景的测试用例。"],
+    ["2026-08-10","泊州市星河制药MES系统",8,"协助蓝湾食品现场用户录入设备点检数据，处理终端页面兼容性问题。"],
+    ["2026-08-11","泊州市星河制药MES系统",4,"联调星河制药MES与称量设备接口，校验配方下发和称量结果回传逻辑。"],
+    ["2026-08-11","澄湾市蓝湾食品MOM系统",4,"开发云启精密质量追溯报表，支持按批次、供应商和检验结果多维查询。"],
+    ["2026-08-12","泊州市星河制药MES系统",8,"优化蓝湾食品工单派工逻辑，增加技能等级匹配和班组产能约束条件。"],
+    ["2026-08-13","泊州市星河制药MES系统",8,"确认星河制药包装工序数据采集需求，明确扫码点位和异常报警规则。"],
+    ["2026-08-14","泊州市星河制药MES系统",8,"修复云启精密检验结果录入页面保存失败问题，排查并发写入冲突。"],
+    ["2026-08-17","泊州市星河制药MES系统",8,"配置星河制药MES批次放行流程，设置质量审核节点和电子签名规则。"],
+    ["2026-08-18","泊州市星河制药MES系统",8,"配置星河制药MES批次放行流程，设置质量审核节点和电子签名规则。"],
+    ["2026-08-19","泊州市星河制药MES系统",4,"与云启精密计划部确认排产需求，整理优先级、交期和换型时间约束。"],
+    ["2026-08-19","澄湾市蓝湾食品MOM系统",4,"调整蓝湾食品库存过账接口，修正批次单位换算导致的库存差异问题。"],
+    ["2026-08-20","泊州市星河制药MES系统",8,"开发星河制药设备维保提醒功能，按运行时长和日历周期生成保养任务。"],
+    ["2026-08-21","泊州市星河制药MES系统",4,"联调云启精密QMS与ERP接口，确保检验申请和结果回传数据一致。"],
+    ["2026-08-21","澄湾市蓝湾食品MOM系统",4,"完成蓝湾食品现场实施巡检，收集用户反馈并更新操作手册和培训材料。"],
+    ["2026-08-24","泊州市星河制药MES系统",8,"修复星河制药MES报表导出乱码问题，统一字符集和日期格式配置。"],
+    ["2026-08-25","泊州市星河制药MES系统",8,"配置云启精密供应商质量档案，维护资质、绩效和异常整改记录字段。"],
+    ["2026-08-26","泊州市星河制药MES系统",8,"开发蓝湾食品SPC过程能力分析页面，完成控制图与指标计算逻辑。"],
+    ["2026-08-27","泊州市星河制药MES系统",8,"优化星河制药生产工单拆分功能，支持按包装规格和批次数量自动拆分。"],
+    ["2026-08-28","泊州市星河制药MES系统",8,"确认云启精密客户投诉处理流程，梳理原因分析、纠正措施和关闭条件。"],
+    ["2026-08-31","泊州市星河制药MES系统",4,"处理蓝湾食品移动端报工同步延迟问题，调整离线缓存和重传机制。"],
+    ["2026-08-31","澄湾市蓝湾食品MOM系统",4,"实施星河制药MES系统权限矩阵，配置岗位、角色和数据范围访问规则。"],
+    ["2026-09-01","泊州市星河制药MES系统",8,"开发云启精密质量周报自动汇总功能，按产线和缺陷类型统计趋势。"],
+    ["2026-09-02","泊州市星河制药MES系统",8,"联调蓝湾食品MOM与立库接口，验证入库上架和出库拣选指令流程。"],
+    ["2026-09-03","泊州市星河制药MES系统",8,"整理星河制药用户培训反馈，修订关键工序操作步骤和异常处理说明。"],
+    ["2026-09-04","泊州市星河制药MES系统",4,"修复云启精密审核任务超时未提醒缺陷，补充定时任务和消息通知。"],
+    ["2026-09-04","澄湾市蓝湾食品MOM系统",4,"完成蓝湾食品试运行数据核对，分析工单达成率与报废率偏差原因。"]
+  ];
+  var list=getEntries(); var cnt=0;
+  seed.forEach(function(s){
+    var dup=list.some(function(e){ return e.date===s[0]&&e.project===s[1]&&e.hours===s[2]&&e.work===s[3]; });
+    if(dup) return;
+    list.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), date:s[0], project:s[1], hours:s[2], work:s[3], plan:"", remark:""});
+    cnt++;
+  });
+  list.sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0);});
+  saveEntries(list);
+  toast("✅ 已导入示例数据 "+cnt+" 条");
+  refreshDaily();
+  refreshHeaderStats();
+}
+window.loadSeed=loadSeed;
+
+/* ================= 初始化 ================= */
+(function init(){
+  var p=getProfile();
+  document.getElementById("set_name").value=p.name;
+  document.getElementById("set_dept").value=p.dept;
+  document.getElementById("set_post").value=p.post;
+  var a=getAI();
+  document.getElementById("ai_base").value=a.base;
+  document.getElementById("ai_key").value=a.key;
+  document.getElementById("ai_model").value=a.model;
+  document.getElementById("in_date").value=today();
+  document.getElementById("wk_date").value=today();
+  document.getElementById("mo_month").value=thisMonth();
+  fillProjectSelect();
+  fillTaskSelect();
+  refreshDaily();
+  renderProjects();
+  renderTasks();
+  renderCalendar();
+  loadTpl("weekly"); loadTpl("score"); loadTpl("okr");
+  renderWeekly();
+  renderMonthly();
+  refreshHeaderStats();
+  checkDailyReminder();
+  // 打开页面即提醒：工作日未填日报时弹 toast（无论当前在哪个页签）
+  if(isWorkday(today()) && !getEntries().some(function(e){return e.date===today();})){
+    setTimeout(function(){ toast("⏰ 今天是工作日，日报还未填写！"); }, 600);
+  }
+  // MySQL：加载完成后检查连接状态；若服务端已有数据则自动恢复（服务端优先，保证多入口数据一致）
+  // MySQL 唯一数据源：打开页面即与服务器同步（静默，不弹窗），彻底不依赖浏览器存储
+  setTimeout(function(){
+    ntRefreshStatus();
+    dbRefreshStatus().then(function(){
+      fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(j){
+        if(!(j && j.ok && j.available)) return; // MySQL 未连接，保持本地
+        var items=j.items||{};
+        var hasData=Object.keys(items).length>0;
+        if(hasData){
+          // 服务器有数据 → 直接采用服务器数据（MySQL 是唯一真相），覆盖本地并刷新全部视图
+          var serverDaily="";
+          try{ serverDaily=items["jzd_daily_v1"]?JSON.parse(items["jzd_daily_v1"]).length:0; }catch(e){}
+          Object.keys(items).forEach(function(k){ localStorage.setItem(k, items[k]); });
+          refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
+          loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+          refreshHeaderStats();
+          var p=getProfile();
+          document.getElementById("set_name").value=p.name;
+          document.getElementById("set_dept").value=p.dept;
+          document.getElementById("set_post").value=p.post;
+          var a=getAI();
+          document.getElementById("ai_base").value=a.base;
+          document.getElementById("ai_key").value=a.key;
+          document.getElementById("ai_model").value=a.model;
+          toast("✅ 已从服务器 MySQL 加载数据（日报 "+serverDaily+" 条）");
+        }else{
+          // 服务器空、本地有数据 → 自动上传（首次迁移）
+          var localKeys=Object.keys(collectState());
+          if(localKeys.length>0){
+            dbPush().then(function(){
+              toast("✅ 已自动上传本地数据到 MySQL（共 "+localKeys.length+" 项）");
+            });
+          }
+        }
+      }).catch(function(){});
+    }).catch(function(){});
+  }, 800);
+})();
+</script>
+</body>
+</html>

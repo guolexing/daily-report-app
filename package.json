@@ -1,6 +1,6 @@
 {
   "name": "jzd-daily-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "工作日报 · 周报月报生成器（桌面版）",
   "main": "main.js",
   "scripts": {
@@ -17,6 +17,31 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "node_modules/electron-updater/**/*",
+      "node_modules/electron-updater/package.json",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/builder-util-runtime/package.json",
+      "node_modules/fs-extra/**/*",
+      "node_modules/fs-extra/package.json",
+      "node_modules/js-yaml/**/*",
+      "node_modules/js-yaml/package.json",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lazy-val/package.json",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.escaperegexp/package.json",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/lodash.isequal/package.json",
+      "node_modules/semver/**/*",
+      "node_modules/semver/package.json",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/tiny-typed-emitter/package.json",
+      "node_modules/jsonfile/**/*",
+      "node_modules/jsonfile/package.json",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/graceful-fs/package.json",
+      "node_modules/universalify/**/*",
+      "node_modules/universalify/package.json",
       "!**/*.map",
       "!**/*.md"
     ],
@@ -47,9 +72,17 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "工作日报"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "guolexing",
+        "repo": "daily-report-app"
+      }
+    ]
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "mysql2": "^3.24.3"
   },
   "devDependencies": {

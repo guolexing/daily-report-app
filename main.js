@@ -1,9 +1,10 @@
 // 极造数字 · 日报工具 桌面版主进程
 // 启动内嵌 server.js（本地 HTTP 服务），创建桌面窗口加载，关闭时清理子进程
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
+const { autoUpdater } = require('electron-updater');
 
 // 单实例：重复启动时聚焦已有窗口
 const gotLock = app.requestSingleInstanceLock();
@@ -64,10 +65,63 @@ function createWindow(port) {
     autoHideMenuBar: true,
     icon: iconPath,
     backgroundColor: '#f4f6fb',
-    webPreferences: { nodeIntegration: false, contextIsolation: true }
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
   });
   mainWin.loadURL('http://127.0.0.1:' + port);
   mainWin.on('closed', () => { mainWin = null; });
+}
+
+// ================= 自动更新（electron-updater + GitHub Releases） =================
+// 更新状态推送给前端
+function pushUpdateStatus(status) {
+  try {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('update:status', status);
+  } catch (e) {}
+}
+let updateDownloaded = false;
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) { console.log('[update] 开发模式跳过自动更新'); return; }
+  autoUpdater.autoDownload = true;   // 自动下载
+  autoUpdater.autoInstallOnAppQuit = true; // 退出时自动安装
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on('checking-for-update', () => pushUpdateStatus({ state: 'checking', msg: '正在检查更新…' }));
+  autoUpdater.on('update-available', (info) => pushUpdateStatus({ state: 'available', msg: '发现新版本 v' + info.version + '，正在下载…', version: info.version }));
+  autoUpdater.on('update-not-available', () => pushUpdateStatus({ state: 'none', msg: '当前已是最新版本' }));
+  autoUpdater.on('download-progress', (p) => pushUpdateStatus({ state: 'downloading', msg: '正在下载更新… ' + Math.round(p.percent) + '%', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', (info) => {
+    updateDownloaded = true;
+    pushUpdateStatus({ state: 'downloaded', msg: '新版本 v' + info.version + ' 已下载，重启后安装', version: info.version });
+    dialog.showMessageBox(mainWin, {
+      type: 'info', title: '更新就绪',
+      message: '新版本 v' + info.version + ' 已下载完成',
+      detail: '重启应用即可完成更新安装。',
+      buttons: ['立即重启', '稍后'], defaultId: 0, cancelId: 1
+    }).then((r) => { if (r.response === 0) { app.relaunch(); app.exit(0); } }).catch(() => {});
+  });
+  autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', msg: '更新检查失败：' + (err && err.message ? err.message : err) }));
+
+  // IPC：前端触发检查
+  ipcMain.handle('update:check', async () => {
+    try {
+      if (!app.isPackaged) return { ok: true, msg: '开发模式无更新检查' };
+      if (updateDownloaded) return { ok: true, msg: '更新已下载，重启后生效' };
+      await autoUpdater.checkForUpdates();
+      return { ok: true, msg: '检查中…' };
+    } catch (e) {
+      return { ok: false, msg: String(e && e.message ? e.message : e) };
+    }
+  });
+
+  // 启动 5 秒后静默检查（不打扰）
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 5000);
 }
 
 app.whenReady().then(() => {
@@ -88,6 +142,7 @@ app.whenReady().then(() => {
       return;
     }
     createWindow(port);
+    setupAutoUpdater();
   });
 });
 

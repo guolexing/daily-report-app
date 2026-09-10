@@ -1,6 +1,6 @@
 // 极造数字 · 日报工具 桌面版主进程
 // 启动内嵌 server.js（本地 HTTP 服务），创建桌面窗口加载，关闭时清理子进程
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
@@ -12,13 +12,15 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0];
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+    showMainWindow();
   });
 }
 
 let serverProc = null;
 let mainWin = null;
+let tray = null;      // 系统托盘
+let lastPort = null;  // 记住当前端口，窗口重建时复用
+app.isQuitting = false; // 是否真正退出（托盘菜单退出）
 
 // 查找空闲端口（备用）
 function findFreePort(start, callback) {
@@ -72,7 +74,53 @@ function createWindow(port) {
     }
   });
   mainWin.loadURL('http://127.0.0.1:' + port);
+  lastPort = port;
+  // 关闭窗口 → 隐藏到托盘（后台继续运行，任务提醒仍生效），不销毁
+  mainWin.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWin.hide();
+    }
+  });
   mainWin.on('closed', () => { mainWin = null; });
+}
+
+// 显示/恢复主窗口（托盘点击、二次启动、菜单项）
+function showMainWindow() {
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.show();
+    mainWin.focus();
+    if (mainWin.isMinimized()) mainWin.restore();
+  } else if (lastPort) {
+    // 窗口被销毁过 → 重建（server 仍在运行，直接加载）
+    createWindow(lastPort);
+  }
+}
+
+// 创建系统托盘图标（点击打开主窗口，右键菜单可退出）
+function createTray() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app-icon.png')
+    : path.join(__dirname, 'build', 'icon.ico');
+  try {
+    // Windows 托盘用 32x32 小图标（原生图像缩放，避免大图模糊/占位）
+    let img = nativeImage.createFromPath(iconPath);
+    if (img.isEmpty()) img = nativeImage.createEmpty();
+    else if (img.getSize().width > 32) img = img.resize({ width: 32, height: 32 });
+    tray = new Tray(img);
+    tray.setToolTip('工作日报 · 周报月报生成器（后台运行中）');
+    const menu = Menu.buildFromTemplate([
+      { label: '打开主窗口', click: () => showMainWindow() },
+      { type: 'separator' },
+      { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
+    ]);
+    tray.setContextMenu(menu);
+    // 单击托盘图标 → 打开/显示主窗口
+    tray.on('click', () => showMainWindow());
+    console.log('[tray] 系统托盘已创建');
+  } catch (e) {
+    console.error('[tray] 创建失败：' + (e && e.message ? e.message : e));
+  }
 }
 
 // ================= 自动更新（electron-updater + GitHub Releases） =================
@@ -102,7 +150,7 @@ function setupAutoUpdater() {
       message: '新版本 v' + info.version + ' 已下载完成',
       detail: '重启应用即可完成更新安装。',
       buttons: ['立即重启', '稍后'], defaultId: 0, cancelId: 1
-    }).then((r) => { if (r.response === 0) { app.relaunch(); app.exit(0); } }).catch(() => {});
+    }).then((r) => { if (r.response === 0) { if (serverProc) { try { serverProc.kill(); } catch (e2) {} serverProc = null; } app.relaunch(); app.exit(0); } }).catch(() => {});
   });
   autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', msg: '更新检查失败：' + (err && err.message ? err.message : err) }));
 
@@ -142,6 +190,7 @@ app.whenReady().then(() => {
       return;
     }
     createWindow(port);
+    createTray();   // 系统托盘（关闭窗口后仍可从此打开）
     setupAutoUpdater();
   });
 });
@@ -150,6 +199,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   if (serverProc) { try { serverProc.kill(); } catch (e) {} serverProc = null; }
 });
+// 窗口全部关闭（实际是隐藏到托盘）→ 保持后台运行，不退出
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // 后台运行：任务提醒/通知继续生效，从托盘重新打开
 });

@@ -670,7 +670,8 @@ function collectState(){
     if(v!==null && v!==undefined) items[k]=v;
   });
   return items;
-// 导出全库 SQL 备份（标准 SQL，可在任意 MySQL 恢复）
+}
+
 // 导出全库备份（JSON，含日报/任务/项目/设置，可移植到任意电脑恢复）
 async function dbExportJson(){
   try{
@@ -3268,7 +3269,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.4.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.4.1" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

@@ -141,7 +141,37 @@ try {
 // ================= Windows 原生通知（任务计划开始时间提醒） =================
 const { execFile } = require('child_process');
 let notifyCfg = { enabled: true, advanceMin: 5, sound: true }; // 默认：启用、提前5分钟
-let notifiedMap = {}; // 已通知记录 {taskId_start: 1}，重启后重置（跨重启防重靠 DB 表）
+let notifiedMap = {}; // 已通知记录 {taskId_start: 时间戳}，持久化到 MySQL 防服务重启重复通知
+const NOTIFIED_KEY = 'jzd_notified_map_v1';
+
+// 从 MySQL 加载已通知记录（服务重启后恢复，避免重复通知）
+// 等待 dbPool 就绪（最长 10 秒），避免启动时加载到空 map 导致已通知任务重复提醒
+async function loadNotifiedMap() {
+  try {
+    for (let i = 0; i < 20 && !dbPool; i++) await new Promise(r => setTimeout(r, 500));
+    if (!dbPool) return;
+    const [rows] = await dbPool.query("SELECT v FROM jzd_state WHERE k = '" + NOTIFIED_KEY + "'");
+    if (rows && rows[0] && rows[0].v) {
+      const m = JSON.parse(rows[0].v);
+      if (m && typeof m === 'object') notifiedMap = m;
+    }
+  } catch (e) {}
+}
+
+// 持久化已通知记录到 MySQL（并清理 48 小时前的过期记录）
+async function saveNotifiedMap() {
+  try {
+    if (!dbPool) return;
+    const cutoff = Date.now() - 48 * 3600000;
+    const kept = {};
+    for (const k of Object.keys(notifiedMap)) {
+      const ts = notifiedMap[k];
+      if (typeof ts === 'number' && ts >= cutoff) kept[k] = ts;
+    }
+    notifiedMap = kept;
+    await dbPool.query('INSERT INTO jzd_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', [NOTIFIED_KEY, JSON.stringify(notifiedMap)]);
+  } catch (e) {}
+}
 
 // 从 MySQL 读取通知配置
 async function loadNotifyConfig() {
@@ -165,20 +195,22 @@ async function saveNotifyConfig(cfg) {
 
 // 发送 Windows Toast 通知（PowerShell + WinRT）
 function sendToast(title, message) {
+  const titleArg = JSON.stringify(String(title || '')).replace(/[\u0000-\u001f]/g, '');
+  const msgArg = JSON.stringify(String(message || '')).replace(/[\u0000-\u001f]/g, '');
   const ps = [
     '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
     '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null',
     '$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)',
     '$textNodes = $template.GetElementsByTagName("text")',
-    '$textNodes.Item(0).AppendChild($template.CreateTextNode($args[0])) | Out-Null',
-    '$textNodes.Item(1).AppendChild($template.CreateTextNode($args[1])) | Out-Null',
+    '$textNodes.Item(0).AppendChild($template.CreateTextNode(' + titleArg + ')) | Out-Null',
+    '$textNodes.Item(1).AppendChild($template.CreateTextNode(' + msgArg + ')) | Out-Null',
     '$toast = [Windows.UI.Notifications.ToastNotification]::new($template)',
     '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("工作日报APP").Show($toast)'
   ].join('\n');
   const tmp = path.join(os.tmpdir(), 'jzd_toast_' + Date.now() + '.ps1');
   // UTF-8 BOM 确保中文不乱码
   fs.writeFileSync(tmp, '\uFEFF' + ps, 'utf8');
-  execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmp, title, message], { timeout: 15000 }, (err) => {
+  execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmp], { timeout: 15000 }, (err) => {
     try { fs.unlinkSync(tmp); } catch (e2) {}
     const logLine = new Date().toISOString() + ' | ' + (err ? 'ERR ' + err.message : 'OK ' + title) + '\n';
     try { fs.appendFileSync(path.join(DATA_DIR, 'remind.log'), logLine, 'utf8'); } catch (e3) {}
@@ -210,13 +242,14 @@ async function checkTaskReminders() {
       const tparts = (timePart || '00:00').split(':').map(Number);
       const st = new Date(dparts[0], (dparts[1] || 1) - 1, dparts[2] || 1, tparts[0] || 0, tparts[1] || 0, 0).getTime();
       if (isNaN(st)) continue;
-      // 到点或已过点（在提前窗口内）→ 通知（一次性）
+      // 到点或已过点（在提前窗口内）→ 通知（一次性，防重复）
       if (now >= st - advance) {
         const key = t.id + '_' + t.start;
         if (notifiedMap[key]) continue;
-        notifiedMap[key] = 1;
         // 只通知当次；如果 start 已过很久（比如超过2小时）就不再补发
-        if (now - st > 2 * 60 * 60000) { delete notifiedMap[key]; continue; }
+        if (now - st > 2 * 60 * 60000) continue;
+        notifiedMap[key] = now; // 记录通知时间戳
+        await saveNotifiedMap(); // 持久化到 MySQL，服务重启后不再重复通知
         const project = t.project || '';
         const timeTxt = timePart || '';
         sendToast('⏰ 任务开始提醒：' + t.name, '项目：' + project + '\n计划开始：' + datePart + ' ' + timeTxt + '\n请开始处理该任务');
@@ -228,11 +261,11 @@ async function checkTaskReminders() {
   }
 }
 
-// 启动通知轮询（30 秒一次）
-loadNotifyConfig().then(() => {
+// 启动通知轮询（30 秒一次）；加载配置 + 已通知记录（防重启重复通知）
+Promise.all([loadNotifyConfig(), loadNotifiedMap()]).then(() => {
   setInterval(checkTaskReminders, 30000);
   checkTaskReminders();
-  console.log('  Windows 通知: 已启用（每30秒检查任务计划开始时间）');
+  console.log('  Windows 通知: 已启用（每30秒检查任务计划开始时间，防重复通知）');
 }).catch(() => {
   setInterval(checkTaskReminders, 30000);
 });

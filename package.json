@@ -48,7 +48,11 @@
     "extraResources": [
       {
         "from": "runtime",
-        "to": "runtime"
+        "to": "runtime",
+        "filter": [
+          "**/*",
+          "!db_config.json"
+        ]
       },
       {
         "from": "app-icon.png",

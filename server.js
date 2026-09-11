@@ -10,9 +10,9 @@ const os = require('os');
 // 数据目录：桌面版由 Electron 主进程注入 userData；Web 版默认当前目录（db_config.json 可写）
 const DATA_DIR = process.env.JZD_DATA_DIR || __dirname;
 const DB_CONFIG_FILE = path.join(DATA_DIR, 'db_config.json');
-// 首次运行（userData 无配置时）继承随包分发的 db_config.json（Web 版同目录则跳过）
+// 首次运行（userData 无配置时）继承随包分发的【示例】配置（不含真实密码，用户自行填写；Web 版同目录则跳过）
 if (DATA_DIR !== __dirname && !fs.existsSync(DB_CONFIG_FILE)) {
-  const seed = path.join(__dirname, 'db_config.json');
+  const seed = path.join(__dirname, 'db_config.example.json');
   try { if (fs.existsSync(seed)) { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.copyFileSync(seed, DB_CONFIG_FILE); } } catch (e) {}
 }
 let mysql = null;

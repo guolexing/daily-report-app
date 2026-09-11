@@ -131,6 +131,21 @@ function pushUpdateStatus(status) {
   } catch (e) {}
 }
 let updateDownloaded = false;
+let promptedUpdateVersion = null;   // 已弹过窗的版本，避免同一次运行内反复打扰，
+                                    // 也避免"更新装不上→每次启动又弹"的死循环观感
+
+// 统一入口：真正启动已下载的安装包（旧代码误用 app.relaunch()，只重启自己、从不安装）
+function installDownloadedUpdate() {
+  if (serverProc) { try { serverProc.kill(); } catch (e) {} serverProc = null; }
+  app.isQuitting = true;            // 放行窗口关闭，否则会被托盘隐藏逻辑拦截导致无法退出
+  try {
+    autoUpdater.quitAndInstall(false, true);   // isSilent=false 显示安装界面, isForceRunAfter=true 装完自动启动
+  } catch (e) {
+    // 极端情况下回退：至少重启，不再静默失败
+    try { app.relaunch(); } catch (e2) {}
+    app.exit(0);
+  }
+}
 
 function setupAutoUpdater() {
   if (!app.isPackaged) { console.log('[update] 开发模式跳过自动更新'); return; }
@@ -144,13 +159,17 @@ function setupAutoUpdater() {
   autoUpdater.on('download-progress', (p) => pushUpdateStatus({ state: 'downloading', msg: '正在下载更新… ' + Math.round(p.percent) + '%', percent: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', (info) => {
     updateDownloaded = true;
-    pushUpdateStatus({ state: 'downloaded', msg: '新版本 v' + info.version + ' 已下载，重启后安装', version: info.version });
+    var ver = info && info.version ? info.version : '';
+    pushUpdateStatus({ state: 'downloaded', msg: '新版本 v' + ver + ' 已下载，可立即重启安装', version: ver });
+    // 同一次运行内只提示一次，不再每次检查/启动都弹
+    if (promptedUpdateVersion === ver) return;
+    promptedUpdateVersion = ver;
     dialog.showMessageBox(mainWin, {
       type: 'info', title: '更新就绪',
-      message: '新版本 v' + info.version + ' 已下载完成',
-      detail: '重启应用即可完成更新安装。',
-      buttons: ['立即重启', '稍后'], defaultId: 0, cancelId: 1
-    }).then((r) => { if (r.response === 0) { if (serverProc) { try { serverProc.kill(); } catch (e2) {} serverProc = null; } app.relaunch(); app.exit(0); } }).catch(() => {});
+      message: '新版本 v' + ver + ' 已下载完成',
+      detail: '点击「立即重启并安装」将关闭应用、运行安装程序并自动重新打开。也可稍后从「数据管理 → 关于与更新」手动安装。',
+      buttons: ['立即重启并安装', '稍后'], defaultId: 0, cancelId: 1
+    }).then((r) => { if (r.response === 0) installDownloadedUpdate(); }).catch(() => {});
   });
   autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', msg: '更新检查失败：' + (err && err.message ? err.message : err) }));
 
@@ -161,6 +180,19 @@ function setupAutoUpdater() {
       if (updateDownloaded) return { ok: true, msg: '更新已下载，重启后生效' };
       await autoUpdater.checkForUpdates();
       return { ok: true, msg: '检查中…' };
+    } catch (e) {
+      return { ok: false, msg: String(e && e.message ? e.message : e) };
+    }
+  });
+
+  // IPC：前端触发"立即重启并安装"
+  ipcMain.handle('update:install', async () => {
+    try {
+      if (!app.isPackaged) return { ok: false, msg: '开发模式不支持' };
+      if (!updateDownloaded) return { ok: false, msg: '尚未下载完成，请先检查更新' };
+      // 让渲染进程有时间显示提示再退出
+      setTimeout(() => { installDownloadedUpdate(); }, 400);
+      return { ok: true, msg: '正在启动安装程序…' };
     } catch (e) {
       return { ok: false, msg: String(e && e.message ? e.message : e) };
     }

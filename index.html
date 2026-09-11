@@ -593,8 +593,9 @@
         <div><label>当前版本</label><div style="padding:9px 12px;background:#f4f7fd;border:1px solid var(--line);border-radius:8px;font-weight:600" id="app_version">-</div></div>
         <div style="display:flex;align-items:flex-end"><button class="btn" onclick="appCheckUpdate()">🔄 检查更新</button></div>
         <div style="display:flex;align-items:flex-end"><button class="btn gray" onclick="appOpenRepo()">🌐 GitHub 仓库</button></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn green" id="app_install_btn" style="display:none" onclick="appInstallUpdate()">⬇️ 立即重启并安装</button></div>
       </div>
-      <div class="muted" id="app_update_status" style="margin-top:8px">桌面版支持自动更新：新版本发布后，点击「🔄 检查更新」即可下载并重启安装。</div>
+      <div class="muted" id="app_update_status" style="margin-top:8px">桌面版支持自动更新：新版本发布后，点击「🔄 检查更新」即可下载；下载完成后会出现「⬇️ 立即重启并安装」按钮。</div>
       <div class="muted" style="margin-top:6px">💡 若为浏览器/Web 方式打开，请直接访问 GitHub Releases 下载最新安装包。</div>
     </div>
 
@@ -3600,14 +3601,29 @@ function appCheckUpdate(){
 function appOpenRepo(){
   window.open("https://github.com/guolexing/daily-report-app","_blank");
 }
+function appInstallUpdate(){
+  if(!window.appUpdate || !window.appUpdate.install){ setUpdateStatus("⚠️ 当前版本不支持该操作，请手动运行安装包"); return; }
+  setUpdateStatus("⏳ 正在启动安装程序，应用即将关闭…");
+  var b=document.getElementById("app_install_btn"); if(b){ b.disabled=true; b.textContent="⏳ 正在安装…"; }
+  window.appUpdate.install().then(function(r){
+    if(r && r.ok===false){ setUpdateStatus("❌ "+(r.msg||"安装启动失败")); if(b){ b.disabled=false; b.textContent="⬇️ 立即重启并安装"; } }
+  }).catch(function(e){ setUpdateStatus("❌ 安装失败："+(e&&e.message?e.message:e)); if(b){ b.disabled=false; b.textContent="⬇️ 立即重启并安装"; } });
+}
+function showInstallBtn(show){
+  var b=document.getElementById("app_install_btn");
+  if(b) b.style.display = show ? "" : "none";
+}
 // 显示当前版本 + 订阅更新状态
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.1" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
+        // 下载完成 → 显示"立即重启并安装"按钮；检查中/无更新 → 隐藏
+        if(s && s.state==="downloaded") showInstallBtn(true);
+        else if(s && (s.state==="none" || s.state==="checking" || s.state==="error")) showInstallBtn(false);
       });
     }
   }catch(e){}

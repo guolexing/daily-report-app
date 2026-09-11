@@ -410,6 +410,22 @@
       </div>
       <div class="pre" id="wk_preview"></div>
     </div>
+
+    <div class="card">
+      <h2>🤖 AI 生成要求（提示词修正，长期生效）</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">
+        对 AI 生成的周报/评分表/OKR 不满意？在下方输入修正要求（如“按项目分组、突出量化成果、控制在500字内”），
+        保存后<b>长期生效</b>——之后每次 AI 生成都会自动遵守这些要求。
+      </div>
+      <textarea id="ai_rule_input" style="min-height:80px" placeholder="例如：&#10;1. 每个项目单独一段，先写成果再写过程&#10;2. 突出量化数据（工时、完成率、数量）&#10;3. 不要出现“待填写”，未完成项直接省略&#10;4. 全文控制在 600 字以内，语气正式简洁"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn green sm" id="btn_add_ai_rule" onclick="addAiRule()">➕ 保存为新要求</button>
+        <button class="btn warn sm" onclick="saveAndRegenWeekly()">💾 保存并重新生成周报</button>
+        <button class="btn gray sm" onclick="clearAiRuleInput()">✖ 清空输入</button>
+        <span class="muted" style="font-size:12px" id="ai_rule_hint"></span>
+      </div>
+      <div id="ai_rule_list" style="margin-top:10px"></div>
+    </div>
   </div>
 
   <!-- ============ 月报 ============ -->
@@ -588,6 +604,7 @@
           <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出全库备份」生成 .json 备份文件，拷贝到任意电脑安装本 APP 后点「⬆ 从备份恢复」即可完整还原（恢复前自动备份当前数据）。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
           <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
+          <p>7. <b>AI 生成要求（提示词修正）</b>：若 AI 生成的周报/评分表/OKR 不符合需求，在周报页下方「🤖 AI 生成要求」输入修正要求（如"按项目分组、突出量化数据、控制在500字内"），点「➕ 保存为新要求」后<b>长期生效</b>——之后每次 AI 生成都会自动遵守。历史要求列表可逐条<b>启用/停用</b>、<b>✏️ 调整</b>、<b>🗑 删除</b>；点「💾 保存并重新生成周报」可立即用新要求重生成。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
           <p>8. <b>一键载入历史日报</b>：数据管理 →「📥 一键载入历史日报（2025-05~2026-09）」可把入职至今的 333 条日报（历史日报.xlsx 转换而来，已含 8月/9月初）合并进应用，自动去重；或点「⬆ 导入数据(JSON)」手动选择「日报工具/历史日报备份.json」。之后周报/月报即可基于完整历史生成。</p>
           <p>9. <b>项目管理</b>：「② 项目管理」可添加/改名/删除项目，并可将项目<b>完结</b>（完成后点「✔ 完结」，默认不再出现在日报/任务的项目下拉中；勾选「显示已完结项目」可恢复查看）。项目完结不影响历史日报/任务数据。</p>
@@ -658,7 +675,7 @@ function saveProfileData(p){ localStorage.setItem(PKEY, JSON.stringify(p)); push
 /* ================= MySQL 数据持久化（客户端） ================= */
 // 全部需要同步到 MySQL 的 localStorage key（含模板/AI/任务/项目/日报/个人信息）
 // 注：AIKEY/AI_LASTCC/TWKEY 等在下方才声明，这里用字符串字面量，避免顺序问题
-var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1"];
+var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_ai_rules_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1"];
 
 var dbSyncing=false;
 
@@ -2160,6 +2177,7 @@ function renderWeekly(){
     '<div class="item">本周总工时：<b>'+sumH(totalH)+' 小时</b></div>';
   var tplText=buildWeeklyTplText(range, list);
   document.getElementById("wk_preview").textContent = (tplText!=null) ? tplText : buildWeeklyText(range, list);
+  if(typeof renderAiRules==="function") renderAiRules();
 }
 
 function buildWeeklyText(range, list){
@@ -3009,6 +3027,122 @@ function loadingBtn(id, loading, text){
 }
 function origBtn(id, text){ var b=document.getElementById(id); if(b&&!b.getAttribute("data-orig")) b.setAttribute("data-orig", text); }
 
+/* ================= AI 生成要求（提示词修正，长期生效） ================= */
+var AIRULE="jzd_ai_rules_v1";
+var aiRuleEditing=null; // 正在编辑的要求 id
+
+function getAiRules(){
+  try{ var a=JSON.parse(localStorage.getItem(AIRULE)); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function saveAiRules(arr){ localStorage.setItem(AIRULE, JSON.stringify(arr)); pushStateDebounced(); }
+
+// 生成注入到 AI 系统提示词的要求文本（仅已启用项）
+function aiRulesPrompt(){
+  var on=getAiRules().filter(function(r){ return r && r.enabled!==false && String(r.text||"").trim(); });
+  if(!on.length) return "";
+  return "\n\n【用户生成要求（必须严格遵守，优先于上述格式要求）】\n"+
+    on.map(function(r,i){ return (i+1)+". "+String(r.text).trim(); }).join("\n");
+}
+window.aiRulesPrompt=aiRulesPrompt;
+
+function renderAiRules(){
+  var box=document.getElementById("ai_rule_list");
+  if(!box) return;
+  var arr=getAiRules();
+  var on=arr.filter(function(r){ return r.enabled!==false; }).length;
+  var hint=document.getElementById("ai_rule_hint");
+  if(hint) hint.textContent="已启用 "+on+" / 共 "+arr.length+" 条要求";
+  var btn=document.getElementById("btn_add_ai_rule");
+  if(btn) btn.textContent=aiRuleEditing?"✏️ 更新此要求":"➕ 保存为新要求";
+  if(!arr.length){
+    box.innerHTML='<div class="muted" style="font-size:12px">暂无要求。AI 将按默认规则生成周报/评分表/OKR。</div>';
+    return;
+  }
+  var h='<table><tr><th style="width:56px">启用</th><th>要求内容</th><th style="width:96px">添加时间</th><th style="width:130px">操作</th></tr>';
+  arr.forEach(function(r){
+    var en=r.enabled!==false;
+    var ts=r.ts? new Date(r.ts).toLocaleDateString("zh-CN") : "";
+    h+='<tr'+(en?'':' style="opacity:.55"')+'>'+
+      '<td><input type="checkbox" '+(en?'checked':'')+' onchange="toggleAiRule(\''+r.id+'\')"></td>'+
+      '<td style="white-space:pre-wrap">'+esc(r.text)+'</td>'+
+      '<td class="muted" style="font-size:12px">'+ts+'</td>'+
+      '<td><button class="btn gray sm" onclick="editAiRule(\''+r.id+'\')">✏️ 调整</button> '+
+      '<button class="btn gray sm" onclick="delAiRule(\''+r.id+'\')">🗑 删除</button></td>'+
+      '</tr>';
+  });
+  h+='</table>';
+  box.innerHTML=h;
+}
+window.renderAiRules=renderAiRules;
+
+// 保存要求（新增或更新正在编辑的）
+function addAiRule(silent){
+  var el=document.getElementById("ai_rule_input");
+  var t=el?(el.value||"").trim():"";
+  if(!t){ if(!silent) toast("请先输入要求内容"); return false; }
+  var arr=getAiRules();
+  if(aiRuleEditing){
+    var hit=false;
+    arr.forEach(function(r){ if(r.id===aiRuleEditing){ r.text=t; r.ts=Date.now(); hit=true; } });
+    if(!hit) arr.push({id:"r"+Date.now(), text:t, enabled:true, ts:Date.now()});
+    aiRuleEditing=null;
+    if(!silent) toast("✅ 要求已更新，后续 AI 生成将遵守");
+  }else{
+    arr.push({id:"r"+Date.now()+Math.floor(Math.random()*1000), text:t, enabled:true, ts:Date.now()});
+    if(!silent) toast("✅ 要求已保存，后续 AI 生成将自动遵守");
+  }
+  saveAiRules(arr);
+  if(el) el.value="";
+  renderAiRules();
+  return true;
+}
+window.addAiRule=addAiRule;
+
+function toggleAiRule(id){
+  var arr=getAiRules();
+  arr.forEach(function(r){ if(r.id===id) r.enabled=(r.enabled===false); });
+  saveAiRules(arr); renderAiRules();
+}
+window.toggleAiRule=toggleAiRule;
+
+function editAiRule(id){
+  var r=getAiRules().filter(function(x){ return x.id===id; })[0];
+  if(!r) return;
+  var el=document.getElementById("ai_rule_input");
+  if(el){ el.value=r.text; el.focus(); }
+  aiRuleEditing=id;
+  renderAiRules();
+  toast("✏️ 正在调整该要求，修改后点「更新此要求」");
+}
+window.editAiRule=editAiRule;
+
+function delAiRule(id){
+  var r=getAiRules().filter(function(x){ return x.id===id; })[0];
+  if(!r) return;
+  if(!confirm("确定删除这条要求？\n\n"+(r.text||"").slice(0,80))) return;
+  var arr=getAiRules().filter(function(x){ return x.id!==id; });
+  if(aiRuleEditing===id) aiRuleEditing=null;
+  saveAiRules(arr); renderAiRules();
+  toast("🗑 已删除该要求");
+}
+window.delAiRule=delAiRule;
+
+function clearAiRuleInput(){
+  var el=document.getElementById("ai_rule_input");
+  if(el) el.value="";
+  aiRuleEditing=null;
+  renderAiRules();
+}
+window.clearAiRuleInput=clearAiRuleInput;
+
+// 保存输入框中的要求并立即重新生成周报
+async function saveAndRegenWeekly(){
+  var el=document.getElementById("ai_rule_input");
+  if(el && (el.value||"").trim()) addAiRule(true);
+  await aiWeekly();
+}
+window.saveAndRegenWeekly=saveAndRegenWeekly;
+
 async function aiWeekly(){
   var wk=document.getElementById("wk_date").value||today();
   var range=weekRange(wk);
@@ -3022,7 +3156,7 @@ async function aiWeekly(){
       "出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
       "日报条目：\n"+lines.join("\n");
     var txt=await aiChat([
-      {role:"system",content:"你是周报撰写助手。严格根据日报条目生成周报，不得编造日报中不存在的任务或数据。输出 Markdown：首行“周报（起始日期 – 结束日期）”，然后每个项目一个板块，格式：\n## 项目名称\n\n总工时： X 小时 | 完成进度： 100%\n\n任务总结：\n\n（一段总起句，概括本周该项目的工作重点）\n\n（每个工作项一段，自然成文，可用“标题：描述”的句式，优先提炼专业小标题）\n\n最后加：\n## 本周未完成\n\n（待填写）"},
+      {role:"system",content:"你是周报撰写助手。严格根据日报条目生成周报，不得编造日报中不存在的任务或数据。输出 Markdown：首行“周报（起始日期 – 结束日期）”，然后每个项目一个板块，格式：\n## 项目名称\n\n总工时： X 小时 | 完成进度： 100%\n\n任务总结：\n\n（一段总起句，概括本周该项目的工作重点）\n\n（每个工作项一段，自然成文，可用“标题：描述”的句式，优先提炼专业小标题）\n\n最后加：\n## 本周未完成\n\n（待填写）"+aiRulesPrompt()},
       {role:"user",content:prompt}
     ]);
     document.getElementById("wk_preview").textContent=txt.trim();
@@ -3045,7 +3179,7 @@ async function aiOKR(){
   try{
     var rule=document.getElementById("mo_okr_preview").textContent;
     var txt=await aiChat([
-      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"},
+      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"+aiRulesPrompt()},
       {role:"user",content:rule}
     ]);
     document.getElementById("mo_okr_preview").textContent=txt.trim();
@@ -3092,7 +3226,7 @@ async function aiApply(type){
         : "你是OKR绩效考核表模板解析助手。用户提供一份「参考OKR模板」和本月日报数据（含项目与工作内容）。请完全按照模板结构生成本月OKR绩效考核表：保留模板的O/KR标题、表格列、栏目（如目标与关键结果、基础行为、加分项、本月复盘）；把姓名/部门/岗位/月份填入；根据日报按项目提炼O与KR（每个项目一个O，工作内容归纳为KR）；复盘部分可写框架留待补充，不编造。直接输出全文，不要解释。";
       user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n\n日报明细：\n"+lines.join("\n");
     }
-    var txt=await aiChat([{role:"system",content:system},{role:"user",content:user}]);
+    var txt=await aiChat([{role:"system",content:system+aiRulesPrompt()},{role:"user",content:user}]);
     txt=txt.trim();
     // 保存 AI 结果
     var aiKey = type==="weekly"?TPL_AI_WEEK:(type==="score"?TPL_AI_SCORE:TPL_AI_OKR);
@@ -3269,7 +3403,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.5.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.6.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

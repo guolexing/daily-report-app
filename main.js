@@ -66,7 +66,7 @@ function createWindow(port) {
     title: '工作日报 · 周报月报生成器',
     autoHideMenuBar: true,
     icon: iconPath,
-    backgroundColor: '#f4f6fb',
+    backgroundColor: '#eef2f9',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

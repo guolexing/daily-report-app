@@ -378,7 +378,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <select id="tpl_mode_weekly" onchange="setTplMode('weekly',this.value)" style="max-width:200px">
           <option value="builtin">内置模板（默认）</option>
-          <option value="sections">栏目清单（只填栏目名，AI 自动填充）</option>
+          <option value="sections">栏目列表（自定义栏目 + 撰写要求，AI 生成）</option>
           <option value="placeholder">占位符模板</option>
           <option value="ai">AI 套模板（解析示例）</option>
         </select>
@@ -392,9 +392,20 @@
       </div>
       <textarea id="tpl_text_weekly" style="display:none;min-height:140px;margin-top:8px" placeholder="【栏目清单模式】每行只写一个栏目名，例如：&#10;本周进展&#10;本周未完成&#10;下周工作计划&#10;&#10;【占位符模板】粘贴模板，支持 {姓名} {部门} {周期} {出勤天数} {总工时} {项目明细} 等&#10;【AI 套模板】粘贴公司参考周报样例，AI 按样例格式生成"></textarea>
       <div id="tpl_ai_weekly" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn warn" id="btn_tpl_ai_weekly" onclick="aiApply('weekly')">🤖 AI 按模板生成周报</button>
-        <button class="btn gray sm" onclick="cleanTplSections()" title="把模板正文清理掉，只保留栏目名（缩进内容会被删除）">🧹 只保留栏目名</button>
-        <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key；AI 会按栏目/模板结构，结合日报 + 任务管理数据生成本周数据。</span>
+        <button class="btn warn" id="btn_tpl_ai_weekly" onclick="aiApply('weekly')">🤖 AI 按栏目生成周报</button>
+        <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key；AI 会按栏目要求，结合日报 + 任务管理数据生成。</span>
+      </div>
+      <div id="wk_sec_editor" style="display:none;margin-top:10px">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">
+          <b>栏目列表</b>：每行一个栏目，可分别填写该栏目的<b>撰写要求（提示词）</b>。也可粘贴一段<b>示例内容</b>，点「🤖 解析示例」由 AI 自动生成该栏目的要求。
+        </div>
+        <div id="wk_sec_list"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn green sm" onclick="addWkSection()">➕ 添加栏目</button>
+          <button class="btn sm" onclick="saveWkSectionsEditor()">💾 保存栏目设置</button>
+          <button class="btn gray sm" onclick="resetWkSections()">↺ 恢复默认栏目</button>
+          <span class="muted" style="font-size:12px" id="wk_sec_hint"></span>
+        </div>
       </div>
       <div style="margin-top:8px">
         <button class="btn green sm" onclick="saveTplText('weekly')">💾 保存模板</button>
@@ -413,21 +424,6 @@
       <div class="pre" id="wk_preview"></div>
     </div>
 
-    <div class="card">
-      <h2>🤖 AI 生成要求（提示词修正，长期生效）</h2>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">
-        对 AI 生成的周报/评分表/OKR 不满意？在下方输入修正要求（如“按项目分组、突出量化成果、控制在500字内”），
-        保存后<b>长期生效</b>——之后每次 AI 生成都会自动遵守这些要求。
-      </div>
-      <textarea id="ai_rule_input" style="min-height:80px" placeholder="例如：&#10;1. 每个项目单独一段，先写成果再写过程&#10;2. 突出量化数据（工时、完成率、数量）&#10;3. 不要出现“待填写”，未完成项直接省略&#10;4. 全文控制在 600 字以内，语气正式简洁"></textarea>
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn green sm" id="btn_add_ai_rule" onclick="addAiRule()">➕ 保存为新要求</button>
-        <button class="btn warn sm" onclick="saveAndRegenWeekly()">💾 保存并重新生成周报</button>
-        <button class="btn gray sm" onclick="clearAiRuleInput()">✖ 清空输入</button>
-        <span class="muted" style="font-size:12px" id="ai_rule_hint"></span>
-      </div>
-      <div id="ai_rule_list" style="margin-top:10px"></div>
-    </div>
   </div>
 
   <!-- ============ 月报 ============ -->
@@ -606,8 +602,13 @@
           <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出全库备份」生成 .json 备份文件，拷贝到任意电脑安装本 APP 后点「⬆ 从备份恢复」即可完整还原（恢复前自动备份当前数据）。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
           <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
-          <p>7. <b>周报栏目清单（推荐用法）</b>：周报页「周报模板」选择<b>「栏目清单（只填栏目名）」</b>，文本框里每行只写一个栏目名，例如：<code>本周进展</code> / <code>本周未完成</code> / <code>下周工作计划</code>（可加"风险与问题""需协调事项"等）。点「🤖 AI 按栏目生成周报」，AI 会结合<b>日报数据 + 任务管理数据</b>自动写正文：<b>本周进展</b>按项目汇总本周日报；<b>本周未完成</b>逐条列出任务管理中未完成的任务；<b>下周工作计划</b>根据下周计划任务、逾期需顺延的任务及日报中的后续计划生成。模板若带有旧正文，可点「🧹 只保留栏目名」一键清理。</p>
-          <p>8. <b>AI 生成要求（提示词修正）</b>：若 AI 生成的周报/评分表/OKR 不符合需求，在周报页下方「🤖 AI 生成要求」输入修正要求（如"按项目分组、突出量化数据、控制在500字内"），点「➕ 保存为新要求」后<b>长期生效</b>——之后每次 AI 生成都会自动遵守。历史要求列表可逐条<b>启用/停用</b>、<b>✏️ 调整</b>、<b>🗑 删除</b>；点「💾 保存并重新生成周报」可立即用新要求重生成。</p>
+          <p>7. <b>周报栏目列表（推荐用法）</b>：周报页「周报模板」选择<b>「栏目列表」</b>，下方会出现<b>栏目列表</b>编辑区：</p>
+          <ul style="margin:4px 0 8px 18px">
+            <li><b>栏目名</b>：想汇报什么就加什么，如 <code>本周进展</code> / <code>本周未完成</code> / <code>下周工作计划</code> / <code>风险与问题</code>。可「➕ 添加栏目」「🗑 删除」。</li>
+            <li><b>撰写要求（提示词）</b>：每个栏目可单独填写该栏目的写作要求，例如"按项目分组，每项写清做了什么、关键结果与工时"。留空则按默认规则生成。填好后点「💾 保存栏目设置」。</li>
+            <li><b>示例解析</b>：不想写要求？点「📄 粘贴示例」把该栏目<b>期望的样子</b>（公司模板片段或上次的汇报）粘进去，再点「🤖 AI 解析为要求」，AI 会自动生成该栏目的撰写要求。</li>
+          </ul>
+          <p style="margin-top:-4px">点「🤖 AI 按栏目生成周报」，AI 会按<b>各栏目要求 + 日报数据 + 任务管理数据</b>生成：<code>本周进展</code>按项目汇总本周日报（含工时）；<code>本周未完成</code>逐条列出任务管理中未完成的任务；<code>下周工作计划</code>根据下周计划任务、逾期需顺延任务及日报后续计划生成。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
           <p>8. <b>一键载入历史日报</b>：数据管理 →「📥 一键载入历史日报（2025-05~2026-09）」可把入职至今的 333 条日报（历史日报.xlsx 转换而来，已含 8月/9月初）合并进应用，自动去重；或点「⬆ 导入数据(JSON)」手动选择「日报工具/历史日报备份.json」。之后周报/月报即可基于完整历史生成。</p>
           <p>9. <b>项目管理</b>：「② 项目管理」可添加/改名/删除项目，并可将项目<b>完结</b>（完成后点「✔ 完结」，默认不再出现在日报/任务的项目下拉中；勾选「显示已完结项目」可恢复查看）。项目完结不影响历史日报/任务数据。</p>
@@ -678,7 +679,7 @@ function saveProfileData(p){ localStorage.setItem(PKEY, JSON.stringify(p)); push
 /* ================= MySQL 数据持久化（客户端） ================= */
 // 全部需要同步到 MySQL 的 localStorage key（含模板/AI/任务/项目/日报/个人信息）
 // 注：AIKEY/AI_LASTCC/TWKEY 等在下方才声明，这里用字符串字面量，避免顺序问题
-var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_ai_rules_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1"];
+var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1","jzd_wk_sections_v1"];
 
 var dbSyncing=false;
 
@@ -2180,7 +2181,6 @@ function renderWeekly(){
     '<div class="item">本周总工时：<b>'+sumH(totalH)+' 小时</b></div>';
   var tplText=buildWeeklyTplText(range, list);
   document.getElementById("wk_preview").textContent = (tplText!=null) ? tplText : buildWeeklyText(range, list);
-  if(typeof renderAiRules==="function") renderAiRules();
 }
 
 function buildWeeklyText(range, list){
@@ -2698,8 +2698,13 @@ function setTplMode(type, mode){
       ? "每行只写一个栏目名（如：本周进展 / 本周未完成 / 下周工作计划），正文由 AI 结合日报 + 任务管理自动生成"
       : "可用占位符：{姓名} {部门} {岗位} {周期} {周起始} {周结束} {出勤天数} {总工时} {日报条数} {项目明细}";
   }
-  // 栏目清单模式：文本框为空时预填默认栏目，方便直接改
-  if(mode==="sections" && type==="weekly" && tplBox && !tplBox.value.trim()){ tplBox.value=SECTIONS_DEFAULT; }
+  // 栏目列表模式：隐藏模板文本框，显示栏目列表编辑器
+  if(type==="weekly"){
+    var ed=document.getElementById("wk_sec_editor");
+    if(ed) ed.style.display=(mode==="sections")?"":"none";
+    if(tplBox) tplBox.style.display=(mode==="sections"||mode==="builtin")?"none":"";
+    if(mode==="sections") renderWkSections();
+  }
   toast("模板模式已切换："+(mode==="builtin"?"内置模板":(mode==="sections"?"栏目清单（只填栏目名）":(mode==="placeholder"?"占位符模板":"AI 套模板"))));
   refreshTplPreview(type);
 }
@@ -2727,6 +2732,14 @@ function loadTpl(type){
   var dl=document.getElementById("tpl_dl_"+type); if(dl) dl.style.display=(t.fileData&&t.mode!=="builtin")?"":"none";
   var btn=document.getElementById("btn_tpl_ai_"+type);
   if(btn && type==="weekly"){ var lb=(t.mode==="sections")?"🤖 AI 按栏目生成周报":"🤖 AI 按模板生成周报"; btn.textContent=lb; btn.setAttribute("data-orig", lb); }
+  if(type==="weekly"){
+    var ed=document.getElementById("wk_sec_editor");
+    if(ed) ed.style.display=(t.mode==="sections")?"":"none";
+    if(tplBox) tplBox.style.display=(t.mode==="sections"||t.mode==="builtin")?"none":"";
+    if(t.mode==="sections") renderWkSections();
+    var h2=document.getElementById("tpl_hint_weekly");
+    if(h2) h2.textContent=(t.mode==="sections")?"在下方「栏目列表」中设置栏目与各栏目撰写要求":"可用占位符：{姓名} {部门} {岗位} {周期} {周起始} {周结束} {出勤天数} {总工时} {日报条数} {项目明细}";
+  }
   refreshTplPreview(type);
 }
 window.loadTpl=loadTpl;
@@ -2857,7 +2870,7 @@ function buildWeeklyTplText(range, list){
   if(t.mode==="sections"){
     // 栏目清单：已生成的 AI 结果（且栏目未变）优先，否则用规则版骨架（按栏目名自动填充）
     var aiS=JSON.parse(localStorage.getItem(TPL_AI_WEEK)||"null");
-    var sig=getSectionNames(t.text||"").join("|");
+    var sig=wkSectionNames().join("|");
     if(aiS && aiS.range===range.monday && aiS.text && (aiS.sig===undefined || aiS.sig===sig)) return aiS.text;
     return buildSectionsText(range, list);
   }
@@ -3049,121 +3062,6 @@ function loadingBtn(id, loading, text){
 }
 function origBtn(id, text){ var b=document.getElementById(id); if(b&&!b.getAttribute("data-orig")) b.setAttribute("data-orig", text); }
 
-/* ================= AI 生成要求（提示词修正，长期生效） ================= */
-var AIRULE="jzd_ai_rules_v1";
-var aiRuleEditing=null; // 正在编辑的要求 id
-
-function getAiRules(){
-  try{ var a=JSON.parse(localStorage.getItem(AIRULE)); return Array.isArray(a)?a:[]; }catch(e){ return []; }
-}
-function saveAiRules(arr){ localStorage.setItem(AIRULE, JSON.stringify(arr)); pushStateDebounced(); }
-
-// 生成注入到 AI 系统提示词的要求文本（仅已启用项）
-function aiRulesPrompt(){
-  var on=getAiRules().filter(function(r){ return r && r.enabled!==false && String(r.text||"").trim(); });
-  if(!on.length) return "";
-  return "\n\n【用户生成要求（必须严格遵守，优先于上述格式要求）】\n"+
-    on.map(function(r,i){ return (i+1)+". "+String(r.text).trim(); }).join("\n");
-}
-window.aiRulesPrompt=aiRulesPrompt;
-
-function renderAiRules(){
-  var box=document.getElementById("ai_rule_list");
-  if(!box) return;
-  var arr=getAiRules();
-  var on=arr.filter(function(r){ return r.enabled!==false; }).length;
-  var hint=document.getElementById("ai_rule_hint");
-  if(hint) hint.textContent="已启用 "+on+" / 共 "+arr.length+" 条要求";
-  var btn=document.getElementById("btn_add_ai_rule");
-  if(btn) btn.textContent=aiRuleEditing?"✏️ 更新此要求":"➕ 保存为新要求";
-  if(!arr.length){
-    box.innerHTML='<div class="muted" style="font-size:12px">暂无要求。AI 将按默认规则生成周报/评分表/OKR。</div>';
-    return;
-  }
-  var h='<table><tr><th style="width:56px">启用</th><th>要求内容</th><th style="width:96px">添加时间</th><th style="width:130px">操作</th></tr>';
-  arr.forEach(function(r){
-    var en=r.enabled!==false;
-    var ts=r.ts? new Date(r.ts).toLocaleDateString("zh-CN") : "";
-    h+='<tr'+(en?'':' style="opacity:.55"')+'>'+
-      '<td><input type="checkbox" '+(en?'checked':'')+' onchange="toggleAiRule(\''+r.id+'\')"></td>'+
-      '<td style="white-space:pre-wrap">'+esc(r.text)+'</td>'+
-      '<td class="muted" style="font-size:12px">'+ts+'</td>'+
-      '<td><button class="btn gray sm" onclick="editAiRule(\''+r.id+'\')">✏️ 调整</button> '+
-      '<button class="btn gray sm" onclick="delAiRule(\''+r.id+'\')">🗑 删除</button></td>'+
-      '</tr>';
-  });
-  h+='</table>';
-  box.innerHTML=h;
-}
-window.renderAiRules=renderAiRules;
-
-// 保存要求（新增或更新正在编辑的）
-function addAiRule(silent){
-  var el=document.getElementById("ai_rule_input");
-  var t=el?(el.value||"").trim():"";
-  if(!t){ if(!silent) toast("请先输入要求内容"); return false; }
-  var arr=getAiRules();
-  if(aiRuleEditing){
-    var hit=false;
-    arr.forEach(function(r){ if(r.id===aiRuleEditing){ r.text=t; r.ts=Date.now(); hit=true; } });
-    if(!hit) arr.push({id:"r"+Date.now(), text:t, enabled:true, ts:Date.now()});
-    aiRuleEditing=null;
-    if(!silent) toast("✅ 要求已更新，后续 AI 生成将遵守");
-  }else{
-    arr.push({id:"r"+Date.now()+Math.floor(Math.random()*1000), text:t, enabled:true, ts:Date.now()});
-    if(!silent) toast("✅ 要求已保存，后续 AI 生成将自动遵守");
-  }
-  saveAiRules(arr);
-  if(el) el.value="";
-  renderAiRules();
-  return true;
-}
-window.addAiRule=addAiRule;
-
-function toggleAiRule(id){
-  var arr=getAiRules();
-  arr.forEach(function(r){ if(r.id===id) r.enabled=(r.enabled===false); });
-  saveAiRules(arr); renderAiRules();
-}
-window.toggleAiRule=toggleAiRule;
-
-function editAiRule(id){
-  var r=getAiRules().filter(function(x){ return x.id===id; })[0];
-  if(!r) return;
-  var el=document.getElementById("ai_rule_input");
-  if(el){ el.value=r.text; el.focus(); }
-  aiRuleEditing=id;
-  renderAiRules();
-  toast("✏️ 正在调整该要求，修改后点「更新此要求」");
-}
-window.editAiRule=editAiRule;
-
-function delAiRule(id){
-  var r=getAiRules().filter(function(x){ return x.id===id; })[0];
-  if(!r) return;
-  if(!confirm("确定删除这条要求？\n\n"+(r.text||"").slice(0,80))) return;
-  var arr=getAiRules().filter(function(x){ return x.id!==id; });
-  if(aiRuleEditing===id) aiRuleEditing=null;
-  saveAiRules(arr); renderAiRules();
-  toast("🗑 已删除该要求");
-}
-window.delAiRule=delAiRule;
-
-function clearAiRuleInput(){
-  var el=document.getElementById("ai_rule_input");
-  if(el) el.value="";
-  aiRuleEditing=null;
-  renderAiRules();
-}
-window.clearAiRuleInput=clearAiRuleInput;
-
-// 保存输入框中的要求并立即重新生成周报
-async function saveAndRegenWeekly(){
-  var el=document.getElementById("ai_rule_input");
-  if(el && (el.value||"").trim()) addAiRule(true);
-  await aiWeekly();
-}
-window.saveAndRegenWeekly=saveAndRegenWeekly;
 
 // ===== 任务管理数据上下文（供 AI 生成「本周未完成」「下周工作计划」） =====
 function _d10(s){ return String(s||"").slice(0,10); }
@@ -3235,55 +3133,168 @@ function aiTaskContext(range, list){
 window.aiTaskContext=aiTaskContext; window.aiTaskCtx=aiTaskCtx;
 window.aiUndoneText=aiUndoneText; window.aiNextWeekText=aiNextWeekText; window.aiProgressText=aiProgressText;
 
-// ===== 栏目式模板（用户只填栏目名，其余由数据/AI 填充） =====
-var SECTIONS_DEFAULT="本周进展\n本周未完成\n下周工作计划";
-// 解析栏目名：只取「顶层行」（不缩进），去掉编号/井号/末尾冒号；缩进行视为栏目正文，忽略
-function getSectionNames(text){
-  var out=[];
-  String(text||"").split("\n").forEach(function(raw){
-    var line=String(raw||"");
-    if(/^\s/.test(line)) return;              // 缩进行 → 栏目正文，跳过
-    var s=line.replace(/^#+\s*/,"")            // Markdown 标题符
-                .replace(/^[\d一二三四五六七八九十]+\s*[、.．)）]\s*/,"") // 编号
-                .replace(/[：:]\s*$/,"")        // 末尾冒号
-                .trim();
-    if(!s) return;
-    if(s.length>30) return;                     // 过长的当正文处理
-    if(/^[|\-*=~_+]/.test(s)) return;          // 分隔线/表格行
-    out.push(s);
-  });
-  return out;
+// ===== 周报栏目列表（每栏目独立撰写要求/提示词，支持示例解析） =====
+var WKSEC="jzd_wk_sections_v1";
+var WKSEC_DEFAULT=[
+  {name:"本周进展", prompt:"根据本周日报，按项目分组汇总已完成的工作：每个项目先写一段总起句，再逐条列出具体工作项（写清做了什么、关键结果），并标注该项目本周总工时。只写日报中确实存在的内容，不编造。"},
+  {name:"本周未完成", prompt:"根据任务管理中未完成的任务逐条列出，格式：- [项目] 任务名（计划日期 xxx，未完成）。包含逾期未完成与仍在推进的任务；没有则写「无」，不要写「（待填写）」。"},
+  {name:"下周工作计划", prompt:"根据「下周计划任务」「逾期需顺延的任务」以及日报中记录的后续计划，逐条列出下周要开展的工作，格式：- [项目] 任务名（计划 xxx）。没有则写「无」。"}
+];
+function getWkSections(){
+  try{ var a=JSON.parse(localStorage.getItem(WKSEC)); if(Array.isArray(a)&&a.length) return a; }catch(e){}
+  return WKSEC_DEFAULT.map(function(s){ return {name:s.name, prompt:s.prompt, example:""}; });
 }
+function saveWkSections(arr){ localStorage.setItem(WKSEC, JSON.stringify(arr)); pushStateDebounced(); }
+function wkSectionNames(){ return getWkSections().map(function(s){ return String(s.name||"").trim(); }).filter(function(s){ return s; }); }
+// 组装「栏目 + 各栏目撰写要求」的 AI 指令段
+function wkSectionsPrompt(){
+  var arr=getWkSections().filter(function(s){ return s && String(s.name||"").trim(); });
+  if(!arr.length) return "";
+  var out=["本次周报必须包含以下栏目（名称与顺序保持不变，用 Markdown 二级标题 ## 开头）："];
+  arr.forEach(function(s,i){
+    var p=String(s.prompt||"").trim();
+    out.push((i+1)+". ## "+String(s.name).trim());
+    out.push("   撰写要求："+(p? p : "按数据合理撰写，不得编造。"));
+  });
+  return out.join("\n");
+}
+window.wkSectionsPrompt=wkSectionsPrompt; window.wkSectionNames=wkSectionNames;
+window.getWkSections=getWkSections; window.saveWkSections=saveWkSections;
+
 // 依据栏目名匹配数据来源（规则版预览用；AI 版由模型理解任意栏目名）
 function sectionBodyByName(name, range, list){
   var n=String(name||"");
   var c=aiTaskCtx(range);
   var has=function(){ for(var i=0;i<arguments.length;i++){ if(n.indexOf(arguments[i])>=0) return true; } return false; };
-  if(has("下周","下一步","后续计划","下阶段","计划安排","工作计划")) return aiNextWeekText(c);
+  if(has("下周","下一步","后续计划","下阶段","计划安排","工作计划","计划")) return aiNextWeekText(c);
   if(has("未完成","遗留","待办","待完成","问题","缺口")) return aiUndoneText(c);
   if(has("风险","阻塞","困难","依赖")) return c.overdue.length? aiOverdueText(c) : "（暂无风险项）";
   if(has("进展","完成情况","工作总结","本周工作","主要工作","成果","产出")) return aiProgressText(list);
   return "（待补充）";
 }
-// 规则版：按栏目名生成骨架 + 可自动填充的内容
+// 规则版：按栏目列表生成骨架 + 可自动填充的内容
 function buildSectionsText(range, list){
-  var t=getTpl(TPL_WEEK);
-  var names=getSectionNames(t && t.text ? t.text : SECTIONS_DEFAULT);
-  if(!names.length) names=getSectionNames(SECTIONS_DEFAULT);
-  return names.map(function(n, i){ return "## "+(i+1)+". "+n+"\n\n"+sectionBodyByName(n, range, list); }).join("\n\n");
+  var names=wkSectionNames();
+  if(!names.length) names=WKSEC_DEFAULT.map(function(s){ return s.name; });
+  return names.map(function(n){ return "## "+n+"\n\n"+sectionBodyByName(n, range, list); }).join("\n\n");
 }
-window.buildSectionsText=buildSectionsText; window.getSectionNames=getSectionNames;
-// 一键清理模板正文：只保留顶层栏目名（用户设置模板只需栏目名）
-function cleanTplSections(){
-  var box=document.getElementById("tpl_text_weekly");
+window.buildSectionsText=buildSectionsText;
+
+// ---------- 栏目列表编辑 ----------
+function renderWkSections(){
+  var box=document.getElementById("wk_sec_list");
   if(!box) return;
-  var names=getSectionNames(box.value||"");
-  if(!names.length) names=getSectionNames(SECTIONS_DEFAULT);
-  box.value=names.join("\n");
-  saveTplText("weekly");
-  toast("🧹 已清理为纯栏目清单（"+names.length+" 个栏目），点「AI 按栏目生成周报」即可");
+  var arr=getWkSections();
+  var h='<table><tr><th style="width:160px">栏目名</th><th>撰写要求（提示词）</th><th style="width:170px">示例解析</th><th style="width:90px">操作</th></tr>';
+  arr.forEach(function(s,i){
+    h+='<tr>'+
+      '<td><input type="text" id="wk_sec_name_'+i+'" value="'+esc(s.name||"")+'" style="width:100%"></td>'+
+      '<td><textarea id="wk_sec_prompt_'+i+'" style="min-height:58px;width:100%" placeholder="留空则按默认规则；例：按项目分组，每项写清做了什么、关键结果与工时">'+esc(s.prompt||"")+'</textarea></td>'+
+      '<td>'+((s.example||"").trim()? '<div class="muted" style="font-size:11px">已存示例 ✓</div>':"")+
+        '<button class="btn gray sm" onclick="openExampleModal('+i+')">📄 粘贴示例</button> '+
+        '<button class="btn warn sm" onclick="aiParseExample('+i+')">🤖 解析示例</button></td>'+
+      '<td><button class="btn gray sm" onclick="delWkSection('+i+')">🗑 删除</button></td>'+
+      '</tr>';
+  });
+  h+='</table>';
+  box.innerHTML=h;
+  var hint=document.getElementById("wk_sec_hint");
+  if(hint) hint.textContent="共 "+arr.length+" 个栏目";
 }
-window.cleanTplSections=cleanTplSections;
+window.renderWkSections=renderWkSections;
+function syncWkSectionsFromDom(){
+  var arr=getWkSections();
+  var changed=false;
+  arr.forEach(function(s,i){
+    var n=document.getElementById("wk_sec_name_"+i);
+    var p=document.getElementById("wk_sec_prompt_"+i);
+    if(n && n.value!==s.name){ s.name=n.value; changed=true; }
+    if(p && p.value!==(s.prompt||"")){ s.prompt=p.value; changed=true; }
+  });
+  if(changed) saveWkSections(arr);
+  return arr;
+}
+window.syncWkSectionsFromDom=syncWkSectionsFromDom;
+function saveWkSectionsEditor(){
+  var arr=syncWkSectionsFromDom().filter(function(s){ return String(s.name||"").trim(); });
+  if(!arr.length){ toast("至少保留一个栏目"); return; }
+  saveWkSections(arr); renderWkSections();
+  toast("✅ 栏目设置已保存（"+arr.length+" 个栏目）");
+}
+window.saveWkSectionsEditor=saveWkSectionsEditor;
+function addWkSection(){
+  var arr=syncWkSectionsFromDom();
+  arr.push({name:"新栏目", prompt:"", example:""});
+  saveWkSections(arr); renderWkSections();
+}
+window.addWkSection=addWkSection;
+function delWkSection(i){
+  var arr=syncWkSectionsFromDom();
+  if(arr.length<=1){ toast("至少保留一个栏目"); return; }
+  var nm=arr[i]? arr[i].name : "";
+  if(!confirm("确定删除栏目「"+nm+"」？")) return;
+  arr.splice(i,1);
+  saveWkSections(arr); renderWkSections();
+  toast("🗑 已删除栏目");
+}
+window.delWkSection=delWkSection;
+function resetWkSections(){
+  if(!confirm("恢复默认栏目（本周进展 / 本周未完成 / 下周工作计划）？当前栏目与要求将被覆盖。")) return;
+  saveWkSections(WKSEC_DEFAULT.map(function(s){ return {name:s.name, prompt:s.prompt, example:""}; }));
+  renderWkSections();
+  toast("↺ 已恢复默认栏目");
+}
+window.resetWkSections=resetWkSections;
+
+// 示例弹窗：粘贴期望的示例内容
+function openExampleModal(i){
+  syncWkSectionsFromDom();
+  var s=getWkSections()[i]||{};
+  var body='<div class="muted" style="font-size:12px;margin-bottom:6px">粘贴该栏目「期望的示例内容」（可来自公司模板或上次汇报）。点「🤖 AI 解析为要求」，AI 会据此生成该栏目的撰写要求。</div>'+
+    '<textarea id="wk_ex_text" style="min-height:170px;width:100%" placeholder="示例内容…">'+esc(s.example||"")+'</textarea>'+
+    '<div id="wk_ex_status" class="muted" style="font-size:12px;margin-top:6px"></div>';
+  var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
+    '<button class="btn" onclick="saveExample('+i+')">💾 只保存示例</button>'+
+    '<button class="btn warn" onclick="aiParseExample('+i+')">🤖 AI 解析为要求</button>';
+  openModal("📄 栏目示例："+(s.name||""), body, foot, "760px");
+}
+window.openExampleModal=openExampleModal;
+function saveExample(i){
+  var el=document.getElementById("wk_ex_text");
+  var t=el? el.value.trim() : "";
+  var arr=syncWkSectionsFromDom();
+  if(arr[i]){ arr[i].example=t; saveWkSections(arr); }
+  closeModal(); renderWkSections();
+  toast("✅ 示例已保存");
+}
+window.saveExample=saveExample;
+// AI 依据示例生成该栏目的撰写要求
+async function aiParseExample(i){
+  var el=document.getElementById("wk_ex_text");
+  var arr=syncWkSectionsFromDom();
+  var s=arr[i]||{};
+  var ex=el? el.value.trim() : String(s.example||"").trim();
+  if(!ex){ toast("请先粘贴一段示例内容"); return; }
+  var st=document.getElementById("wk_ex_status");
+  if(st) st.textContent="🤖 AI 解析中…";
+  try{
+    var txt=await aiChat([
+      {role:"system",content:"你是提示词工程师。用户会提供某个汇报栏目的「示例内容」（他期望该栏目写成的样子）。请据此写出该栏目的「撰写要求」（提示词），供后续 AI 生成该栏目时遵守。\n要求：\n1. 用中文，2-4 句话，简洁可执行；\n2. 指明数据来源（本周日报 / 任务管理中的未完成任务与计划任务 / 日报中的后续计划等）与取舍原则；\n3. 指明输出格式（是否分条、是否带项目名、是否带工时或日期、详略程度）；\n4. 语气、详略与示例保持一致；\n5. 不要复述示例原文，不要解释，直接输出撰写要求正文。"},
+      {role:"user",content:"栏目名："+(s.name||"")+"\n\n示例内容：\n"+ex}
+    ]);
+    txt=String(txt||"").trim().replace(/^```[a-zA-Z]*\n?/,"").replace(/```\s*$/,"");
+    var a2=syncWkSectionsFromDom();
+    if(!a2[i]){ toast("栏目已变动，请重试"); return; }
+    a2[i].example=ex; a2[i].prompt=txt;
+    saveWkSections(a2);
+    closeModal(); renderWkSections();
+    toast("✅ 已根据示例生成栏目要求");
+  }catch(e){
+    if(st) st.textContent="";
+    toast("❌ AI 解析失败："+e.message);
+  }
+}
+window.aiParseExample=aiParseExample;
 async function aiWeekly(){
   var wk=document.getElementById("wk_date").value||today();
   var range=weekRange(wk);
@@ -3294,27 +3305,21 @@ async function aiWeekly(){
   loadingBtn("btn_ai_weekly", true, "AI 汇总中…");
   try{
     var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work+(e.plan?" | 明日计划:"+e.plan:""); });
-    // 模板栏目：优先用「栏目清单」模板里的栏目名，否则用默认栏目
+    // 栏目列表（含各栏目撰写要求）
     var t=getTpl(TPL_WEEK);
     var useSections=(t && t.mode==="sections");
-    var secNames=useSections? getSectionNames(t.text||"") : [];
-    if(useSections && !secNames.length) secNames=getSectionNames(SECTIONS_DEFAULT);
-    if(!secNames.length) secNames=["本周进展","本周未完成","下周工作计划"];
+    var secList=wkSectionsPrompt();
     var prompt="【本周信息】"+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
       "出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时，日报 "+list.length+" 条\n\n"+
       "【日报条目】\n"+(lines.length? lines.join("\n") : "（本周无日报）")+"\n\n"+
       aiTaskContext(range, list);
     var sys="你是周报撰写助手。严格根据提供的日报数据与任务数据生成周报，不得编造数据中不存在的任务或成果。\n"+
-      "本次周报必须包含以下栏目（栏目名保持原样，按顺序输出，用 Markdown 二级标题 ## 开头）：\n"+
-      secNames.map(function(n){ return "## "+n; }).join("\n")+"\n\n"+
-      "各栏目撰写要求：\n"+
-      "1. 首行先输出「周报（"+range.monday+" – "+range.sunday+"）」。\n"+
-      "2. 含「进展」「完成情况」「工作总结」「主要工作」等含义的栏目：根据日报条目，按项目分板块汇总本周已完成的工作（每个项目一段总起句 + 各工作项自然成文，可用「标题：描述」句式），并给出该项目本周总工时。\n"+
-      "3. 含「未完成」「遗留」「待办」等含义的栏目：必须根据【未完成任务】数据逐条列出（格式：- [项目] 任务名（计划开始 xxx，未完成）），若确实无未完成任务则写「无」。不要写「（待填写）」。\n"+
-      "4. 含「下周」「下一步」「计划」等含义的栏目：必须根据【下周工作计划素材】逐条列出（格式：- [项目] 任务名（计划 xxx）），把逾期未完成需顺延的任务也安排进下周；若无任何素材则写「无」。不要写「（待填写）」。\n"+
-      "5. 含「风险」「问题」「困难」等含义的栏目：根据【已逾期任务】与未完成任务归纳风险点；无则写「暂无」。\n"+
-      "6. 其它未识别的栏目名：依据数据合理撰写，无法判断时写「无」。\n"+
-      "7. 不要输出任何解释性文字、不要使用代码块围栏。"+aiRulesPrompt();
+      "首行先输出一级标题「# 周报（"+range.monday+" – "+range.sunday+"）」。\n\n"+
+      (secList? secList+"\n\n" : "")+
+      "通用补充规则：\n"+
+      "1. 每个栏目内容必须来自提供的数据；栏目未给专门要求时，涉及「进展/完成情况」按项目分组汇总日报（含工时），涉及「未完成/遗留/待办」用【未完成任务】逐条列出，涉及「下周/下一步/计划」用【下周工作计划素材】逐条列出，涉及「风险/问题」用【已逾期任务】与未完成任务归纳。\n"+
+      "2. 数据中没有的内容一律不写；确无内容的栏目写「无」，禁止写「（待填写）」。\n"+
+      "3. 不要输出任何解释性文字、不要使用代码块围栏。";
     var txt=await aiChat([{role:"system",content:sys},{role:"user",content:prompt}]);
     txt=txt.trim().replace(/^```[a-zA-Z]*\n?/,"").replace(/```\s*$/,"");
     document.getElementById("wk_preview").textContent=txt;
@@ -3337,7 +3342,7 @@ async function aiOKR(){
   try{
     var rule=document.getElementById("mo_okr_preview").textContent;
     var txt=await aiChat([
-      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"+aiRulesPrompt()},
+      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"},
       {role:"user",content:rule}
     ]);
     document.getElementById("mo_okr_preview").textContent=txt.trim();
@@ -3364,25 +3369,23 @@ async function aiApply(type){
     var tpl=t.text;
     var system, user;
     if(type==="weekly" && t.mode==="sections"){
-      // 栏目清单模式：用户只给栏目名，AI 结合要求 + 栏目 + APP 数据（日报+任务）生成
+      // 栏目列表模式：AI 按「栏目 + 各栏目撰写要求 + APP 数据（日报+任务）」生成
       var wk=document.getElementById("wk_date").value||today();
       var range=weekRange(wk);
       var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
       var tctx=aiTaskCtx(range);
       if(!list.length && !tctx.thisWeek.length && !tctx.undone.length && !tctx.nextWeek.length){ toast("本周暂无日报与任务数据，无法生成"); return; }
-      var secNames=getSectionNames(tpl);
-      if(!secNames.length) secNames=getSectionNames(SECTIONS_DEFAULT);
+      var secList=wkSectionsPrompt();
       var lines2=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work+(e.plan?" | 明日计划:"+e.plan:""); });
-      system="你是周报撰写助手。用户只提供了一份「栏目清单」（仅栏目名，没有正文），以及本周的日报数据与任务管理数据。请你为每个栏目撰写正文，输出完整周报。\n"+
+      system="你是周报撰写助手。用户提供了一份「栏目列表」（每个栏目附有该栏目的撰写要求），以及本周的日报数据与任务管理数据。请你严格按照各栏目的撰写要求为其撰写正文，输出完整周报。\n"+
+        "首行输出一级标题「# 周报（"+range.monday+" – "+range.sunday+"）」。\n\n"+
+        (secList? secList+"\n\n":"")+
         "硬性要求：\n"+
-        "1. 栏目名必须原样保留、顺序不变，用 Markdown 二级标题 ## 开头；除首行标题外不要添加其它栏目。\n"+
-        "2. 含「进展/完成情况/工作总结/主要工作/成果」含义的栏目：按项目分板块汇总本周已完成工作，每项写清楚做了什么，可给工时。\n"+
-        "3. 含「未完成/遗留/待办/问题」含义的栏目：必须根据【未完成任务】逐条列出（- [项目] 任务名（计划开始 xxx，未完成））；没有则写「无」。禁止写「（待填写）」。\n"+
-        "4. 含「下周/下一步/计划」含义的栏目：必须根据【下周工作计划素材】逐条列出（- [项目] 任务名（计划 xxx）），把逾期未完成、需继续推进的任务也安排进下周；没有则写「无」。禁止写「（待填写）」。\n"+
-        "5. 含「风险/困难/阻塞」含义的栏目：结合【已逾期任务】与未完成任务归纳；没有则写「暂无」。\n"+
-        "6. 不得编造数据中不存在的任务、成果或数据。\n"+
-        "7. 直接输出周报全文，不要任何解释、不要代码块围栏。";
-      user="【栏目清单】\n"+secNames.map(function(n){ return "- "+n; }).join("\n")+
+        "1. 栏目名必须原样保留、顺序不变，用 Markdown 二级标题 ## 开头；除首行标题外不要添加其它栏目；各栏目必须严格遵守其「撰写要求」。\n"+
+        "2. 所有内容必须来自提供的数据，不得编造数据中不存在的任务、成果或数据；确无内容的栏目写「无」，禁止写「（待填写）」。\n"+
+        "3. 栏目未给专门要求时：涉及「进展/完成情况」按项目分板块汇总日报（含工时）；涉及「未完成/遗留/待办」用【未完成任务】逐条列出；涉及「下周/下一步/计划」用【下周工作计划素材】逐条列出；涉及「风险/困难/阻塞」结合【已逾期任务】与未完成任务归纳。\n"+
+        "4. 直接输出周报全文，不要任何解释、不要代码块围栏。";
+      user="【本周信息】"+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
         "\n\n【本周信息】"+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
         "出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时，日报 "+list.length+" 条\n\n"+
         "【日报条目】\n"+(lines2.length? lines2.join("\n") : "（本周无日报）")+"\n\n"+
@@ -3408,7 +3411,7 @@ async function aiApply(type){
         : "你是OKR绩效考核表模板解析助手。用户提供一份「参考OKR模板」和本月日报数据（含项目与工作内容）。请完全按照模板结构生成本月OKR绩效考核表：保留模板的O/KR标题、表格列、栏目（如目标与关键结果、基础行为、加分项、本月复盘）；把姓名/部门/岗位/月份填入；根据日报按项目提炼O与KR（每个项目一个O，工作内容归纳为KR）；复盘部分可写框架留待补充，不编造。直接输出全文，不要解释。";
       user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n\n日报明细：\n"+lines.join("\n");
     }
-    var txt=await aiChat([{role:"system",content:system+aiRulesPrompt()},{role:"user",content:user}]);
+    var txt=await aiChat([{role:"system",content:system},{role:"user",content:user}]);
     txt=txt.trim();
     // 保存 AI 结果
     var aiKey = type==="weekly"?TPL_AI_WEEK:(type==="score"?TPL_AI_SCORE:TPL_AI_OKR);
@@ -3416,7 +3419,7 @@ async function aiApply(type){
       var wk2=document.getElementById("wk_date").value||today();
       var range2=weekRange(wk2);
       var tSig=getTpl(TPL_WEEK);
-      localStorage.setItem(aiKey, JSON.stringify({range:range2.monday, text:txt, sig:(tSig && tSig.mode==="sections")?getSectionNames(tSig.text||"").join("|"):undefined}));
+      localStorage.setItem(aiKey, JSON.stringify({range:range2.monday, text:txt, sig:(tSig && tSig.mode==="sections")?wkSectionNames().join("|"):undefined}));
       // 显示到预览
       document.getElementById("wk_preview").textContent=txt;
       toast("✅ AI 已按栏目/模板生成周报（含任务管理的未完成与下周计划）");
@@ -3586,7 +3589,7 @@ function appOpenRepo(){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.7.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.8.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

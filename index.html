@@ -223,7 +223,7 @@
 <div class="wrap">
   <header>
     <h1>📋 工作日报 · 周报月报生成器</h1>
-    <div class="sub">录入每日工作 → 自动汇总本周周报（参考模板）与本月考核报表（月度评分表 + OKR绩效考核表）｜数据保存在本机浏览器</div>
+    <div class="sub">录入每日工作 → 自动汇总本周周报（参考模板）与本月考核报表（月度评分表 + OKR绩效考核表）｜数据保存在本机浏览器<br>💡 任意表格：<b>双击单元格</b>即可复制该单元格内容</div>
     <div class="hdr-stats">
       <div class="hs">本月出勤 <b id="hdr_days">0</b> 天</div>
       <div class="hs">本月工时 <b id="hdr_hours">0</b> h</div>
@@ -1602,9 +1602,10 @@ function dayCell(ds, dnum, cls, planTasks, dayInfo){
 window.renderCalendar=renderCalendar;
 window.selectDay=selectDay;
 
-// ===== 日历日报行：单击编辑 / 双击复制 =====
-// 单击若立即打开编辑弹窗，弹窗会盖住表格导致第二次点击永远落在弹窗上，双击复制便无法触发；
-// 因此单击延迟 300ms 执行，期间若发生双击则取消编辑、改为复制。
+// ===== 表格单元格：双击复制该单元格内容（全局生效，覆盖所有表格） =====
+// 采用事件委托挂在 document 上：无论表格是静态写死还是 JS 动态渲染，都不需要逐个绑定。
+// 另：日历日报行的单击会打开编辑弹窗，弹窗会盖住表格使第二次点击落不到原位、双击无法触发，
+// 因此该行的单击延迟 300ms 执行，期间若发生双击则取消编辑并复制单元格。
 var _calRowTimer=null;
 function calRowClick(id, inModal){
   if(_calRowTimer) clearTimeout(_calRowTimer);
@@ -1614,23 +1615,22 @@ function calRowClick(id, inModal){
     openEntryModal(id);
   }, 300);
 }
-// 该行内容（Tab 分隔，可直接粘贴进 Excel / 表格；末列"编辑"为操作列不参与复制）
-function entryRowText(id){
-  var e=null;
-  getEntries().forEach(function(x){ if(x.id===id) e=x; });
-  if(!e) return "";
-  return [e.project, taskName(e.taskId)||"—", String(e.hours==null?"":e.hours), String(e.work==null?"":e.work)].join("\t");
-}
-function copyEntryRow(id){
-  var t=entryRowText(id);
-  if(!t){ toast("未找到该条日报"); return; }
-  copyText(t, "✅ 已复制该行内容（Tab 分隔）");
-}
-function calRowDblClick(id){
+window.calRowClick=calRowClick;
+
+document.addEventListener('dblclick', function(ev){
+  var t=ev.target;
+  if(!t || !t.closest) return;
+  // 单元格内的按钮/输入框/链接等交互元素：不拦截，保留其原有行为（如"编辑""删除"）
+  if(t.closest('button,input,select,textarea,a,label,summary')) return;
+  var cell=t.closest('td,th');
+  if(!cell) return;
+  // 操作列（单元格里含按钮等控件）不作复制，避免复制到"编辑 删"这类无意义文本
+  if(cell.querySelector('button,input,select,textarea,a')) return;
   if(_calRowTimer){ clearTimeout(_calRowTimer); _calRowTimer=null; }   // 取消待执行的"打开编辑"
-  copyEntryRow(id);
-}
-window.calRowClick=calRowClick; window.calRowDblClick=calRowDblClick; window.copyEntryRow=copyEntryRow;
+  var text=(cell.innerText || cell.textContent || '').replace(/\u00a0/g,' ').replace(/[ \t]+\n/g,'\n').trim();
+  if(!text){ toast("该单元格为空"); return; }
+  copyText(text, "✅ 已复制单元格内容");
+});
 
 // 点击日期：显示当天计划详情
 function selectDay(ds){
@@ -1668,10 +1668,10 @@ function selectDay(ds){
     }
     if(dayEntries.length>0){
       var total=dayEntries.reduce(function(s,e){return s+(+e.hours||0);},0);
-      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）<span class="muted" style="font-weight:400;font-size:12px">　单击编辑 · 双击复制该行</span></h3>';
+      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）<span class="muted" style="font-weight:400;font-size:12px">　单击编辑 · 双击任意单元格可复制其内容</span></h3>';
       h+='<table><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
       dayEntries.forEach(function(e){
-        h+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',false)" ondblclick="calRowDblClick(\''+e.id+'\')" title="单击编辑 · 双击复制该行内容">'+
+        h+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',false)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
            '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td>'+
            '<td style="white-space:nowrap;color:var(--main)">✏️ 编辑</td></tr>';
       });
@@ -1691,10 +1691,10 @@ function openDayEntriesModal(ds){
   if(!entries.length){ toast("当天没有日报"); return; }
   var total=entries.reduce(function(s,e){ return s+(+e.hours||0); },0);
   var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
-  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。单击任意一行可编辑，<b>双击复制该行内容</b>。</div>'+
+  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。单击任意一行可编辑；<b>双击任意单元格可复制该单元格内容</b>。</div>'+
     '<table style="width:100%"><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
   entries.forEach(function(e){
-    body+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',true)" ondblclick="calRowDblClick(\''+e.id+'\')" title="单击编辑 · 双击复制该行内容">'+
+    body+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',true)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
       '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td>'+
       '<td>'+esc(e.work)+'</td><td style="white-space:nowrap">✏️ 编辑</td></tr>';
   });
@@ -3665,7 +3665,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.2" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.3" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

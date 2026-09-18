@@ -1602,6 +1602,36 @@ function dayCell(ds, dnum, cls, planTasks, dayInfo){
 window.renderCalendar=renderCalendar;
 window.selectDay=selectDay;
 
+// ===== 日历日报行：单击编辑 / 双击复制 =====
+// 单击若立即打开编辑弹窗，弹窗会盖住表格导致第二次点击永远落在弹窗上，双击复制便无法触发；
+// 因此单击延迟 300ms 执行，期间若发生双击则取消编辑、改为复制。
+var _calRowTimer=null;
+function calRowClick(id, inModal){
+  if(_calRowTimer) clearTimeout(_calRowTimer);
+  _calRowTimer=setTimeout(function(){
+    _calRowTimer=null;
+    if(inModal){ try{ closeModal(); }catch(e){} }
+    openEntryModal(id);
+  }, 300);
+}
+// 该行内容（Tab 分隔，可直接粘贴进 Excel / 表格；末列"编辑"为操作列不参与复制）
+function entryRowText(id){
+  var e=null;
+  getEntries().forEach(function(x){ if(x.id===id) e=x; });
+  if(!e) return "";
+  return [e.project, taskName(e.taskId)||"—", String(e.hours==null?"":e.hours), String(e.work==null?"":e.work)].join("\t");
+}
+function copyEntryRow(id){
+  var t=entryRowText(id);
+  if(!t){ toast("未找到该条日报"); return; }
+  copyText(t, "✅ 已复制该行内容（Tab 分隔）");
+}
+function calRowDblClick(id){
+  if(_calRowTimer){ clearTimeout(_calRowTimer); _calRowTimer=null; }   // 取消待执行的"打开编辑"
+  copyEntryRow(id);
+}
+window.calRowClick=calRowClick; window.calRowDblClick=calRowDblClick; window.copyEntryRow=copyEntryRow;
+
 // 点击日期：显示当天计划详情
 function selectDay(ds){
   calSel=ds;
@@ -1638,10 +1668,10 @@ function selectDay(ds){
     }
     if(dayEntries.length>0){
       var total=dayEntries.reduce(function(s,e){return s+(+e.hours||0);},0);
-      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）</h3>';
+      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）<span class="muted" style="font-weight:400;font-size:12px">　单击编辑 · 双击复制该行</span></h3>';
       h+='<table><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
       dayEntries.forEach(function(e){
-        h+='<tr style="cursor:pointer" onclick="openEntryModal(\''+e.id+'\')" title="点击编辑该日报">'+
+        h+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',false)" ondblclick="calRowDblClick(\''+e.id+'\')" title="单击编辑 · 双击复制该行内容">'+
            '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td>'+
            '<td style="white-space:nowrap;color:var(--main)">✏️ 编辑</td></tr>';
       });
@@ -1661,10 +1691,10 @@ function openDayEntriesModal(ds){
   if(!entries.length){ toast("当天没有日报"); return; }
   var total=entries.reduce(function(s,e){ return s+(+e.hours||0); },0);
   var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
-  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。点击任意一行可编辑。</div>'+
+  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。单击任意一行可编辑，<b>双击复制该行内容</b>。</div>'+
     '<table style="width:100%"><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
   entries.forEach(function(e){
-    body+='<tr style="cursor:pointer" onclick="closeModal();openEntryModal(\''+e.id+'\')" title="点击编辑">'+
+    body+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',true)" ondblclick="calRowDblClick(\''+e.id+'\')" title="单击编辑 · 双击复制该行内容">'+
       '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td>'+
       '<td>'+esc(e.work)+'</td><td style="white-space:nowrap">✏️ 编辑</td></tr>';
   });
@@ -2240,8 +2270,26 @@ function shiftWeek(days){
 window.shiftWeek=shiftWeek;
 
 function copyText(t, msg){
-  function fb(){ var ta=document.createElement("textarea"); ta.value=t; ta.style.position="fixed"; ta.style.left="-9999px"; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast(msg||"✅ 已复制"); }catch(e){ toast("复制失败，请手动选择复制"); } document.body.removeChild(ta); }
-  if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(t).then(function(){ toast(msg||"✅ 已复制"); }, fb); } else fb();
+  t=String(t==null?"":t);
+  var okMsg=msg||"✅ 已复制";
+  function done(){ toast(okMsg); }
+  function fail(){ toast("❌ 复制失败，请手动选择内容后按 Ctrl+C"); }
+  function fb(){
+    try{
+      var ta=document.createElement("textarea"); ta.value=t; ta.style.position="fixed"; ta.style.left="-9999px";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var ok=false;
+      try{ ok=document.execCommand("copy"); }catch(e){ ok=false; }
+      document.body.removeChild(ta);
+      if(ok) done(); else fail();     // 如实反馈，不再"假成功"
+    }catch(e){ fail(); }
+  }
+  // 桌面版优先走主进程剪贴板：不受窗口焦点/可见性限制
+  if(window.appClipboard && window.appClipboard.write){
+    window.appClipboard.write(t).then(function(r){ if(r && r.ok===false) fb(); else done(); }, fb);
+    return;
+  }
+  if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(t).then(done, fb); } else fb();
 }
 window.copyText=copyText;
 
@@ -3617,7 +3665,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.1" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.2" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

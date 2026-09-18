@@ -1,6 +1,6 @@
 // 极造数字 · 日报工具 桌面版主进程
 // 启动内嵌 server.js（本地 HTTP 服务），创建桌面窗口加载，关闭时清理子进程
-const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, clipboard } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
@@ -122,6 +122,18 @@ function createTray() {
     console.error('[tray] 创建失败：' + (e && e.message ? e.message : e));
   }
 }
+
+// ================= 剪贴板（主进程写入） =================
+// 渲染进程的 navigator.clipboard 在窗口未聚焦/不可见时会被 Chromium 拒绝（NotAllowedError），
+// 桌面版统一走主进程剪贴板，保证"复制"在任何情况下都真的写进去。
+ipcMain.handle('clipboard:write', (e, text) => {
+  try {
+    clipboard.writeText(String(text == null ? '' : text));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, msg: err && err.message ? err.message : String(err) };
+  }
+});
 
 // ================= 自动更新（electron-updater + GitHub Releases） =================
 // 更新状态推送给前端

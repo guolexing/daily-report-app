@@ -1,6 +1,11 @@
 // preload.js — 暴露安全的 IPC API 给前端（contextIsolation 下）
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 系统剪贴板（由主进程执行，不受窗口焦点/可见性影响）
+contextBridge.exposeInMainWorld('appClipboard', {
+  write: (text) => ipcRenderer.invoke('clipboard:write', text)
+});
+
 contextBridge.exposeInMainWorld('appUpdate', {
   // 检查更新（返回 Promise<{ok,msg,status}>）
   check: () => ipcRenderer.invoke('update:check'),

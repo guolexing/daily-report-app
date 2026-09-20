@@ -377,8 +377,8 @@
     <div class="card">
       <h2>选择周次</h2>
       <div class="row">
-        <div style="flex:2"><label>本周任意一天</label><input type="date" id="wk_date"></div>
-        <div><label>完成进度（% 默认值）</label><input type="number" id="wk_progress" value="100" min="0" max="100"></div>
+        <div style="flex:2"><label>本周任意一天</label><input type="date" id="wk_date" onchange="renderWeekly()"></div>
+        <div><label>完成进度（% 默认值）</label><input type="number" id="wk_progress" value="100" min="0" max="100" onchange="renderWeekly()"></div>
       </div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn gray" onclick="shiftWeek(-7)">← 上一周</button>
@@ -446,7 +446,7 @@
     <div class="card">
       <h2>选择月份</h2>
       <div class="row">
-        <div><label>月份</label><input type="month" id="mo_month"></div>
+        <div><label>月份</label><input type="month" id="mo_month" onchange="renderMonthly()"></div>
         <div style="flex:2"><label>完成进度（% 默认值，用于月报）</label><input type="number" id="mo_progress" value="100" min="0" max="100"></div>
       </div>
     </div>
@@ -2334,7 +2334,10 @@ function downloadWeekly(kind){
   var range=weekRange(wk);
   var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
   if(!list.length){ toast("本周暂无日报"); return; }
-  var text=buildWeeklyText(range, list);
+  var text=previewOrCompute("wk_preview", function(){
+    var t=buildWeeklyTplText(range, list);
+    return (t!=null)? t : buildWeeklyText(range, list);
+  });
   var fname="周报-"+range.monday.replace(/-/g,".")+"-"+range.sunday.replace(/-/g,".")+"."+(kind==="md"?"md":"xls");
   if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
   else {
@@ -2464,7 +2467,10 @@ function downloadMonthlyScore(kind){
   var b=monthBounds(mo);
   var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
   var att=attendance(list, mo);
-  var text=buildScoreCard(mo, list, att);
+  var text=previewOrCompute("mo_score_preview", function(){
+    var t=buildMonthlyTplText("score", mo, list, att);
+    return (t!=null)? t : buildScoreCard(mo, list, att);
+  });
   var fname="月度绩效考核评分表-"+mo+"."+(kind==="md"?"md":"xls");
   if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
   else {
@@ -2480,7 +2486,10 @@ function downloadMonthlyOKR(kind){
   var b=monthBounds(mo);
   var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
   var att=attendance(list, mo);
-  var text=buildOKR(mo, list, att);
+  var text=previewOrCompute("mo_okr_preview", function(){
+    var t=buildMonthlyTplText("okr", mo, list, att);
+    return (t!=null)? t : buildOKR(mo, list, att);
+  });
   var fname="OKR绩效考核表-"+mo+"."+(kind==="md"?"md":"xls");
   if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
   else {
@@ -2945,6 +2954,15 @@ function buildWeeklyTplText(range, list){
   return ai && ai.range===range.monday ? ai.text : null;
 }
 
+// 报表正文的唯一取值入口：预览区就是"当前正文"的权威来源
+//（模板骨架、规则版、AI 生成结果最终都写进预览区）。复制/下载/导出统一从这里取，
+// 保证「页面上看到的 = 下载下来的」。预览区尚未渲染（为空）时按模板/内置规则兜底计算。
+function previewOrCompute(elId, compute){
+  var el=document.getElementById(elId);
+  var shown=el? String(el.textContent||"") : "";
+  return shown.trim() ? shown : compute();
+}
+
 // 生成使用模板的月考核文本
 function buildMonthlyTplText(type, mo, list, att){
   var key = type==="score"?TPL_SCORE:TPL_OKR;
@@ -3386,6 +3404,9 @@ async function aiWeekly(){
       "3. 不要输出任何解释性文字、不要使用代码块围栏。";
     var txt=await aiChat([{role:"system",content:sys},{role:"user",content:prompt}]);
     txt=txt.trim().replace(/^```[a-zA-Z]*\n?/,"").replace(/```\s*$/,"");
+    // 保存 AI 结果：预览区是正文权威来源，重渲染后必须仍能看到同一份内容
+    var tSigW=getTpl(TPL_WEEK);
+    localStorage.setItem(TPL_AI_WEEK, JSON.stringify({range:range.monday, text:txt, sig:(tSigW && tSigW.mode==="sections")?wkSectionNames().join("|"):undefined}));
     document.getElementById("wk_preview").textContent=txt;
     toast("✅ AI 周报已生成（含本周进展 / 未完成 / 下周计划），可复制/下载");
   }catch(e){
@@ -3665,7 +3686,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.3" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.4" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

@@ -1,6 +1,6 @@
 // 极造数字 · 日报工具 桌面版主进程
 // 启动内嵌 server.js（本地 HTTP 服务），创建桌面窗口加载，关闭时清理子进程
-const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, clipboard, session } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
@@ -217,6 +217,8 @@ function setupAutoUpdater() {
 }
 
 app.whenReady().then(() => {
+  // 本地服务的页面不做缓存：清掉历史缓存，确保升级后运行的一定是已安装的版本
+  try { session.defaultSession.clearCache(); } catch (e) {}
   startServer((port) => {
     if (!port) {
       // 子进程未输出端口（异常）→ 找空闲端口兜底

@@ -115,6 +115,22 @@
   .pre{background:#fbfcfe;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
     white-space:pre-wrap;word-break:break-word;font-family:"Microsoft YaHei",sans-serif;font-size:13px;
     max-height:520px;overflow:auto;line-height:1.7}
+  /* 周报预览：Markdown 渲染后的排版（预览不再是原始 Markdown 源码） */
+  #wk_preview h2{font-size:15.5px;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);color:var(--main)}
+  #wk_preview h2:first-child{margin-top:0}
+  #wk_preview h3{font-size:14px;margin:13px 0 5px;color:var(--text)}
+  #wk_preview h4{font-size:13.5px;margin:11px 0 4px;color:var(--sub)}
+  #wk_preview p{margin:6px 0}
+  #wk_preview ul,#wk_preview ol{margin:5px 0 9px;padding-left:22px}
+  #wk_preview li{margin:3px 0}
+  #wk_preview li.ck{list-style:none;margin-left:-16px}
+  #wk_preview strong{color:#16233a}
+  #wk_preview code{background:var(--main-l);color:var(--main-d);padding:1px 5px;border-radius:4px;font-size:12px}
+  #wk_preview blockquote{margin:7px 0;padding:5px 11px;border-left:3px solid var(--main);background:#f6f9ff;color:var(--sub);border-radius:0 6px 6px 0}
+  #wk_preview hr{border:0;border-top:1px dashed var(--line);margin:12px 0}
+  #wk_preview table{border-collapse:collapse;width:100%;margin:9px 0;font-size:12.5px}
+  #wk_preview th,#wk_preview td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+  #wk_preview th{background:#f2f6fc;font-weight:600;white-space:nowrap}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .muted{color:var(--sub);font-size:12px}
   /* 宽屏可读性：说明类段落限制行宽，避免超长行 */
@@ -2213,6 +2229,72 @@ function countEntryByTask(taskId){
 window.countEntryByTask=countEntryByTask;
 
 /* ================= 周报 ================= */
+// ===== 轻量 Markdown 渲染（仅用于「预览显示」；下载/复制仍输出原始 Markdown）=====
+function mdEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function mdInline(s){
+  return mdEsc(s)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]{1,80}?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function mdToHtml(md){
+  var lines=String(md==null?"":md).replace(/\r\n?/g,"\n").split("\n");
+  var out=[], i=0, listType=null;
+  function closeList(){ if(listType){ out.push("</"+listType+">"); listType=null; } }
+  function cells(l){ return l.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(function(c){ return c.trim(); }); }
+  while(i<lines.length){
+    var line=lines[i];
+    // 表格：表头行 + 分隔行（|---|）才认定为表格
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1<lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1])){
+      closeList();
+      var head=cells(line); i+=2; var body=[];
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ body.push(cells(lines[i])); i++; }
+      out.push("<table><thead><tr>"+head.map(function(c){return "<th>"+mdInline(c)+"</th>";}).join("")+"</tr></thead><tbody>"+
+        body.map(function(r){ return "<tr>"+r.map(function(c){return "<td>"+mdInline(c)+"</td>";}).join("")+"</tr>"; }).join("")+"</tbody></table>");
+      continue;
+    }
+    var h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){ closeList(); var lv=Math.min(h[1].length+1,6); out.push("<h"+lv+">"+mdInline(h[2])+"</h"+lv+">"); i++; continue; }
+    if(/^\s*(-{3,}|\*{3,})\s*$/.test(line)){ closeList(); out.push("<hr>"); i++; continue; }
+    var q=line.match(/^\s*>\s?(.*)$/);
+    if(q){ closeList(); out.push("<blockquote>"+mdInline(q[1])+"</blockquote>"); i++; continue; }
+    var ul=line.match(/^\s*[-*+]\s+(.*)$/);
+    if(ul){
+      if(listType!=="ul"){ closeList(); out.push("<ul>"); listType="ul"; }
+      var it=ul[1], cb=it.match(/^\[([ xX])\]\s*(.*)$/);
+      if(cb){ out.push('<li class="ck">'+(cb[1].toLowerCase()==="x"?"☑":"☐")+" "+mdInline(cb[2])+"</li>"); }
+      else { out.push("<li>"+mdInline(it)+"</li>"); }
+      i++; continue;
+    }
+    var ol=line.match(/^\s*\d+[.、)]\s+(.*)$/);
+    if(ol){ if(listType!=="ol"){ closeList(); out.push("<ol>"); listType="ol"; } out.push("<li>"+mdInline(ol[1])+"</li>"); i++; continue; }
+    if(!line.trim()){ closeList(); i++; continue; }
+    closeList(); out.push("<p>"+mdInline(line)+"</p>"); i++;
+  }
+  closeList();
+  return out.join("");
+}
+
+// 周报正文（Markdown 源文本）的唯一持有者：
+// 预览区显示渲染后的富文本，复制/下载仍使用这份原始 Markdown —— 二者同源，不会各说各话。
+var _weeklyMd="";
+function setWeeklyPreview(md){
+  _weeklyMd=String(md==null?"":md);
+  var el=document.getElementById("wk_preview");
+  if(el) el.innerHTML=_weeklyMd.trim()? mdToHtml(_weeklyMd) : "";
+}
+window.setWeeklyPreview=setWeeklyPreview;
+function getWeeklyMd(){
+  if(_weeklyMd.trim()) return _weeklyMd;
+  // 兜底：预览尚未生成时，按当前周次与模板规则现算
+  var wk=document.getElementById("wk_date").value||today();
+  var range=weekRange(wk);
+  var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
+  var t=buildWeeklyTplText(range, list);
+  return (t!=null)? t : buildWeeklyText(range, list);
+}
+window.getWeeklyMd=getWeeklyMd;
+
 function renderWeekly(){
   var wk=document.getElementById("wk_date").value || today();
   var range=weekRange(wk);
@@ -2226,7 +2308,7 @@ function renderWeekly(){
     '<div class="item">出勤天数：<b>'+workDates.length+'</b></div>'+
     '<div class="item">本周总工时：<b>'+sumH(totalH)+' 小时</b></div>';
   var tplText=buildWeeklyTplText(range, list);
-  document.getElementById("wk_preview").textContent = (tplText!=null) ? tplText : buildWeeklyText(range, list);
+  setWeeklyPreview((tplText!=null) ? tplText : buildWeeklyText(range, list));
 }
 
 function buildWeeklyText(range, list){
@@ -2293,7 +2375,7 @@ function copyText(t, msg){
 }
 window.copyText=copyText;
 
-function copyWeekly(){ var t=document.getElementById("wk_preview").textContent; if(!t.trim()){toast("本周暂无日报");return;} copyText(t); }
+function copyWeekly(){ var t=getWeeklyMd(); if(!t.trim()){toast("本周暂无日报");return;} copyText(t, "✅ 已复制周报 Markdown 文本"); }
 window.copyWeekly=copyWeekly;
 
 function downloadText(name, text, mime){
@@ -2334,10 +2416,7 @@ function downloadWeekly(kind){
   var range=weekRange(wk);
   var list=getEntries().filter(function(e){ return inRange(e, range.monday, range.sunday); });
   if(!list.length){ toast("本周暂无日报"); return; }
-  var text=previewOrCompute("wk_preview", function(){
-    var t=buildWeeklyTplText(range, list);
-    return (t!=null)? t : buildWeeklyText(range, list);
-  });
+  var text=getWeeklyMd();   // 与预览同源：预览渲染显示，下载输出原始 Markdown
   var fname="周报-"+range.monday.replace(/-/g,".")+"-"+range.sunday.replace(/-/g,".")+"."+(kind==="md"?"md":"xls");
   if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
   else {
@@ -3407,7 +3486,7 @@ async function aiWeekly(){
     // 保存 AI 结果：预览区是正文权威来源，重渲染后必须仍能看到同一份内容
     var tSigW=getTpl(TPL_WEEK);
     localStorage.setItem(TPL_AI_WEEK, JSON.stringify({range:range.monday, text:txt, sig:(tSigW && tSigW.mode==="sections")?wkSectionNames().join("|"):undefined}));
-    document.getElementById("wk_preview").textContent=txt;
+    setWeeklyPreview(txt);
     toast("✅ AI 周报已生成（含本周进展 / 未完成 / 下周计划），可复制/下载");
   }catch(e){
     toast("❌ AI 失败："+e.message+"（已保留规则版）");
@@ -3505,8 +3584,8 @@ async function aiApply(type){
       var range2=weekRange(wk2);
       var tSig=getTpl(TPL_WEEK);
       localStorage.setItem(aiKey, JSON.stringify({range:range2.monday, text:txt, sig:(tSig && tSig.mode==="sections")?wkSectionNames().join("|"):undefined}));
-      // 显示到预览
-      document.getElementById("wk_preview").textContent=txt;
+      // 显示到预览（渲染为富文本）
+      setWeeklyPreview(txt);
       toast("✅ AI 已按栏目/模板生成周报（含任务管理的未完成与下周计划）");
     } else {
       var mo2=document.getElementById("mo_month").value||thisMonth();
@@ -3686,7 +3765,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.4" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.5" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

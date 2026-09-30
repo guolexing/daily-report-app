@@ -7,11 +7,10 @@
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 const SOURCES = [
-  { key: 'baidu', name: '百度热搜', group: '综合' },
-  { key: 'toutiao', name: '今日头条', group: '综合' },
-  { key: 'bili', name: 'B站热门', group: '视频' },
   { key: 'juejin', name: '掘金热榜', group: '技术' },
-  { key: 'sspai', name: '少数派', group: '技术' }
+  { key: 'csdn', name: 'CSDN 热榜', group: '技术' },
+  { key: 'sspai', name: '少数派', group: '资讯' },
+  { key: 'zhihu', name: '知乎日报', group: '资讯' }
 ];
 const SOURCE_MAP = {};
 SOURCES.forEach(function (s) { SOURCE_MAP[s.key] = s; });
@@ -70,54 +69,19 @@ function withRetry(fn, times) {
 }
 
 const LOADERS = {
-  // 百度热搜：data.cards[0].content[0].content[] -> {word,url,isTop}
-  baidu: async function () {
-    const j = await fetchAny('https://top.baidu.com/api/board?platform=wise&tab=realtime', {}, true);
-    if (!j.success) throw new Error('百度热搜返回 success=false');
-    let list = [];
-    ((j.data && j.data.cards) || []).forEach(function (c) {
-      ((c.content || [])[0] && c.content[0].content || []).forEach(function (x) { list.push(x); });
-    });
-    return list.map(function (it, i) {
-      const w = plain(it.word);
-      return {
-        rank: i + 1, title: w,
-        url: it.url || ('https://www.baidu.com/s?wd=' + encodeURIComponent(w)),
-        hot: null, time: null, extra: ''
-      };
-    });
-  },
-  // 今日头条热榜：data[] -> {Title,Url,HotValue,Label}
-  toutiao: async function () {
-    const j = await fetchAny('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc', {}, true);
-    return (j.data || []).map(function (it, i) {
-      return {
-        rank: i + 1, title: plain(it.Title),
-        url: it.Url || ('https://www.toutiao.com/trending/' + (it.ClusterIdStr || it.ClusterId) + '/'),
-        hot: Number(it.HotValue) || null, time: null, extra: plain(it.Label || '')
-      };
-    });
-  },
-  // B站排行榜：data.list[] -> {title,short_link_v2,stat.view,pubdate,owner.name}
-  bili: async function () {
-    // 注意：B站缺 Origin 头会被风控直接返回 code=-352（且 HTTP 仍是 200，静默变空列表）
-    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      const r = Math.random() * 16 | 0;
-      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-    });
-    const j = await fetchAny('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all',
-      { Referer: 'https://www.bilibili.com/v/popular/rank/all', Origin: 'https://www.bilibili.com', Cookie: 'buvid3=' + uuid + 'infoc' }, true);
-    if (j.code !== 0) throw new Error('B站风控 code=' + j.code);
-    const list = (j.data && j.data.list) || [];
+  // CSDN 热榜：data[] -> {articleTitle,articleDetailUrl,hotRankScore,viewCount,nickName}
+  csdn: async function () {
+    const j = await fetchAny('https://blog.csdn.net/phoenix/web/blog/hot-rank?page=0&pageSize=30&type=', {}, true);
+    const list = (j && j.data) || [];
+    if (!list.length) throw new Error('CSDN 未返回数据');
     return list.map(function (it, i) {
       return {
-        rank: i + 1, title: plain(it.title),
-        url: it.short_link_v2 || ('https://www.bilibili.com/video/' + (it.bvid || '')),
-        hot: it.stat ? it.stat.view : null,
-        time: isoOrNull(it.pubdate ? it.pubdate * 1000 : null),
-        extra: it.owner ? plain(it.owner.name) : ''
+        rank: i + 1, title: plain(it.articleTitle),
+        url: it.articleDetailUrl,
+        hot: Number(it.hotRankScore) || Number(it.viewCount) || null,
+        time: null, extra: plain(it.nickName || it.userName || '')
       };
-    });
+    }).filter(function (x) { return x.title && x.url; });
   },
   // 掘金热榜：data[] -> {content:{title,content_id,brief,ctime}, content_counter:{view}}
   juejin: async function () {
@@ -145,6 +109,30 @@ const LOADERS = {
         extra: plain(xmlPick(b, 'description')).slice(0, 90)
       };
     });
+  },
+  // 知乎日报：latest + 往前 2 天（正文走官方详情接口，页面本身是 JS 渲染）
+  zhihu: async function () {
+    const first = await fetchAny('https://news-at.zhihu.com/api/4/news/latest', {}, true);
+    const days = [first];
+    let date = String(first.date || '');
+    for (let i = 0; i < 2 && date; i++) {
+      try {
+        const d = await fetchAny('https://news-at.zhihu.com/api/4/news/before/' + date, {}, true);
+        if (d && d.stories && d.stories.length) { days.push(d); date = String(d.date || ''); } else { break; }
+      } catch (e) { break; }
+    }
+    const out = [];
+    days.forEach(function (d) {
+      (d.stories || []).forEach(function (it) {
+        out.push({
+          rank: 0, title: plain(it.title),
+          url: it.url || ('https://daily.zhihu.com/story/' + it.id),
+          hot: null, time: null, extra: String(d.date || '')
+        });
+      });
+    });
+    if (!out.length) throw new Error('知乎日报未返回数据');
+    return out.map(function (x, i) { x.rank = i + 1; return x; });
   }
 };
 
@@ -313,6 +301,18 @@ function extractArticle(html, url) {
 }
 
 async function fetchArticle(url) {
+  // 知乎日报：daily.zhihu.com 是 JS 渲染页，正文改从官方详情接口取
+  const zm = String(url).match(/daily\.zhihu\.com\/story\/(\d+)/i) || String(url).match(/news-at\.zhihu\.com\/api\/4\/news\/(\d+)/i);
+  if (zm) {
+    const j = await fetchAny('https://news-at.zhihu.com/api/4/news/' + zm[1], {}, true);
+    const body = String(j.body || '');
+    if (!body) throw new Error('知乎日报详情为空');
+    const art = extractArticle(body, url);
+    return {
+      url: url, title: plain(j.title) || art.title, site: '知乎日报', image: j.image || art.image,
+      blocks: art.blocks, paragraphs: art.paragraphs, images: art.images, text: art.text, chars: art.chars
+    };
+  }
   const ctl = new AbortController();
   const timer = setTimeout(function () { ctl.abort(); }, 15000);
   try {

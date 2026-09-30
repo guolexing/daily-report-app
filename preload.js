@@ -6,6 +6,15 @@ contextBridge.exposeInMainWorld('appClipboard', {
   write: (text) => ipcRenderer.invoke('clipboard:write', text)
 });
 
+// 老板键：主进程全局快捷键触发 → 渲染进程切回日报页
+contextBridge.exposeInMainWorld('appBoss', {
+  on: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('boss-key', handler);
+    return () => ipcRenderer.removeListener('boss-key', handler);
+  }
+});
+
 contextBridge.exposeInMainWorld('appUpdate', {
   // 检查更新（返回 Promise<{ok,msg,status}>）
   check: () => ipcRenderer.invoke('update:check'),

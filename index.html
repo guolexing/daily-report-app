@@ -131,6 +131,25 @@
   #wk_preview table{border-collapse:collapse;width:100%;margin:9px 0;font-size:12.5px}
   #wk_preview th,#wk_preview td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
   #wk_preview th{background:#f2f6fc;font-weight:600;white-space:nowrap}
+
+  /* ===== 摸鱼新闻 ===== */
+  .news-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .news-chip.on{background:var(--main);color:#fff;border-color:var(--main)}
+  #news_list{max-height:620px;overflow:auto;margin-top:4px}
+  .news-item{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-bottom:1px solid var(--line)}
+  .news-item:hover{background:#f6f9ff}
+  .news-item:last-child{border-bottom:0}
+  .news-rank{flex:0 0 26px;text-align:center;font-weight:700;color:var(--sub);font-size:12.5px;padding-top:1px}
+  .news-item.top1 .news-rank{color:#e8590c}
+  .news-item.top2 .news-rank{color:#f08c00}
+  .news-item.top3 .news-rank{color:#d9a406}
+  .news-main{flex:1;min-width:0}
+  .news-title{color:var(--text);text-decoration:none;font-size:13.5px;line-height:1.5;word-break:break-word}
+  .news-title:hover{color:var(--main);text-decoration:underline}
+  .news-meta{font-size:11.5px;color:var(--sub);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .news-tag{background:var(--main-l);color:var(--main-d);border-radius:4px;padding:1px 6px;font-size:11px}
+  .news-hot{color:var(--err)}
+  .news-extra{font-size:11.5px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .muted{color:var(--sub);font-size:12px}
   /* 宽屏可读性：说明类段落限制行宽，避免超长行 */
@@ -255,6 +274,7 @@
     <button id="tab_weekly" onclick="switchTab('weekly')">⑤ 周报生成</button>
     <button id="tab_monthly" onclick="switchTab('monthly')">⑥ 月度考核报表</button>
     <button id="tab_data" onclick="switchTab('data')">⑦ 数据管理</button>
+    <button id="tab_news" onclick="switchTab('news')">⑧ 摸鱼新闻</button>
   </div>
 
   <!-- ============ 日报录入 ============ -->
@@ -675,6 +695,41 @@
       <div id="ai_imp_preview" style="margin-top:8px"></div>
     </div>
   </div>
+
+  <!-- ============ 摸鱼新闻 ============ -->
+  <div id="view_news" style="display:none">
+    <div class="card">
+      <h2>📰 实时热榜 <span class="muted" id="news_status" style="font-weight:400;font-size:12px">准备加载…</span></h2>
+      <div class="news-bar">
+        <button class="btn gray sm news-chip on" data-group="综合" onclick="newsSetGroup('综合')">🔥 综合</button>
+        <button class="btn gray sm news-chip" data-group="视频" onclick="newsSetGroup('视频')">📺 视频</button>
+        <button class="btn gray sm news-chip" data-group="技术" onclick="newsSetGroup('技术')">💻 技术</button>
+        <button class="btn gray sm news-chip" data-group="全部" onclick="newsSetGroup('全部')">🗂 全部</button>
+        <input id="news_q" placeholder="搜关键词…（边输边筛，回车搜全网）" style="flex:1;min-width:170px" oninput="newsFilter()" onkeydown="newsKeydown(event)">
+        <select id="news_engine" style="width:auto">
+          <option value="juejin">掘金</option>
+          <option value="hn">Hacker News</option>
+        </select>
+        <button class="btn sm" onclick="newsSearchOnline()">🌐 搜全网</button>
+        <button class="btn gray sm" onclick="newsRefresh(true)">🔄 刷新</button>
+        <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+          <input type="checkbox" id="news_auto" onchange="newsAutoToggle()"> 自动刷新
+        </label>
+        <select id="news_interval" style="width:auto" onchange="newsAutoToggle()">
+          <option value="30">30 秒</option>
+          <option value="60" selected>1 分钟</option>
+          <option value="300">5 分钟</option>
+        </select>
+        <button class="btn warn sm" onclick="newsBossKey()" title="Esc：立即切回日报页；全局 Ctrl+Alt+H：直接隐藏窗口">🙈 老板键</button>
+      </div>
+      <div id="news_sources" class="muted" style="font-size:12px;margin-top:8px"></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">💡 点标题用系统浏览器打开原文 · 输入关键词即时过滤，回车「搜全网」 · <b>Esc</b> 或点「🙈 老板键」秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 立即隐藏窗口</div>
+    </div>
+    <div class="card">
+      <h2 id="news_list_title">热榜</h2>
+      <div id="news_list"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
 </div>
 <!-- ===== 通用弹窗 ===== -->
 <div id="modal_mask">
@@ -1001,7 +1056,10 @@ window.closeModal=closeModal;
 document.addEventListener("keydown", function(ev){
   if(ev.key==="Escape"){
     var mask=document.getElementById("modal_mask");
-    if(mask && mask.classList.contains("show")) closeModal();
+    if(mask && mask.classList.contains("show")) { closeModal(); return; }
+    // 摸鱼新闻页：Esc = 老板键，立即切回日报页
+    var nv=document.getElementById("view_news");
+    if(nv && nv.style.display!=="none") newsBossKey();
   }
 });
 document.getElementById("modal_mask").addEventListener("click", function(ev){
@@ -1028,7 +1086,7 @@ function groupByProject(entries){ var map={},order=[]; entries.forEach(function(
 
 /* ================= 标签页 ================= */
 function switchTab(t){
-  ["daily","project","task","calendar","weekly","monthly","data"].forEach(function(x){
+  ["daily","project","task","calendar","weekly","monthly","data","news"].forEach(function(x){
     document.getElementById("view_"+x).style.display = (x===t)?"":"none";
     document.getElementById("tab_"+x).classList.toggle("on", x===t);
   });
@@ -1038,6 +1096,7 @@ function switchTab(t){
   if(t==="calendar") renderCalendar();
   if(t==="weekly") renderWeekly();
   if(t==="monthly") renderMonthly();
+  if(t==="news") newsEnter();
 }
 window.switchTab=switchTab;
 
@@ -3765,7 +3824,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.10.5" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.11.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -3945,6 +4004,137 @@ window.loadSeed=loadSeed;
     }).catch(function(){});
   }, 800);
 })();
+
+/* ================= 摸鱼新闻（实时热榜 / 全网搜索） ================= */
+var NEWS_ALL=[], NEWS_QUERY="", NEWS_GROUP="综合", NEWS_RESULTS=null, _newsTimer=null, _newsLoading=false;
+
+function newsHotText(n){
+  if(!n) return "";
+  if(n>=100000000) return (n/100000000).toFixed(1)+"亿";
+  if(n>=10000) return (n/10000).toFixed(1)+"万";
+  return String(n);
+}
+function newsTimeText(iso){
+  if(!iso) return "";
+  var d=new Date(iso);
+  if(isNaN(d.getTime())) return "";
+  var diff=(Date.now()-d.getTime())/1000;
+  if(diff<60) return "刚刚";
+  if(diff<3600) return Math.round(diff/60)+"分钟前";
+  if(diff<86400) return Math.round(diff/3600)+"小时前";
+  if(diff<2592000) return Math.round(diff/86400)+"天前";
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function newsStatus(msg){ var el=document.getElementById("news_status"); if(el) el.textContent=msg; }
+function newsSetGroup(g){
+  NEWS_GROUP=g; NEWS_RESULTS=null;
+  var chips=document.querySelectorAll(".news-chip");
+  for(var i=0;i<chips.length;i++) chips[i].classList.toggle("on", chips[i].getAttribute("data-group")===g);
+  newsRender();
+}
+function newsVisible(){
+  if(NEWS_RESULTS) return NEWS_RESULTS;
+  var q=NEWS_QUERY.toLowerCase(), g=NEWS_GROUP, out=[];
+  for(var i=0;i<NEWS_ALL.length;i++){
+    var it=NEWS_ALL[i];
+    if(g!=="全部" && it.group!==g) continue;
+    if(q && ((it.title||"")+" "+(it.extra||"")+" "+(it.sourceName||"")).toLowerCase().indexOf(q)<0) continue;
+    out.push(it);
+  }
+  return out;
+}
+function newsRender(){
+  var box=document.getElementById("news_list");
+  if(!box) return;
+  var titleEl=document.getElementById("news_list_title");
+  var items=newsVisible();
+  if(NEWS_RESULTS){
+    titleEl.textContent="🌐 全网搜索："+NEWS_QUERY+"（"+items.length+" 条）";
+  } else {
+    titleEl.textContent="热榜 · "+(NEWS_GROUP==="全部"?"全部来源":NEWS_GROUP)+(NEWS_QUERY?" · 过滤「"+NEWS_QUERY+"」":"");
+  }
+  if(!items.length){
+    box.innerHTML='<div class="empty">'+(NEWS_QUERY?("没有匹配「"+esc(NEWS_QUERY)+"」的内容，可点「🌐 搜全网」"):"暂无数据，点一下 🔄 刷新")+'</div>';
+    return;
+  }
+  var h="";
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    h+='<div class="news-item'+(i<3?" top"+(i+1):"")+'">'
+      +'<span class="news-rank">'+(it.rank||(i+1))+'</span>'
+      +'<div class="news-main">'
+      +'<a class="news-title" href="'+esc(it.url||"#")+'" target="_blank" rel="noreferrer">'+esc(it.title||"")+'</a>'
+      +'<div class="news-meta">'
+      +'<span class="news-tag">'+esc(it.sourceName||"")+'</span>'
+      +(it.hot?'<span class="news-hot">🔥 '+newsHotText(it.hot)+'</span>':'')
+      +(it.time?'<span>'+newsTimeText(it.time)+'</span>':'')
+      +'</div>'
+      +(it.extra?'<div class="news-extra">'+esc(it.extra)+'</div>':'')
+      +'</div></div>';
+  }
+  box.innerHTML=h;
+}
+function newsLoad(){
+  if(_newsLoading) return;
+  _newsLoading=true;
+  newsStatus("刷新中…");
+  fetch("/api/news?source=all").then(function(r){ return r.json(); }).then(function(j){
+    _newsLoading=false;
+    if(!j || !j.items){ newsStatus("加载失败"); return; }
+    NEWS_ALL=j.items;
+    NEWS_RESULTS=null;
+    var bad=(j.sources||[]).filter(function(s){ return !s.ok; });
+    var d=new Date(j.updatedAt);
+    var hh=("0"+d.getHours()).slice(-2), mm=("0"+d.getMinutes()).slice(-2);
+    newsStatus("共 "+j.items.length+" 条 · 更新于 "+hh+":"+mm+(bad.length?(" · 失败："+bad.map(function(s){return s.name;}).join("、")):""));
+    var sbox=document.getElementById("news_sources");
+    if(sbox){
+      sbox.innerHTML=(j.sources||[]).map(function(s){
+        return '<span class="news-tag" style="margin-right:6px">'+esc(s.name)+" "+(s.ok?(s.count+" 条"):"❌")+'</span>';
+      }).join("")+'<span style="margin-left:4px">· 点击标题用系统浏览器打开原文</span>';
+    }
+    newsRender();
+  }).catch(function(e){
+    _newsLoading=false;
+    newsStatus("加载失败："+e.message);
+  });
+}
+function newsRefresh(manual){ if(manual) NEWS_RESULTS=null; newsLoad(); }
+function newsFilter(){
+  NEWS_QUERY=(document.getElementById("news_q").value||"").trim();
+  NEWS_RESULTS=null;   // 边输边筛：回到本地过滤
+  newsRender();
+}
+function newsKeydown(ev){ if(ev.key==="Enter"){ ev.preventDefault(); newsSearchOnline(); } }
+function newsSearchOnline(){
+  var q=(document.getElementById("news_q").value||"").trim();
+  if(!q){ toast("请先输入搜索关键词"); return; }
+  var eng=document.getElementById("news_engine").value;
+  var engName=(eng==="hn")?"Hacker News":"掘金";
+  newsStatus("正在搜索「"+q+"」…");
+  fetch("/api/news/search?q="+encodeURIComponent(q)+"&engine="+eng).then(function(r){
+    return r.json().then(function(j){ return { ok:r.ok, j:j }; });
+  }).then(function(res){
+    if(!res.ok || !res.j || !res.j.items){ newsStatus("搜索失败："+((res.j&&res.j.error)||"未知错误")); return; }
+    NEWS_QUERY=q; NEWS_RESULTS=res.j.items;
+    newsStatus("全网搜索「"+q+"」共 "+res.j.items.length+" 条（"+engName+"）");
+    newsRender();
+  }).catch(function(e){ newsStatus("搜索失败："+e.message); });
+}
+function newsAutoToggle(){
+  if(_newsTimer){ clearInterval(_newsTimer); _newsTimer=null; }
+  if(!document.getElementById("news_auto").checked) return;
+  var sec=parseInt(document.getElementById("news_interval").value,10)||60;
+  _newsTimer=setInterval(function(){ if(document.getElementById("view_news").style.display!=="none") newsLoad(); }, sec*1000);
+}
+function newsBossKey(){ switchTab("daily"); toast("🙈 已切回日报页"); }
+function newsEnter(){ if(!NEWS_ALL.length) newsLoad(); else newsRender(); }
+window.newsSetGroup=newsSetGroup; window.newsRefresh=newsRefresh; window.newsFilter=newsFilter;
+window.newsKeydown=newsKeydown; window.newsSearchOnline=newsSearchOnline;
+window.newsAutoToggle=newsAutoToggle; window.newsBossKey=newsBossKey; window.newsEnter=newsEnter; window.newsLoad=newsLoad;
+// 全局快捷键（Ctrl+Alt+H）由主进程转发过来
+if(window.appBoss && window.appBoss.on){ window.appBoss.on(function(){ newsBossKey(); }); }
+
 </script>
 </body>
 </html>

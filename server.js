@@ -387,6 +387,10 @@ async function handleCCSwitchImport(req, res) {
   }
 }
 
+// 摸鱼新闻：热榜聚合 + 搜索（独立模块，加载失败不影响主功能）
+let newsModule = null;
+try { newsModule = require('./news.js'); } catch (e) { console.error('[news] 模块加载失败：' + ((e && e.message) || e)); }
+
 const server = http.createServer((req, res) => {
   cors(res);   // 所有响应统一加 CORS 头，兼容 file:// 直开页面与局域网/手机访问
   const method = req.method || 'GET';
@@ -509,6 +513,9 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+
+  if (newsModule && urlPath === '/api/news' && method === 'GET') { newsModule.handleNews(req, res, json); return; }
+  if (newsModule && urlPath === '/api/news/search' && method === 'GET') { newsModule.handleNewsSearch(req, res, json); return; }
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const file = path.join(ROOT, path.normalize(urlPath));

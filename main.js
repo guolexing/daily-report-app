@@ -1,6 +1,6 @@
 // 极造数字 · 日报工具 桌面版主进程
 // 启动内嵌 server.js（本地 HTTP 服务），创建桌面窗口加载，关闭时清理子进程
-const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, clipboard, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, clipboard, session, shell, globalShortcut } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
@@ -83,6 +83,30 @@ function createWindow(port) {
     }
   });
   mainWin.on('closed', () => { mainWin = null; });
+  // 摸鱼新闻等外链：一律交给系统默认浏览器，不在应用内新开窗口
+  mainWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) { try { shell.openExternal(url); } catch (e) {} }
+    return { action: 'deny' };
+  });
+}
+
+// ================= 摸鱼老板键（全局快捷键） =================
+// 老板来了：Ctrl+Alt+H 立即隐藏窗口并切回日报页；若窗口本来已隐藏，再按一次恢复显示。
+function setupBossKey() {
+  try {
+    const ok = globalShortcut.register('Control+Alt+H', () => {
+      if (!mainWin || mainWin.isDestroyed()) return;
+      if (mainWin.isVisible() && !mainWin.isMinimized()) {
+        try { mainWin.webContents.send('boss-key'); } catch (e) {}
+        mainWin.hide();
+      } else {
+        showMainWindow();
+      }
+    });
+    console.log('[boss] 老板键 Ctrl+Alt+H ' + (ok ? '已注册' : '注册失败（可能被其它程序占用）'));
+  } catch (e) {
+    console.error('[boss] 注册失败：' + ((e && e.message) || e));
+  }
 }
 
 // 显示/恢复主窗口（托盘点击、二次启动、菜单项）
@@ -237,6 +261,7 @@ app.whenReady().then(() => {
     }
     createWindow(port);
     createTray();   // 系统托盘（关闭窗口后仍可从此打开）
+    setupBossKey(); // 全局老板键 Ctrl+Alt+H
     setupAutoUpdater();
   });
 });
@@ -244,6 +269,7 @@ app.whenReady().then(() => {
 // 退出时结束子进程
 app.on('before-quit', () => {
   if (serverProc) { try { serverProc.kill(); } catch (e) {} serverProc = null; }
+  try { globalShortcut.unregisterAll(); } catch (e) {}
 });
 // 窗口全部关闭（实际是隐藏到托盘）→ 保持后台运行，不退出
 app.on('window-all-closed', () => {

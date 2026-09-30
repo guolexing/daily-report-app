@@ -156,6 +156,11 @@
   .art-img{max-width:100%;border-radius:8px;margin:6px 0 12px;display:block}
   .art-p{font-size:14px;line-height:1.85;color:#25324a;margin:0 0 12px;text-align:justify}
   .art-tip{background:var(--warn-l);border:1px solid #f0c36d;color:#7c4a03;font-size:12.5px;line-height:1.7;padding:10px 12px;border-radius:8px;margin-top:6px}
+  .art-code{background:#f6f8fa;border:1px solid #e3e8ef;border-radius:8px;padding:10px 12px;font-family:Consolas,"Courier New",monospace;
+    font-size:12.5px;line-height:1.7;color:#24292f;white-space:pre;overflow-x:auto;margin:0 0 12px}
+  .art-img2{max-width:100%;border-radius:8px;margin:8px 0 12px;display:block}
+  .art-h{font-size:15px;font-weight:600;margin:16px 0 8px;color:var(--text)}
+  .art-li{font-size:14px;line-height:1.85;color:#25324a;margin:0 0 8px;padding-left:14px}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .muted{color:var(--sub);font-size:12px}
   /* 宽屏可读性：说明类段落限制行宽，避免超长行 */
@@ -3835,7 +3840,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.11.1" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.11.2" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4165,7 +4170,8 @@ function newsOpen(el){
     h+='<h3 class="art-title">'+esc(a.title||title)+'</h3>';
     h+='<div class="art-meta">'+esc(a.site||"")+(a.chars?(' · 正文约 '+a.chars+' 字'):'')+'</div>';
     if(a.image) h+='<img class="art-img" src="'+esc(a.image)+'" alt="">';
-    if(a.paragraphs && a.paragraphs.length) h+=a.paragraphs.map(function(p){ return '<p class="art-p">'+esc(p)+'</p>'; }).join("");
+    if(a.blocks && a.blocks.length) h+=a.blocks.map(newsBlock).join("");
+    else if(a.paragraphs && a.paragraphs.length) h+=a.paragraphs.map(function(p){ return '<p class="art-p">'+esc(p)+'</p>'; }).join("");
     if(!a.chars || a.chars<300){
       h+='<div class="art-tip">⚠️ 该页面无法在应用内提取到完整正文（常见于搜索页、视频页或需要登录 / JS 渲染的页面）。可点下方「🌐 用系统浏览器打开」查看原文。</div>';
     }
@@ -4176,6 +4182,16 @@ function newsOpen(el){
   });
   return false;
 }
+// 正文分块渲染：代码块保留换行缩进（等宽+横向滚动），图片按原位置插入
+function newsBlock(b){
+  if(!b) return "";
+  if(b.type==="code") return '<pre class="art-code">'+esc(b.text)+'</pre>';
+  if(b.type==="img") return '<img class="art-img2" src="'+esc(b.src||"")+'" alt="" loading="lazy">';
+  if(b.type==="h") return '<h4 class="art-h">'+esc(b.text||"")+'</h4>';
+  if(b.type==="li") return '<div class="art-li">· '+esc(b.text||"")+'</div>';
+  return '<p class="art-p">'+esc(b.text||"")+'</p>';
+}
+window.newsBlock=newsBlock;
 window.newsOpen=newsOpen;
 window.newsSetGroup=newsSetGroup; window.newsRefresh=newsRefresh; window.newsFilter=newsFilter;
 window.newsKeydown=newsKeydown; window.newsSearchOnline=newsSearchOnline;

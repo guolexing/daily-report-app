@@ -34,12 +34,20 @@ async function fetchAny(url, headers, asJson) {
 }
 
 // 去标签 + 反转义，得到干净的纯文本标题
-function plain(s) {
+function decodeEntities(s) {
   return String(s == null ? '' : s)
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#\d+;/g, '')
-    .replace(/\s+/g, ' ').trim();
+    .replace(/&#x([0-9a-f]+);/gi, function (m, hx) { const c = parseInt(hx, 16); return (c > 0 && c <= 0x10ffff) ? String.fromCodePoint(c) : m; })
+    .replace(/&#(\d+);/g, function (m, dc) { const c = parseInt(dc, 10); return (c > 0 && c <= 0x10ffff) ? String.fromCodePoint(c) : m; })
+    .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&apos;/gi, "'").replace(/&#39;/g, "'")
+    .replace(/&mdash;/gi, '—').replace(/&ndash;/gi, '–').replace(/&hellip;/gi, '…')
+    .replace(/&ldquo;/gi, '“').replace(/&rdquo;/gi, '”').replace(/&lsquo;/gi, '‘').replace(/&rsquo;/gi, '’')
+    .replace(/&middot;/gi, '·').replace(/&times;/gi, '×').replace(/&copy;/gi, '©')
+    .replace(/&rarr;/gi, '→').replace(/&larr;/gi, '←')
+    .replace(/&amp;/gi, '&');   // &amp; 必须最后解，避免二次解码
+}
+function plain(s) {
+  return decodeEntities(String(s == null ? '' : s).replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
 }
 function xmlPick(block, tag) {
   const m = block.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>'));
@@ -183,6 +191,79 @@ function metaOf(head, name) {
   }
   return '';
 }
+function codeText(inner) {
+  let t = String(inner || '');
+  t = t.replace(/<br\s*\/?>/gi, '\n');
+  t = t.replace(/<\/(div|p|li|tr|h[1-6])>/gi, '\n');
+  t = t.replace(/<[^>]*>/g, '');
+  t = decodeEntities(t);
+  return t.replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+}
+function langOf(attrs) {
+  const m = String(attrs || '').match(/class=["'][^"']*(?:language|lang|highlight)-([\w+#.-]+)/i);
+  return m ? m[1].toLowerCase() : '';
+}
+function imgSrc(attrs, baseUrl) {
+  const a = String(attrs || '');
+  let src = (a.match(/(?:data-src|data-original|data-lazy-src|data-echo)=("[^"]*"|'[^']*')/i) || [])[1]
+         || (a.match(/\ssrc=("[^"]*"|'[^']*')/i) || [])[1] || '';
+  if (!src) return '';
+  src = src.replace(/^["']|["']$/g, '').trim();
+  if (!src || /^data:/i.test(src)) return '';
+  try { src = new URL(src, baseUrl).href; } catch (e) { return ''; }
+  return /^https?:\/\//i.test(src) ? src : '';
+}
+// 把正文拆成块：段落 / 标题 / 列表项 / 代码块 / 图片，保持原始顺序
+function extractBlocks(scope, baseUrl) {
+  const codes = [], imgs = [];
+  let h = String(scope || '');
+  h = h.replace(/<pre([^>]*)>([\s\S]*?)<\/pre>/gi, function (_, attrs, inner) {
+    codes.push({ type: 'code', text: codeText(inner), lang: langOf(attrs) });
+    return '\u0001C' + (codes.length - 1) + '\u0001';
+  });
+  h = h.replace(/<img([^>]*)>/gi, function (_, attrs) {
+    const src = imgSrc(attrs, baseUrl);
+    if (!src) return ' ';
+    imgs.push({ type: 'img', src: src });
+    return '\u0001I' + (imgs.length - 1) + '\u0001';
+  });
+  const out = [];
+  const SENT = /\u0001([CI])(\d+)\u0001/g;
+  function pushSents(txt) {
+    let m; SENT.lastIndex = 0;
+    while ((m = SENT.exec(txt))) {
+      const list = m[1] === 'C' ? codes : imgs;
+      const b = list[parseInt(m[2], 10)];
+      if (b && (b.type !== 'code' || b.text.trim().length >= 2)) out.push(b);
+    }
+  }
+  const re = /\u0001[CI]\d+\u0001|<(h[1-6]|p|li|blockquote|td)([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = re.exec(h))) {
+    if (m[0].charAt(0) === '\u0001') { pushSents(m[0]); continue; }
+    const tag = m[1].toLowerCase(), inner = m[3] || '';
+    if (/\u0001[CI]\d+\u0001/.test(inner)) {
+      pushSents(inner);
+      const rest = plain(inner.replace(/\u0001[CI]\d+\u0001/g, ' '));
+      if (rest.length >= 10) out.push({ type: 'p', text: rest });
+    } else {
+      const t = plain(inner);
+      if (t.length >= 10) {
+        if (tag.charAt(0) === 'h') out.push({ type: 'h', level: parseInt(tag.charAt(1), 10), text: t });
+        else if (tag === 'li') out.push({ type: 'li', text: t });
+        else out.push({ type: 'p', text: t });
+      }
+    }
+  }
+  const res = [];
+  for (let i = 0; i < out.length; i++) {
+    const cur = out[i], prev = res[res.length - 1];
+    if (cur.type === 'code' && !cur.text.trim()) continue;
+    if (prev && prev.type === cur.type && prev.text === cur.text && prev.src === cur.src) continue;
+    res.push(cur);
+  }
+  return res;
+}
 function extractArticle(html, url) {
   let h = String(html || '');
   h = h.replace(/<!--[\s\S]*?-->/g, ' ');
@@ -212,18 +293,23 @@ function extractArticle(html, url) {
     if (m && m[0].length > 600) { scope = m[0]; break; }
   }
   function uniq(arr) { const seen = {}; return arr.filter(function (t) { if (seen[t]) return false; seen[t] = 1; return true; }); }
-  let paras = uniq((scope.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).map(function (p) { return plain(p); }).filter(function (t) { return t.length >= 10; }));
-  let text = paras.join('\n');
-  if (text.length < 200) {
+  let blocks = extractBlocks(scope, url);
+  let text = blocks.filter(function (b) { return b.text; }).map(function (b) { return b.text; }).join('\n');
+  if (text.length < 200) {   // 兜底：整页纯文本
     const raw = String(scope)
       .replace(/<\/(p|div|li|h[1-6]|tr|section|td)>/gi, '\n')
       .replace(/<br[^>]*>/gi, '\n')
       .replace(/<[^>]*>/g, ' ');
-    paras = uniq(raw.split('\n').map(function (x) { return plain(x); }).filter(function (t) { return t.length >= 12; }));
-    text = paras.join('\n');
+    const ps = uniq(raw.split('\n').map(function (x) { return plain(x); }).filter(function (t) { return t.length >= 12; }));
+    if (ps.join('\n').length > text.length) {
+      blocks = ps.map(function (t) { return { type: 'p', text: t }; });
+      text = ps.join('\n');
+    }
   }
-  if (text.length > 20000) text = text.slice(0, 20000);
-  return { url: url, title: title, site: site, image: image, paragraphs: paras.slice(0, 200), text: text, chars: text.length };
+  if (text.length > 30000) text = text.slice(0, 30000);
+  const paragraphs = blocks.filter(function (b) { return b.text; }).map(function (b) { return b.text; }).slice(0, 400);
+  const images = blocks.filter(function (b) { return b.type === 'img'; }).map(function (b) { return b.src; }).slice(0, 40);
+  return { url: url, title: title, site: site, image: image, blocks: blocks.slice(0, 500), paragraphs: paragraphs, images: images, text: text, chars: text.length };
 }
 
 async function fetchArticle(url) {

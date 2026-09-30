@@ -150,6 +150,12 @@
   .news-tag{background:var(--main-l);color:var(--main-d);border-radius:4px;padding:1px 6px;font-size:11px}
   .news-hot{color:var(--err)}
   .news-extra{font-size:11.5px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 应用内新闻阅读 */
+  .art-title{font-size:17px;line-height:1.5;margin:0 0 6px;color:var(--text)}
+  .art-meta{font-size:12px;color:var(--sub);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .art-img{max-width:100%;border-radius:8px;margin:6px 0 12px;display:block}
+  .art-p{font-size:14px;line-height:1.85;color:#25324a;margin:0 0 12px;text-align:justify}
+  .art-tip{background:var(--warn-l);border:1px solid #f0c36d;color:#7c4a03;font-size:12.5px;line-height:1.7;padding:10px 12px;border-radius:8px;margin-top:6px}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .muted{color:var(--sub);font-size:12px}
   /* 宽屏可读性：说明类段落限制行宽，避免超长行 */
@@ -1056,7 +1062,12 @@ window.closeModal=closeModal;
 document.addEventListener("keydown", function(ev){
   if(ev.key==="Escape"){
     var mask=document.getElementById("modal_mask");
-    if(mask && mask.classList.contains("show")) { closeModal(); return; }
+    if(mask && mask.classList.contains("show")) {
+      var isReader=!!document.getElementById("news_art");
+      closeModal();
+      if(isReader) switchTab("daily");   // 老板键：连阅读窗口一起收掉，直接回日报页
+      return;
+    }
     // 摸鱼新闻页：Esc = 老板键，立即切回日报页
     var nv=document.getElementById("view_news");
     if(nv && nv.style.display!=="none") newsBossKey();
@@ -3824,7 +3835,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.11.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.11.1" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4063,7 +4074,7 @@ function newsRender(){
     h+='<div class="news-item'+(i<3?" top"+(i+1):"")+'">'
       +'<span class="news-rank">'+(it.rank||(i+1))+'</span>'
       +'<div class="news-main">'
-      +'<a class="news-title" href="'+esc(it.url||"#")+'" target="_blank" rel="noreferrer">'+esc(it.title||"")+'</a>'
+      +'<a class="news-title" href="#" data-url="'+esc(it.url||"")+'" data-title="'+esc(it.title||"")+'" onclick="return newsOpen(this)">'+esc(it.title||"")+'</a>'
       +'<div class="news-meta">'
       +'<span class="news-tag">'+esc(it.sourceName||"")+'</span>'
       +(it.hot?'<span class="news-hot">🔥 '+newsHotText(it.hot)+'</span>':'')
@@ -4127,8 +4138,45 @@ function newsAutoToggle(){
   var sec=parseInt(document.getElementById("news_interval").value,10)||60;
   _newsTimer=setInterval(function(){ if(document.getElementById("view_news").style.display!=="none") newsLoad(); }, sec*1000);
 }
-function newsBossKey(){ switchTab("daily"); toast("🙈 已切回日报页"); }
+function newsBossKey(){
+  var mask=document.getElementById("modal_mask");
+  if(mask && mask.classList.contains("show")) closeModal();   // 阅读窗必须一起收掉，否则老板键盖不住它
+  switchTab("daily");
+  toast("🙈 已切回日报页");
+}
 function newsEnter(){ if(!NEWS_ALL.length) newsLoad(); else newsRender(); }
+// 应用内阅读：点标题即在本应用弹窗里读正文（不跳系统浏览器，老板键才能一键收干净）
+function newsOpen(el){
+  var url=el.getAttribute("data-url")||"", title=el.getAttribute("data-title")||"";
+  if(!url) return false;
+  if(!/^https?:\/\//i.test(url)){ toast("该条目没有可阅读的链接"); return false; }
+  if(!window.appUpdate){ window.open(url,"_blank"); return false; }   // 纯浏览器环境退化为新标签页
+  openModal(title||"新闻阅读",
+    '<div id="news_art"><div class="muted" style="padding:10px 0">正在抓取正文…</div></div>',
+    '<a class="btn gray" href="'+esc(url)+'" target="_blank" rel="noreferrer">🌐 用系统浏览器打开</a>'
+    + '<button class="btn" onclick="closeModal()">关闭（Esc）</button>', "860px");
+  fetch("/api/news/article?url="+encodeURIComponent(url)).then(function(r){
+    return r.json().then(function(j){ return { ok:r.ok, j:j }; });
+  }).then(function(res){
+    var box=document.getElementById("news_art");
+    if(!box) return;
+    if(!res.ok || !res.j || !res.j.title && !res.j.paragraphs){ box.innerHTML='<div class="muted">正文抓取失败：'+esc((res.j&&res.j.error)||"未知错误")+'</div>'; return; }
+    var a=res.j, h="";
+    h+='<h3 class="art-title">'+esc(a.title||title)+'</h3>';
+    h+='<div class="art-meta">'+esc(a.site||"")+(a.chars?(' · 正文约 '+a.chars+' 字'):'')+'</div>';
+    if(a.image) h+='<img class="art-img" src="'+esc(a.image)+'" alt="">';
+    if(a.paragraphs && a.paragraphs.length) h+=a.paragraphs.map(function(p){ return '<p class="art-p">'+esc(p)+'</p>'; }).join("");
+    if(!a.chars || a.chars<300){
+      h+='<div class="art-tip">⚠️ 该页面无法在应用内提取到完整正文（常见于搜索页、视频页或需要登录 / JS 渲染的页面）。可点下方「🌐 用系统浏览器打开」查看原文。</div>';
+    }
+    box.innerHTML=h;
+  }).catch(function(e){
+    var box=document.getElementById("news_art");
+    if(box) box.innerHTML='<div class="muted">正文抓取失败：'+esc(e.message)+'</div>';
+  });
+  return false;
+}
+window.newsOpen=newsOpen;
 window.newsSetGroup=newsSetGroup; window.newsRefresh=newsRefresh; window.newsFilter=newsFilter;
 window.newsKeydown=newsKeydown; window.newsSearchOnline=newsSearchOnline;
 window.newsAutoToggle=newsAutoToggle; window.newsBossKey=newsBossKey; window.newsEnter=newsEnter; window.newsLoad=newsLoad;

@@ -168,6 +168,112 @@ function search(q, engine) {
   return engine === 'hn' ? searchHN(q) : searchJuejin(q);
 }
 
+
+// ================= 应用内阅读：正文提取 =================
+function metaOf(head, name) {
+  const tags = head.match(/<meta[^>]*>/gi) || [];
+  for (let i = 0; i < tags.length; i++) {
+    const t = tags[i];
+    if (t.toLowerCase().indexOf(String(name).toLowerCase()) < 0) continue;
+    const c = t.match(/content=("[^"]*"|'[^']*'|[^\s>]+)/i);
+    if (!c) continue;
+    let v = c[1];
+    if ((v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') || (v.charAt(0) === "'" && v.charAt(v.length - 1) === "'")) v = v.slice(1, -1);
+    return plain(v);
+  }
+  return '';
+}
+function extractArticle(html, url) {
+  let h = String(html || '');
+  h = h.replace(/<!--[\s\S]*?-->/g, ' ');
+  h = h.replace(/<script[\s\S]*?<\/script>/gi, ' ');
+  h = h.replace(/<style[\s\S]*?<\/style>/gi, ' ');
+  h = h.replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+  h = h.replace(/<svg[\s\S]*?<\/svg>/gi, ' ');
+  h = h.replace(/<iframe[\s\S]*?<\/iframe>/gi, ' ');
+  const head = h.slice(0, 300000);
+  let title = '';
+  const h1 = head.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  if (h1) title = plain(h1[1]);
+  if (!title || title.length < 4) title = metaOf(head, 'og:title') || metaOf(head, 'twitter:title');
+  if (!title || title.length < 4) title = plain((head.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '');
+  if (title.length > 16) {
+    const cut = title.replace(/\s*[-_|·]\s*[^-_|·]{1,20}$/, '');   // 去掉末尾站点名（如 "标题 - 掘金"）
+    if (cut.length >= 8) title = cut;
+  }
+  let site = metaOf(head, 'og:site_name');
+  if (!site) { try { site = new URL(url).hostname; } catch (e) { site = ''; } }
+  const image = metaOf(head, 'og:image');
+  // 正文范围：优先 article 容器，其次常见正文容器
+  let scope = h;
+  const cands = [/<article[\s\S]*?<\/article>/i, /<div[^>]+(?:id|class)=["'][^"']*(?:article|content|post|main)[^"']*["'][\s\S]*?<\/div>/i];
+  for (let i = 0; i < cands.length; i++) {
+    const m = h.match(cands[i]);
+    if (m && m[0].length > 600) { scope = m[0]; break; }
+  }
+  function uniq(arr) { const seen = {}; return arr.filter(function (t) { if (seen[t]) return false; seen[t] = 1; return true; }); }
+  let paras = uniq((scope.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).map(function (p) { return plain(p); }).filter(function (t) { return t.length >= 10; }));
+  let text = paras.join('\n');
+  if (text.length < 200) {
+    const raw = String(scope)
+      .replace(/<\/(p|div|li|h[1-6]|tr|section|td)>/gi, '\n')
+      .replace(/<br[^>]*>/gi, '\n')
+      .replace(/<[^>]*>/g, ' ');
+    paras = uniq(raw.split('\n').map(function (x) { return plain(x); }).filter(function (t) { return t.length >= 12; }));
+    text = paras.join('\n');
+  }
+  if (text.length > 20000) text = text.slice(0, 20000);
+  return { url: url, title: title, site: site, image: image, paragraphs: paras.slice(0, 200), text: text, chars: text.length };
+}
+
+async function fetchArticle(url) {
+  const ctl = new AbortController();
+  const timer = setTimeout(function () { ctl.abort(); }, 15000);
+  try {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'zh-CN,zh;q=0.9' },
+      redirect: 'follow', signal: ctl.signal
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer()).slice(0, 3 * 1024 * 1024);
+    const ct = String(r.headers.get('content-type') || '');
+    const sniff = buf.slice(0, 4096).toString('latin1');
+    let enc = ((ct.match(/charset=([\w-]+)/i) || [])[1] || (sniff.match(/charset=["']?([\w-]+)/i) || [])[1] || 'utf-8').toLowerCase();
+    let html;
+    if (enc === 'gbk' || enc === 'gb2312' || enc === 'gb18030') {
+      try { html = new TextDecoder('gb18030').decode(buf); } catch (e) { html = buf.toString('utf8'); }
+    } else {
+      html = buf.toString('utf8');
+    }
+    return extractArticle(html, url);
+  } finally { clearTimeout(timer); }
+}
+
+function isPrivateHost(host) {
+  const h = String(host || '').toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^0\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if (h === '::1' || h.indexOf('[') === 0) return true;
+  return false;
+}
+
+async function handleNewsArticle(req, res, json) {
+  const u = new URL(req.url, 'http://127.0.0.1');
+  const target = String(u.searchParams.get('url') || '').trim();
+  if (!/^https?:\/\//i.test(target)) { json(res, 400, { error: '仅支持 http/https 链接' }); return; }
+  let host = '';
+  try { host = new URL(target).hostname; } catch (e) { json(res, 400, { error: '链接格式不合法' }); return; }
+  if (isPrivateHost(host)) { json(res, 400, { error: '不允许访问内网地址' }); return; }
+  try {
+    const art = await cached('art:' + target, 600000, function () { return fetchArticle(target); });
+    json(res, 200, art);
+  } catch (e) {
+    json(res, 502, { error: String((e && e.message) || e) });
+  }
+}
+
 async function handleNews(req, res, json) {
   const u = new URL(req.url, 'http://127.0.0.1');
   const src = String(u.searchParams.get('source') || 'all').toLowerCase();
@@ -211,4 +317,4 @@ async function handleNewsSearch(req, res, json) {
   }
 }
 
-module.exports = { handleNews: handleNews, handleNewsSearch: handleNewsSearch, SOURCES: SOURCES, _internal: { LOADERS: LOADERS, search: search } };
+module.exports = { handleNews: handleNews, handleNewsSearch: handleNewsSearch, handleNewsArticle: handleNewsArticle, SOURCES: SOURCES, _internal: { LOADERS: LOADERS, search: search, fetchArticle: fetchArticle, extractArticle: extractArticle } };

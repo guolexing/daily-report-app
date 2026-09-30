@@ -516,6 +516,7 @@ const server = http.createServer((req, res) => {
 
   if (newsModule && urlPath === '/api/news' && method === 'GET') { newsModule.handleNews(req, res, json); return; }
   if (newsModule && urlPath === '/api/news/search' && method === 'GET') { newsModule.handleNewsSearch(req, res, json); return; }
+  if (newsModule && urlPath === '/api/news/article' && method === 'GET') { newsModule.handleNewsArticle(req, res, json); return; }
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const file = path.join(ROOT, path.normalize(urlPath));

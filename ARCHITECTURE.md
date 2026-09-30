@@ -36,7 +36,7 @@ electron-builder 打包 → dist/latest.yml（url: jzd-daily-app-setup-<ver>.exe
 
 ## 发布新版本 3 步
 ```bash
-cd D:\file\极造数字\日报工具
+cd <本仓库目录>
 # 1. 改 package.json version（如 1.1.1）
 # 2. 打包（生成 latest.yml + 新 exe）
 npx electron-builder --win nsis
@@ -48,6 +48,6 @@ gh release create v1.1.1 "dist/jzd-daily-app-setup-1.1.1.exe" "dist/latest.yml" 
 - ⚠️ exe 必须复制为 ASCII 名（latest.yml 引用的文件名），中文名「工作日报 Setup」不行
 
 ## 网络
-- GitHub 访问走代理 127.0.0.1:7897（clash 新加坡02 节点）
+- GitHub 访问如需代理：设置环境变量 HTTPS_PROXY（例如本机的 http://127.0.0.1:7897）
 - gh 已认证 guolexing（repo + workflow 权限）
 - 仓库：https://github.com/guolexing/daily-report-app（公开）

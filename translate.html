@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>划词翻译</title>
+<style>
+  *{box-sizing:border-box}
+  :root{--main:#2563eb;--main-d:#1d4ed8;--line:#e2e8f0;--sub:#6b7280}
+  html,body{margin:0;height:100%}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:#fbfcfe;color:#1f2937;font-size:13px;display:flex;flex-direction:column;overflow:hidden}
+  #bar{display:flex;align-items:center;gap:7px;padding:4px 8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;flex:0 0 auto}
+  #bar b{font-size:12px}
+  #bar .sp{flex:1}
+  #bar button{border:0;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer}
+  #bar button:hover{background:rgba(255,255,255,.34)}
+  #rows{flex:1;overflow:auto;padding:3px}
+  .row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:7px;cursor:pointer;border:1px solid transparent;height:29px}
+  .row:hover{background:#eef4ff;border-color:#ccdcff}
+  .row.hit{background:#e8f7ee;border-color:#a7e0bd}
+  .row.cn{background:#fbfcff}
+  .row.cn .val{color:#42506b;font-weight:600}
+  .num{flex:0 0 17px;height:17px;line-height:17px;text-align:center;font-size:10.5px;border-radius:5px;background:#eef2f8;color:#64748b;font-weight:600}
+  .row:hover .num{background:var(--main);color:#fff}
+  .val{flex:1;min-width:0;font-size:12.5px;color:#25324a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row.ident .val{font-family:Consolas,"Courier New",monospace;font-size:12px}
+  .more{flex:0 0 auto;font-size:10px;color:#9aa7b8}
+  .row.off{cursor:default;opacity:.45}
+  .row.off:hover{background:transparent;border-color:transparent}
+  .row.off:hover .num{background:#eef2f8;color:#64748b}
+  #foot{flex:0 0 auto;padding:3px 9px;border-top:1px solid var(--line);font-size:10.5px;color:var(--sub);display:flex;align-items:center;gap:8px}
+  #foot .sp{flex:1}
+  #foot.err{color:#dc2626}
+  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#c7d2e0;border-radius:6px}
+</style>
+</head>
+<body>
+<div id="bar">
+  <b id="title">🌐 译文</b>
+  <span class="sp"></span>
+  <button id="btnRe" onclick="retranslate()" title="重新翻译">↻</button>
+  <button onclick="closeWin()" title="关闭 (Esc)">✕</button>
+</div>
+<div id="rows"></div>
+<div id="foot"><span id="hint"></span><span class="sp"></span><span id="status"></span></div>
+<script src="translate-core.js"></script>
+<script>
+/* 划词翻译 与 粘贴到光标处 共用同一个浮窗，界面/行/数字键/尺寸完全一致，
+   唯一差别是译文产生的时刻与点击动作：
+     mode=copy  ：刚按快捷键翻译出的译文 → 点行 = 复制
+     mode=paste ：之前划词时翻译好的最新译文 → 点行 = 粘贴到光标处
+   列表 = 中文（第一行，可选）+ 纯译文 + 5 种命名格式；不显示格式名列。 */
+var MODE="copy", SRC="", DST="", META={}, TIMER=null, MAXSHOW=34, ROWS=[];
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function hasCJK(s){ return /[\u4e00-\u9fff]/.test(String(s==null?"":s)); }
+// 中文按 2 个字符宽度计算，截断与窗口宽度都用它
+function vlen(s){ var t=String(s==null?"":s), n=0; for(var i=0;i<t.length;i++) n += hasCJK(t.charAt(i))?2:1; return n; }
+function clip(s,n){
+  var t=String(s==null?"":s).replace(/\s+/g," "), max=n||MAXSHOW, out="", w=0;
+  for(var i=0;i<t.length;i++){ var c=t.charAt(i), cw=hasCJK(c)?2:1; if(w+cw>max) return out+"…"; out+=c; w+=cw; }
+  return out;
+}
+function setStatus(m,err){ var f=$("foot"); f.className=err?"err":""; $("status").textContent=m||""; }
+// 状态栏文案：显示所用翻译通道、耗时；发生回退时明确标注
+function provText(r){
+  if(!r) return "";
+  var lbl=r.label||r.model||"";
+  var s=lbl? (lbl+" · ") : "";
+  s += (r.cached? "缓存" : ((r.ms/1000).toFixed(1)+"s"));
+  if(r.fallback) s += "（"+String(r.fallback).slice(0,18)+" → 已回退）";
+  return s;
+}
+function closeWin(){
+  if(!window.appTranslate){ window.close(); return; }
+  if(MODE==="paste" && window.appTranslate.closePaste) window.appTranslate.closePaste();
+  else if(window.appTranslate.close) window.appTranslate.close();
+  else window.close();
+}
+function qs(k){ var m=location.search.match(new RegExp("[?&]"+k+"=([^&]*)")); return m?decodeURIComponent(m[1].replace(/\+/g," ")):""; }
+// 展示给用户看 / 选择用的中文：译文是英文时取中文原文，译文本身是中文时取译文
+function cnText(){
+  if(hasCJK(SRC) && !hasCJK(DST)) return SRC;
+  if(hasCJK(DST)) return DST;
+  if(hasCJK(SRC)) return SRC;
+  return "";
+}
+// 列表：中文第一行，然后纯译文与 5 种命名格式
+function buildRows(){
+  var out=[];
+  var cn=cnText();
+  if(cn) out.push({ id:"cn", label:"中文", tip:"中文原文/译文", text:cn });
+  TRCore.formats.forEach(function(f){
+    out.push({ id:f.id, label:f.label, tip:f.tip, fmt:f.id, usable:TRCore.usable(f.id, DST) });
+  });
+  return out;
+}
+function rowText(r){
+  if(!r) return "";
+  if(r.id==="cn") return r.text;
+  return TRCore.build(r.fmt, SRC, DST, META);
+}
+function rowHtml(i, r){
+  var ok=(r.id==="cn")? true : !!r.usable;
+  var full=String(rowText(r)||"").replace(/\s+/g," ");
+  var cls=(r.id==="cn")?" cn":((r.id==="text")?"":" ident");
+  return '<div class="row'+cls+(ok?"":" off")+'" data-i="'+i+'" data-ok="'+(ok?1:0)+'" title="'+esc(r.label+' · '+r.tip)+'">'
+    +'<span class="num">'+(i+1)+'</span>'
+    +'<span class="val">'+esc(clip(full))+'</span>'
+    +(vlen(full)>MAXSHOW?('<span class="more">'+full.length+'字</span>'):'')
+    +'</div>';
+}
+function hintRow(msg){ return '<div class="row off"><span class="num">·</span><span class="val">'+esc(msg)+'</span></div>'; }
+function render(){
+  ROWS=buildRows();
+  $("rows").innerHTML=ROWS.map(function(r,i){ return rowHtml(i,r); }).join("");
+  $("rows").onclick=function(ev){
+    var el=ev.target.closest?ev.target.closest(".row"):null;
+    if(!el || el.getAttribute("data-ok")!=="1") return;
+    pick(Number(el.getAttribute("data-i")));
+  };
+  autoSize(ROWS.length);
+  arm(ROWS.length);
+}
+function arm(n){ if(window.appTranslate && window.appTranslate.armKeys) window.appTranslate.armKeys(n); }
+function autoSize(n){
+  var maxW=0, vals=document.querySelectorAll("#rows .val");
+  for(var i=0;i<vals.length;i++) maxW=Math.max(maxW, vlen(vals[i].textContent||""));
+  var w=Math.round(54+Math.min(maxW,MAXSHOW)*7.4);
+  w=Math.max(200,Math.min(520,w));
+  var h=Math.round(29+6+Math.max(n,1)*29+19+6);
+  h=Math.max(120,Math.min(560,h));
+  if(window.appTranslate && window.appTranslate.resize) window.appTranslate.resize(w,h);
+}
+async function copyText(text){
+  try{ if(window.appClipboard){ await window.appClipboard.write(text); return true; } }catch(e){}
+  try{ await navigator.clipboard.writeText(text); return true; }catch(e){}
+  return false;
+}
+async function pick(idx){
+  var r=ROWS[idx];
+  if(!r) return;
+  var text=rowText(r);
+  if(!text){ setStatus("这一项为空", true); return; }
+  if(TIMER){ clearTimeout(TIMER); TIMER=null; }
+  var ok=false, verb="";
+  if(MODE==="paste"){
+    var res=null;
+    try{ res=await window.appTranslate.paste(text); }
+    catch(e){ setStatus("粘贴失败："+((e&&e.message)||e), true); return; }
+    if(!res || !res.ok){ setStatus((res&&res.msg)||"粘贴失败", true); return; }
+    ok=true; verb="已粘贴 "+res.chars+" 字";
+  }else{
+    ok=await copyText(text); verb="已复制"+((r.id==="cn")?"中文":(" "+r.label));
+  }
+  if(!ok){ setStatus("操作失败", true); return; }
+  if(r.fmt) TRCore.setLastFmt(r.fmt);
+  var all=document.querySelectorAll("#rows .row");
+  for(var i=0;i<all.length;i++) all[i].classList.remove("hit");
+  var el=document.querySelector('#rows .row[data-i="'+idx+'"]');
+  if(el) el.classList.add("hit");
+  setStatus("✅ "+verb);
+  TIMER=setTimeout(closeWin, MODE==="paste"?700:1400);
+}
+async function retranslate(){
+  if(MODE==="paste"){
+    if(!SRC.trim()){ setStatus("没有可重新翻译的原文", true); return; }
+    setStatus("重新翻译中…");
+    try{
+      var r=await TRCore.translate(SRC);
+      SRC=r.source; DST=r.translation; META={target:r.target, model:r.model};
+      render();
+      setStatus(provText(r));
+    }catch(e){ setStatus("翻译失败："+((e&&e.message)||e), true); }
+    return;
+  }
+  if(!SRC.trim()) return;
+  $("rows").innerHTML=hintRow("翻译中…");
+  arm(ROWS.length||5);
+  autoSize(ROWS.length||5);
+  setStatus("");
+  try{
+    var r2=await TRCore.translate(SRC);
+    DST=r2.translation; META={target:r2.target, model:r2.model};
+    render();
+    setStatus(TRCore.usable("camel",DST) ? provText(r2) : ("译文为"+r2.target+"，命名格式不适用"));
+  }catch(e){
+    $("rows").innerHTML=hintRow(clip((e&&e.message)||e, 40));
+    autoSize(1);
+    setStatus("翻译失败", true);
+  }
+}
+if(window.appTranslate && window.appTranslate.onPick){
+  window.appTranslate.onPick(function(i){ pick(i-1); });
+}
+(function init(){
+  MODE=(qs("mode")||"copy").toLowerCase()==="paste" ? "paste" : "copy";
+  var paste=MODE==="paste";
+  document.title=paste?"粘贴到光标处":"划词翻译";
+  $("title").textContent=paste?"📌 粘贴到光标处":"🌐 译文";
+  $("hint").textContent=paste?"第1行中文 · 数字键选 · 点行即粘贴 · Esc 关闭":"第1行中文 · 数字键选 · 点行即复制 · Esc 关闭";
+  $("btnRe").title=paste?"用原文重新翻译":"重新翻译";
+  ROWS=buildRows();
+  arm(ROWS.length);
+  if(paste){
+    var h=TRCore.hist();
+    if(!h.length){ $("rows").innerHTML=hintRow("先选中文字按快捷键翻译一次"); autoSize(1); return; }
+    SRC=h[0].src; DST=h[0].dst; META={target:h[0].target, model:h[0].model};
+    render();
+    setStatus("共 "+TRCore.hist().length+" 条译文");
+    return;
+  }
+  SRC=qs("text")||"";
+  if(!SRC.trim()){ $("rows").innerHTML=hintRow("请先选中文字再按快捷键"); autoSize(1); return; }
+  retranslate();
+})();
+</script>
+</body>
+</html>

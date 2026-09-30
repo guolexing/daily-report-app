@@ -392,6 +392,8 @@ let newsModule = null;
 try { newsModule = require('./news.js'); } catch (e) { console.error('[news] 模块加载失败：' + ((e && e.message) || e)); }
 
 // 股市行情：腾讯行情代理（独立模块，加载失败不影响主功能）
+let translateModule = null;
+try { translateModule = require('./translate.js'); } catch (e) { console.error('[translate] 模块加载失败：' + ((e && e.message) || e)); }
 let stockModule = null;
 try { stockModule = require('./stock.js'); } catch (e) { console.error('[stock] 模块加载失败：' + ((e && e.message) || e)); }
 
@@ -526,6 +528,7 @@ const server = http.createServer((req, res) => {
   if (stockModule && urlPath === '/api/stock/kline' && method === 'GET') { stockModule.handleStockKline(req, res, json); return; }
   if (stockModule && urlPath === '/api/stock/search' && method === 'GET') { stockModule.handleStockSearch(req, res, json); return; }
   if (stockModule && urlPath === '/api/stock/flash' && method === 'GET') { stockModule.handleStockFlash(req, res, json); return; }
+  if (translateModule && urlPath === '/api/translate' && method === 'POST') { translateModule.handleTranslate(req, res, json); return; }
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const file = path.join(ROOT, path.normalize(urlPath));

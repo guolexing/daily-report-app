@@ -203,6 +203,11 @@
   .news-tag.s-sina{background:#fff0f0;color:#c92a2a;border-color:#ffd3d3}
   .news-tag.s-jin10{background:#fff8e6;color:#a86a00;border-color:#ffe6a8}
   .news-tag.s-wscn{background:#eef4ff;color:#2b4b8f;border-color:#ccdcff}
+  /* ===== ⑨ 工具箱 · 翻译工具 ===== */
+  .tr-out{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;min-height:110px;max-height:420px;overflow:auto;font-family:inherit;font-size:13px;line-height:1.78;color:#25324a}
+  .tr-fmt{cursor:pointer}
+  #view_tools label{margin:0 0 4px}
+  #view_tools code{background:#eef2f8;padding:1px 5px;border-radius:4px;font-size:11.5px}
   /* 应用内新闻阅读 */
   .art-title{font-size:17px;line-height:1.5;margin:0 0 6px;color:var(--text)}
   .art-meta{font-size:12px;color:var(--sub);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -339,6 +344,7 @@
     <button id="tab_monthly" onclick="switchTab('monthly')">⑥ 月度考核报表</button>
     <button id="tab_data" onclick="switchTab('data')">⑦ 数据管理</button>
     <button id="tab_news" onclick="switchTab('news')">⑧ 摸鱼（新闻+行情）</button>
+    <button id="tab_tools" onclick="switchTab('tools')">⑨ 工具箱</button>
   </div>
 
   <!-- ============ 日报录入 ============ -->
@@ -862,6 +868,87 @@
     </div>
   </div>
 
+  <!-- ============ ⑨ 工具箱 ============ -->
+  <div id="view_tools" style="display:none">
+    <div class="card">
+      <h2>🧰 翻译工具 <span class="muted" id="tr_status" style="font-weight:400;font-size:12px"></span></h2>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">配好接口即可使用：<b>输入框翻译</b> + <b>划词快捷键翻译</b>。留空的字段自动沿用「数据管理 → AI 设置」里的配置。<br>
+        <b>翻译通道</b>：默认走 AI 模型（指令可控）；想更快可切成 <b>极速（免密钥，约 0.1 秒）</b>、<b>DeepL</b> 或 <b>有道智云</b>，任何通道失败都会自动回退到 AI，不会卡住。<br>
+        <b>要给变量 / 常量命名</b>：把「目标语言」设为 <code>英文</code>，复制格式选 <code>camelCase</code> / <code>PascalCase</code> / <code>snake_case</code> / <code>CONSTANT_CASE</code> / <code>kebab-case</code> 任一即可；中文内容也会被译成英文。</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:2;min-width:220px"><label>API Base URL</label><input type="text" id="tr_base" placeholder="留空 = 沿用 AI 设置"></div>
+        <div style="flex:2;min-width:170px"><label>API Key</label><input type="password" id="tr_key" placeholder="留空 = 沿用 AI 设置"></div>
+        <div style="min-width:150px"><label>模型</label><input type="text" id="tr_model" placeholder="deepseek-chat"></div>
+        <div style="min-width:110px"><label>目标语言</label><input type="text" id="tr_target" placeholder="中文 / 英文"></div>
+        <div style="min-width:150px"><label>翻译通道</label><select id="tr_provider" onchange="trProviderChange()">
+          <option value="ai">AI 模型（默认）</option>
+          <option value="fast">极速（免密钥）</option>
+          <option value="deepl">DeepL</option>
+          <option value="youdao">有道智云</option>
+        </select></div>
+      </div>
+      <div id="tr_deepl_box" style="display:none;margin-top:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:2;min-width:240px"><label>DeepL API Key</label><input type="password" id="tr_deepl_key" placeholder="例如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"></div>
+          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0 0 7px"><input type="checkbox" id="tr_deepl_free" checked> 免费版端点（api-free.deepl.com）</label>
+        </div>
+      </div>
+      <div id="tr_youdao_box" style="display:none;margin-top:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:190px"><label>有道智云 appKey（应用 ID）</label><input type="text" id="tr_yd_key" placeholder="应用 ID"></div>
+          <div style="flex:1;min-width:220px"><label>有道智云 appSecret（应用密钥）</label><input type="password" id="tr_yd_secret" placeholder="应用密钥"></div>
+        </div>
+      </div>
+      <div id="tr_prov_hint" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn" onclick="trSave()">保存翻译设置</button>
+        <button class="btn gray" onclick="trUseAI()">沿用 AI 设置</button>
+        <button class="btn gray" onclick="trTest()">测试连接</button>
+        <span class="muted" id="tr_cfg_note" style="font-size:12px"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>✍️ 输入框翻译</h2>
+      <textarea id="tr_in" style="min-height:130px" placeholder="粘贴或输入要翻译的内容，点「翻译」或按 Ctrl+Enter" onkeydown="trKeydown(event)"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" onclick="trRun()">🌐 翻译</button>
+        <button class="btn gray" onclick="trSwap()">🔄 译文放回输入框</button>
+        <button class="btn gray" onclick="trClear()">清空</button>
+        <span class="muted" id="tr_note" style="font-size:12px"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📋 翻译结果 <span class="muted" id="tr_meta" style="font-weight:400;font-size:12px"></span></h2>
+      <div class="news-bar" style="margin-bottom:8px">
+        <span class="muted" style="font-size:12px">复制格式：</span>
+        <span id="tr_fmts" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+        <button class="btn green sm" onclick="trCopy()" style="margin-left:auto">📋 复制</button>
+      </div>
+      <pre id="tr_out" class="tr-out">（译文会显示在这里；选 camelCase 等命名格式时显示转换后的标识符）</pre>
+    </div>
+
+    <div class="card">
+      <h2>🖱️ 划词翻译 → 粘贴到光标处 <span class="muted" style="font-weight:400;font-size:12px">两个快捷键配合使用</span></h2>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">
+        <b>① 划词翻译</b>：在任意程序里选中文字 → 按快捷键 → 弹出小窗，<b>点哪一行就复制哪种命名</b>（纯译文 / camelCase / PascalCase / snake_case / CONSTANT_CASE / kebab-case）。<br>
+        <b>② 粘贴翻译</b>：光标放到要插入的位置 → 按快捷键 → 选择器里<b>点哪种命名就直接粘进光标处</b>。两个浮窗都<b>不抢焦点</b>，光标位置不会丢。
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div style="min-width:190px"><label>① 划词翻译快捷键</label><input type="text" id="tr_shortcut" placeholder="Control+Alt+Q"></div>
+        <button class="btn" onclick="trSaveShortcut()">保存并注册</button>
+        <button class="btn gray" onclick="trTryCapture()">试一次划词</button>
+        <div style="min-width:190px"><label>② 粘贴翻译快捷键</label><input type="text" id="tr_paste_shortcut" placeholder="Control+Alt+V"></div>
+        <button class="btn" onclick="trSavePasteShortcut()">保存并注册</button>
+        <button class="btn gray" onclick="trTryChooser()">试一次粘贴</button>
+      </div>
+      <div class="muted" id="tr_hotkey_note" style="font-size:12px;margin-top:6px"></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">💡 写法：<code>Control+Alt+Q</code>、<code>Control+Alt+V</code>、<code>Control+Shift+D</code>；被占用时换一个组合即可。取词是向你的前台程序发送 Ctrl+C，取完会<b>自动还原你原来的剪贴板</b>；粘贴时会把你选中的那条译文放进剪贴板后再发送 Ctrl+V。</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">翻译历史保存在本机（最近 12 条），可在粘贴选择器里随时切换；点这里 <button class="btn gray sm" onclick="trClearHist()">清空翻译历史</button></div>
+    </div>
+  </div>
+
 </div>
 <!-- ===== 通用弹窗 ===== -->
 <div id="modal_mask">
@@ -876,6 +963,7 @@
 </div>
 <div id="toast"></div>
 
+<script src="translate-core.js"></script>
 <script>
 "use strict";
 /* ================= 数据存储 ================= */
@@ -1226,7 +1314,7 @@ function groupByProject(entries){ var map={},order=[]; entries.forEach(function(
 
 /* ================= 标签页 ================= */
 function switchTab(t){
-  ["daily","project","task","calendar","weekly","monthly","data","news"].forEach(function(x){
+  ["daily","project","task","calendar","weekly","monthly","data","news","tools"].forEach(function(x){
     document.getElementById("view_"+x).style.display = (x===t)?"":"none";
     document.getElementById("tab_"+x).classList.toggle("on", x===t);
   });
@@ -1237,6 +1325,7 @@ function switchTab(t){
   if(t==="weekly") renderWeekly();
   if(t==="monthly") renderMonthly();
   if(t==="news") fishEnter(); else fishLeave();
+  if(t==="tools") trEnter();
 }
 window.switchTab=switchTab;
 
@@ -3964,7 +4053,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.13.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.14.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4204,7 +4293,7 @@ function newsRender(){
     h+='<div class="news-item'+(i<3?" top"+(i+1):"")+'">'
       +'<span class="news-rank">'+(it.rank||(i+1))+'</span>'
       +'<div class="news-main">'
-      +'<a class="news-title" href="#" data-url="'+esc(it.url||"")+'" data-title="'+esc(it.title||"")+'" onclick="return newsOpen(this)">'+esc(it.title||"")+'</a>'
+      +'<a class="news-title" href="#" data-url="'+esc(it.url||"")+'" data-title="'+esc(it.title||"")+'" data-preview="'+esc(it.extra||"")+'" onclick="return newsOpen(this)">'+esc(it.title||"")+'</a>'
       +'<div class="news-meta">'
       +'<span class="news-tag s-'+esc(it.source||"")+'">'+esc(it.sourceName||"")+'</span>'
       +(it.hot?'<span class="news-hot">🔥 '+newsHotText(it.hot)+'</span>':'')
@@ -4339,11 +4428,11 @@ function flashRender(){
   box.innerHTML=items.map(function(x){
     var stockTxt=(x.stocks||[]).slice(0,3).map(function(s){ return s.name; }).filter(Boolean).join("、");
     var txt=esc(x.text);
+    var index=_flashAll.indexOf(x);
     return '<div class="flash-item'+(x.star?" star":"")+'">'
       +'<div class="flash-time">'+esc(x.timeText||"")+'</div>'
       +'<div class="flash-body">'
-      +(x.url?('<a class="flash-text flash-link" href="#" data-url="'+esc(x.url)+'" data-title="'+esc(String(x.text).slice(0,40))+'" onclick="return newsOpen(this)">'+txt+'</a>')
-             :('<div class="flash-text">'+txt+'</div>'))
+      +'<a class="flash-text flash-link" href="#" data-index="'+index+'" onclick="return flashOpen(this)">'+txt+'</a>'
       +'<div class="flash-meta"><span class="news-tag '+flashSrcCls(x.source)+'">'+esc(x.source)+'</span>'
       +(x.star?'<span class="flash-star">★ 重要</span>':'')
       +((x.tags&&x.tags.length)?('<span>'+esc(x.tags.join(" / "))+'</span>'):'')
@@ -4353,9 +4442,24 @@ function flashRender(){
 }
 window.flashLoad=flashLoad; window.flashRender=flashRender; window.flashAutoToggle=flashAutoToggle;
 window.flashLeave=flashLeave;
+function flashOpen(el){
+  var item=_flashAll[Number(el.getAttribute("data-index"))];
+  if(!item) return false;
+  var text=String(item.text||"");
+  var match=text.match(/^【([^】]+)】\s*/);
+  var title=match?match[1]:(text.slice(0,42)||"实时资讯");
+  var body=match?text.slice(match[0].length):text;
+  var footer=(/^https?:\/\//i.test(item.url||"")?'<a class="btn gray" href="'+esc(item.url)+'" target="_blank" rel="noreferrer">🌐 查看原文</a>':'')
+    +'<button class="btn" onclick="closeModal()">关闭（Esc）</button>';
+  openModal(title, '<div id="news_art"><h3 class="art-title">'+esc(title)+'</h3>'
+    +'<div class="art-meta">'+esc(item.source||"")+' · '+esc(item.timeText||"")+'</div>'
+    +'<p class="art-p">'+esc(body||text)+'</p></div>', footer, "860px");
+  return false;
+}
+window.flashOpen=flashOpen;
 // 应用内阅读：点标题即在本应用弹窗里读正文（不跳系统浏览器，老板键才能一键收干净）
 function newsOpen(el){
-  var url=el.getAttribute("data-url")||"", title=el.getAttribute("data-title")||"";
+  var url=el.getAttribute("data-url")||"", title=el.getAttribute("data-title")||"", preview=el.getAttribute("data-preview")||"";
   if(!url) return false;
   if(!/^https?:\/\//i.test(url)){ toast("该条目没有可阅读的链接"); return false; }
   if(!window.appUpdate){ window.open(url,"_blank"); return false; }   // 纯浏览器环境退化为新标签页
@@ -4363,12 +4467,19 @@ function newsOpen(el){
     '<div id="news_art"><div class="muted" style="padding:10px 0">正在抓取正文…</div></div>',
     '<a class="btn gray" href="'+esc(url)+'" target="_blank" rel="noreferrer">🌐 用系统浏览器打开</a>'
     + '<button class="btn" onclick="closeModal()">关闭（Esc）</button>', "860px");
+  function articleFailure(reason){
+    var box=document.getElementById("news_art");
+    if(!box) return;
+    box.innerHTML='<h3 class="art-title">'+esc(title)+'</h3>'
+      +'<div class="art-tip">原站正文暂时无法获取：'+esc(reason)+'。以下仅为列表摘要，不是全文。</div>'
+      +(preview?'<p class="art-p">'+esc(preview)+'</p>':'');
+  }
   fetch("/api/news/article?url="+encodeURIComponent(url)).then(function(r){
     return r.json().then(function(j){ return { ok:r.ok, j:j }; });
   }).then(function(res){
     var box=document.getElementById("news_art");
     if(!box) return;
-    if(!res.ok || !res.j || !res.j.title && !res.j.paragraphs){ box.innerHTML='<div class="muted">正文抓取失败：'+esc((res.j&&res.j.error)||"未知错误")+'</div>'; return; }
+    if(!res.ok || !res.j || !res.j.title && !res.j.paragraphs){ articleFailure((res.j&&res.j.error)||"未知错误"); return; }
     var a=res.j, h="";
     h+='<h3 class="art-title">'+esc(a.title||title)+'</h3>';
     h+='<div class="art-meta">'+esc(a.site||"")+(a.chars?(' · 正文约 '+a.chars+' 字'):'')+'</div>';
@@ -4380,8 +4491,7 @@ function newsOpen(el){
     }
     box.innerHTML=h;
   }).catch(function(e){
-    var box=document.getElementById("news_art");
-    if(box) box.innerHTML='<div class="muted">正文抓取失败：'+esc(e.message)+'</div>';
+    articleFailure(e.message);
   });
   return false;
 }
@@ -4489,7 +4599,7 @@ function stockRenderRelated(sym){
   if(!rel.length){ box.innerHTML='<div class="muted">暂无相关快讯（可切到「⚡ 实时资讯」查看全部）</div>'; return; }
   box.innerHTML=rel.map(function(x){
     return '<div class="flash-item sm"><div class="flash-time">'+esc(x.timeText||"")+'</div><div class="flash-body">'
-      +'<div class="flash-text">'+esc(x.text)+'</div>'
+      +'<a class="flash-text flash-link" href="#" data-index="'+_flashAll.indexOf(x)+'" onclick="return flashOpen(this)">'+esc(x.text)+'</a>'
       +'<div class="flash-meta"><span class="news-tag '+flashSrcCls(x.source)+'">'+esc(x.source)+'</span>'
       +'</div></div></div>';
   }).join("");
@@ -4591,8 +4701,195 @@ window.stockAutoToggle=stockAutoToggle; window.stockBossKey=stockBossKey; window
 window.stockSearchNow=stockSearchNow; window.stockSearchKey=stockSearchKey; window.stockAdd=stockAdd;
 window.stockRemove=stockRemove; window.stockResetWatch=stockResetWatch; window.stockToggleWatch=stockToggleWatch;
 
+/* ================= ⑨ 工具箱 · 翻译工具 ================= */
+var TR_FMT="text", TR_SRC="", TR_DST="", TR_META={}, TR_BUSY=false;
+function trNote(msg,err){
+  var el=document.getElementById("tr_note"); if(!el) return;
+  el.textContent=msg||""; el.style.color=err?"#dc2626":"";
+}
+function trHotNote(msg,ok){
+  var el=document.getElementById("tr_hotkey_note"); if(!el) return;
+  el.textContent=msg||""; el.style.color=(ok===undefined)?"":(ok?"#16a34a":"#dc2626");
+}
+function trRawCfg(){ try{ return JSON.parse(localStorage.getItem(TRCore.KEY))||{}; }catch(e){ return {}; } }
+function trVal(id){ var el=document.getElementById(id); return el?String(el.value||"").trim():""; }
+function trFillForm(){
+  var b=document.getElementById("tr_base"); if(!b) return;
+  var t=trRawCfg(), c=TRCore.cfg(), a=TRCore.aiCfg();
+  b.value=t.base||"";
+  b.placeholder="留空 = 沿用 AI 设置"+(a.base?("（"+a.base+"）"):"");
+  document.getElementById("tr_key").value=t.key||"";
+  document.getElementById("tr_key").placeholder="留空 = 沿用 AI 设置"+(a.key?"（已配置）":"");
+  var m=document.getElementById("tr_model");
+  m.value=t.model||"";
+  m.placeholder="留空 = 沿用 AI 设置"+(a.model?("（"+a.model+"）"):"");
+  document.getElementById("tr_target").value=t.target||"";
+  document.getElementById("tr_provider").value=c.provider||"ai";
+  document.getElementById("tr_deepl_key").value=t.deeplKey||"";
+  document.getElementById("tr_deepl_free").checked=(t.deeplFree!==false);
+  document.getElementById("tr_yd_key").value=t.ydAppKey||"";
+  document.getElementById("tr_yd_secret").value=t.ydAppSecret||"";
+  if(window.trProviderChange) trProviderChange();
+  document.getElementById("tr_shortcut").value=c.shortcut||"Control+Alt+Q";
+  var ps=document.getElementById("tr_paste_shortcut"); if(ps) ps.value=c.pasteShortcut||"Control+Alt+V";
+  var note=document.getElementById("tr_cfg_note");
+  if(note){
+    note.textContent = c.key ? (c.own ? ("当前使用：本工具专用配置 · "+c.model) : ("当前使用：AI 设置 · "+c.model)) : "尚未配置 API Key";
+    note.style.color = c.key ? "" : "#dc2626";
+  }
+  var st=document.getElementById("tr_status");
+  if(st) st.textContent = c.key ? "" : "（未配置 API）";
+}
+function trProviderChange(){
+  var p=trVal("tr_provider")||"ai";
+  var d=document.getElementById("tr_deepl_box"), y=document.getElementById("tr_youdao_box"), h=document.getElementById("tr_prov_hint");
+  if(d) d.style.display=(p==="deepl")?"":"none";
+  if(y) y.style.display=(p==="youdao")?"":"none";
+  var map={
+    ai:"AI 模型：指令可控（保留 Markdown/代码、判断原文是否已是目标语言），速度约 1~4 秒。",
+    fast:"极速通道：有道公开接口，约 0.05~0.2 秒，免密钥；失败会自动回退到 AI 模型（回退情况会在结果里标注）。",
+    deepl:"DeepL：质量与速度都好，需 API Key（免费额度 50 万字/月）；失败会自动回退到 AI 模型。",
+    youdao:"有道智云：国内速度稳，需 appKey + appSecret；失败会自动回退到 AI 模型。"
+  };
+  if(h) h.textContent=map[p]||"";
+}
+window.trProviderChange=trProviderChange;
+function trSave(){
+  TRCore.save({
+    base:trVal("tr_base"), key:trVal("tr_key"), model:trVal("tr_model"), target:trVal("tr_target"),
+    provider:trVal("tr_provider")||"ai",
+    deeplKey:trVal("tr_deepl_key"),
+    deeplFree:(function(){ var c=document.getElementById("tr_deepl_free"); return !!(c&&c.checked); })(),
+    ydAppKey:trVal("tr_yd_key"), ydAppSecret:trVal("tr_yd_secret")
+  });
+  trFillForm(); toast("✅ 翻译设置已保存");
+}
+function trUseAI(){
+  TRCore.save({base:"",key:"",model:""});
+  trFillForm(); toast("已改为沿用「数据管理 → AI 设置」");
+}
+async function trTest(){
+  if(TR_BUSY) return;
+  TR_BUSY=true; trNote("测试中…");
+  try{
+    var r=await TRCore.translate("Hello, world.","中文");
+    var extra=r.fallback?("（"+r.fallback+" → 已回退 "+(r.label||r.model)+"）"):"";
+    trNote("✅ "+(r.label||r.model)+" · "+(r.ms/1000).toFixed(1)+"s"+extra+"："+String(r.translation).slice(0,40));
+  }catch(e){ trNote("❌ "+((e&&e.message)||e), true); }
+  TR_BUSY=false;
+}
+function trRenderFmts(){
+  var box=document.getElementById("tr_fmts"); if(!box) return;
+  if(!box.getAttribute("data-bound")){
+    box.setAttribute("data-bound","1");
+    box.onclick=function(ev){
+      var b=(ev.target&&ev.target.closest)?ev.target.closest(".tr-fmt"):null;
+      if(b) trFmtSet(b.getAttribute("data-fmt"));
+    };
+  }
+  box.innerHTML=TRCore.formats.map(function(f){
+    var off=TR_DST && !TRCore.usable(f.id, TR_DST);
+    return '<button class="btn gray sm news-chip tr-fmt'+(f.id===TR_FMT?" on":"")+'" data-fmt="'+f.id+'" title="'+esc(f.tip)+(off?"（当前译文非英文，已按纯译文输出）":"")+'">'+esc(f.label)+(off?" ⚠":"")+'</button>';
+  }).join("");
+}
+function trFmtSet(id){ TR_FMT=id||"text"; trRenderFmts(); trRenderOut(); }
+function trRenderOut(){
+  var box=document.getElementById("tr_out"); if(!box) return;
+  if(!TR_DST){ box.textContent="（译文会显示在这里，切换上方格式可预览不同复制效果）"; return; }
+  box.textContent=TRCore.build(TR_FMT, TR_SRC, TR_DST, TR_META);
+}
+function trMetaShow(){
+  var el=document.getElementById("tr_meta"); if(!el) return;
+  el.textContent = TR_DST ? (TR_META.target+" · "+(TR_META.model||"")+" · 原文 "+TR_SRC.length+" 字 / 译文 "+TR_DST.length+" 字") : "";
+}
+async function trRun(){
+  var box=document.getElementById("tr_in");
+  var text=box?box.value:"";
+  if(!text.trim()){ trNote("请先输入要翻译的内容", true); return; }
+  if(TR_BUSY) return;
+  TR_BUSY=true; trNote("翻译中…");
+  document.getElementById("tr_out").textContent="正在翻译…";
+  try{
+    var r=await TRCore.translate(text);
+    TR_SRC=r.source; TR_DST=r.translation; TR_META={target:r.target, model:r.model};
+    trRenderOut(); trMetaShow();
+    trNote("✅ "+(r.label||r.model)+(r.cached?" · 缓存":(" · "+(r.ms/1000).toFixed(1)+"s"))+(r.fallback?"（"+String(r.fallback).slice(0,16)+" → 已回退）":""));
+  }catch(e){
+    TR_DST=""; trMetaShow();
+    document.getElementById("tr_out").textContent="翻译失败："+((e&&e.message)||e);
+    trNote("❌ "+((e&&e.message)||e), true);
+  }
+  TR_BUSY=false;
+}
+async function trCopy(){
+  if(!TR_DST){ trNote("还没有译文", true); return; }
+  var text=TRCore.build(TR_FMT, TR_SRC, TR_DST, TR_META), ok=false;
+  try{ if(window.appClipboard){ await window.appClipboard.write(text); ok=true; } }catch(e){}
+  if(!ok){ try{ await navigator.clipboard.writeText(text); ok=true; }catch(e){} }
+  var label=(TRCore.formats.filter(function(x){ return x.id===TR_FMT; })[0]||{}).label||TR_FMT;
+  trNote(ok?("✅ 已按「"+label+"」格式复制（"+text.length+" 字）"):"❌ 复制失败，请手动选中复制", !ok);
+}
+function trSwap(){
+  if(!TR_DST){ trNote("还没有译文", true); return; }
+  document.getElementById("tr_in").value=TR_DST;
+  trNote("已把译文放进输入框，点「翻译」即可反向翻译");
+}
+function trClear(){
+  document.getElementById("tr_in").value="";
+  TR_SRC=""; TR_DST=""; TR_META={};
+  trRenderOut(); trMetaShow(); trNote("");
+}
+function trKeydown(ev){ if((ev.ctrlKey||ev.metaKey)&&ev.key==="Enter"){ ev.preventDefault(); trRun(); } }
+async function trSaveShortcut(){
+  var v=trVal("tr_shortcut")||"Control+Alt+Q";
+  TRCore.save({shortcut:v});
+  if(!window.appTranslate){ trHotNote("浏览器环境不支持全局快捷键，仅桌面版可用", false); return; }
+  var r=await window.appTranslate.setShortcut(v);
+  trHotNote((r&&r.msg)||"", !!(r&&r.ok));
+  trFillForm();
+}
+async function trSavePasteShortcut(){
+  var v=trVal("tr_paste_shortcut")||"Control+Alt+V";
+  TRCore.save({pasteShortcut:v});
+  if(!window.appTranslate){ trHotNote("浏览器环境不支持全局快捷键，仅桌面版可用", false); return; }
+  var r=await window.appTranslate.setPasteShortcut(v);
+  trHotNote((r&&r.msg)||"", !!(r&&r.ok));
+  trFillForm();
+}
+function trTryChooser(){
+  if(!window.appTranslate){ trHotNote("浏览器环境不支持全局快捷键，仅桌面版可用", false); return; }
+  if(!TRCore.hist().length){ trHotNote("还没有译文：先用「① 划词翻译」或上方的输入框翻译一次", false); return; }
+  window.appTranslate.openChooser();
+  trHotNote("已弹出粘贴选择器（不抢焦点，光标位置不丢）", true);
+}
+function trClearHist(){
+  TRCore.histClear();
+  toast("🗑 翻译历史已清空");
+  trHotNote("翻译历史已清空");
+}
+window.trSavePasteShortcut=trSavePasteShortcut; window.trTryChooser=trTryChooser; window.trClearHist=trClearHist;
+async function trTryCapture(){
+  if(!window.appTranslate){ trHotNote("浏览器环境不支持全局快捷键，仅桌面版可用", false); return; }
+  trHotNote("正在取词…（请保持目标文字为选中状态）");
+  var r=await window.appTranslate.capture();
+  trHotNote((r&&r.ok)?("✅ 已取到 "+r.chars+" 字，已弹出翻译浮窗"):("⚠️ "+((r&&r.msg)||"取词失败")), !!(r&&r.ok));
+}
+function trEnter(){ trFillForm(); trRenderFmts(); trRenderOut(); trMetaShow(); }
+window.trEnter=trEnter; window.trSave=trSave; window.trUseAI=trUseAI; window.trTest=trTest;
+window.trRun=trRun; window.trCopy=trCopy; window.trSwap=trSwap; window.trClear=trClear;
+window.trKeydown=trKeydown; window.trSaveShortcut=trSaveShortcut; window.trTryCapture=trTryCapture;
+window.trFmtSet=trFmtSet;
+
 // 全局快捷键（Ctrl+Alt+H）由主进程转发过来
 if(window.appBoss && window.appBoss.on){ window.appBoss.on(function(){ newsBossKey(); }); }
+
+// 划词翻译：把用户保存的快捷键注册进主进程（默认 Control+Alt+T）
+if(window.appTranslate && window.appTranslate.setShortcut && window.TRCore){
+  try{
+    window.appTranslate.setShortcut(TRCore.cfg().shortcut);
+    window.appTranslate.setPasteShortcut(TRCore.cfg().pasteShortcut);
+  }catch(e){}
+}
 
 </script>
 </body>

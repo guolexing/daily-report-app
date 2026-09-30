@@ -252,6 +252,24 @@ function extractBlocks(scope, baseUrl) {
   }
   return res;
 }
+function balancedElement(html, tag, attrRe) {
+  const openRe = new RegExp('<' + tag + '\b([^>]*)>', 'ig');
+  let m;
+  while ((m = openRe.exec(html))) {
+    const attrs = m[1] || '';
+    if (attrRe && !attrRe.test(attrs)) continue;
+    const tokenRe = new RegExp('</?' + tag + '\b[^>]*>', 'ig');
+    tokenRe.lastIndex = m.index;
+    let depth = 0, t;
+    while ((t = tokenRe.exec(html))) {
+      if (/^<\//.test(t[0])) {
+        depth--;
+        if (depth === 0) return html.slice(m.index, tokenRe.lastIndex);
+      } else if (!/\/\s*>$/.test(t[0])) depth++;
+    }
+  }
+  return '';
+}
 function extractArticle(html, url) {
   let h = String(html || '');
   h = h.replace(/<!--[\s\S]*?-->/g, ' ');
@@ -275,15 +293,18 @@ function extractArticle(html, url) {
   const image = metaOf(head, 'og:image');
   // 正文范围：优先 article 容器，其次常见正文容器
   let scope = h;
-  const cands = [/<article[\s\S]*?<\/article>/i, /<div[^>]+(?:id|class)=["'][^"']*(?:article|content|post|main)[^"']*["'][\s\S]*?<\/div>/i];
+  const cands = [
+    function () { return balancedElement(h, 'article'); },
+    function () { return balancedElement(h, 'div', /(?:id|class)\s*=\s*["'][^"']*(?:article|content|post|main)/i); }
+  ];
   for (let i = 0; i < cands.length; i++) {
-    const m = h.match(cands[i]);
-    if (m && m[0].length > 600) { scope = m[0]; break; }
+    const candidate = cands[i]();
+    if (candidate && candidate.length > 600) { scope = candidate; break; }
   }
   function uniq(arr) { const seen = {}; return arr.filter(function (t) { if (seen[t]) return false; seen[t] = 1; return true; }); }
   let blocks = extractBlocks(scope, url);
   let text = blocks.filter(function (b) { return b.text; }).map(function (b) { return b.text; }).join('\n');
-  if (text.length < 200) {   // 兜底：整页纯文本
+  if (text.length < 200) {   // 仅正文不足时退回整页纯文本，避免覆盖有结构的代码和图片
     const raw = String(scope)
       .replace(/<\/(p|div|li|h[1-6]|tr|section|td)>/gi, '\n')
       .replace(/<br[^>]*>/gi, '\n')
@@ -294,12 +315,35 @@ function extractArticle(html, url) {
       text = ps.join('\n');
     }
   }
-  if (text.length > 30000) text = text.slice(0, 30000);
-  const paragraphs = blocks.filter(function (b) { return b.text; }).map(function (b) { return b.text; }).slice(0, 400);
-  const images = blocks.filter(function (b) { return b.type === 'img'; }).map(function (b) { return b.src; }).slice(0, 40);
-  return { url: url, title: title, site: site, image: image, blocks: blocks.slice(0, 500), paragraphs: paragraphs, images: images, text: text, chars: text.length };
+  const paragraphs = blocks.filter(function (b) { return b.text; }).map(function (b) { return b.text; });
+  const images = blocks.filter(function (b) { return b.type === 'img'; }).map(function (b) { return b.src; });
+  return { url: url, title: title, site: site, image: image, blocks: blocks, paragraphs: paragraphs, images: images, text: text, chars: text.length };
 }
 
+// 浏览器级请求头：部分站点（如掘金）缺少 Referer 会返回 "Please wait..." 反爬挑战页
+function browserHeaders(url) {
+  let origin = '';
+  try { origin = new URL(url).origin + '/'; } catch (e) { origin = ''; }
+  const h = {
+    'User-Agent': UA,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1'
+  };
+  if (origin) h.Referer = origin;
+  return h;
+}
+const CHALLENGE_RE = /please\s*wait|just\s*a\s*moment|cf-browser-verification|checking your browser|\u5b89\u5168\u9a8c\u8bc1|\u8bbf\u95ee\u9a8c\u8bc1|\u6ed1\u52a8\u9a8c\u8bc1|\u4eba\u673a\u9a8c\u8bc1|\u9a8c\u8bc1\u7801|enable javascript and cookies/i;
+function challengeHit(html, art) {
+  if (art && art.chars >= 500) return false;
+  return CHALLENGE_RE.test(String(html || '').slice(0, 20000));
+}
 async function fetchArticle(url) {
   // 知乎日报：daily.zhihu.com 是 JS 渲染页，正文改从官方详情接口取
   const zm = String(url).match(/daily\.zhihu\.com\/story\/(\d+)/i) || String(url).match(/news-at\.zhihu\.com\/api\/4\/news\/(\d+)/i);
@@ -317,11 +361,12 @@ async function fetchArticle(url) {
   const timer = setTimeout(function () { ctl.abort(); }, 15000);
   try {
     const r = await fetch(url, {
-      headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'zh-CN,zh;q=0.9' },
+      headers: browserHeaders(url),
       redirect: 'follow', signal: ctl.signal
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const buf = Buffer.from(await r.arrayBuffer()).slice(0, 3 * 1024 * 1024);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 10 * 1024 * 1024) throw new Error('文章页面超过 10 MB，无法安全加载');
     const ct = String(r.headers.get('content-type') || '');
     const sniff = buf.slice(0, 4096).toString('latin1');
     let enc = ((ct.match(/charset=([\w-]+)/i) || [])[1] || (sniff.match(/charset=["']?([\w-]+)/i) || [])[1] || 'utf-8').toLowerCase();
@@ -331,7 +376,9 @@ async function fetchArticle(url) {
     } else {
       html = buf.toString('utf8');
     }
-    return extractArticle(html, url);
+    const art = extractArticle(html, url);
+    if (challengeHit(html, art)) throw new Error('原站返回了人机校验页（反爬），暂时无法抓取正文');
+    return art;
   } finally { clearTimeout(timer); }
 }
 

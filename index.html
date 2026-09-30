@@ -136,7 +136,9 @@
   .news-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .news-chip{transition:transform .15s ease,box-shadow .15s ease}
   .news-chip:hover{transform:translateY(-1px)}
-  .news-chip.on{background:linear-gradient(135deg,var(--main),var(--main-d));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(37,99,235,.28)}
+  .news-chip.on,.fish-sub.on{background:linear-gradient(135deg,var(--main),var(--main-d));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(37,99,235,.28)}
+  .fish-sub{transition:transform .15s ease,box-shadow .15s ease}
+  .fish-sub:hover{transform:translateY(-1px)}
   #news_list{max-height:640px;overflow:auto;margin-top:2px;border:1px solid var(--line);border-radius:12px;background:#fff}
   .news-item{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border-bottom:1px solid #eef2f8;transition:background .15s ease}
   .news-item:hover{background:linear-gradient(90deg,#f4f8ff,#fbfdff)}
@@ -185,6 +187,22 @@
   .kv b{font-variant-numeric:tabular-nums;font-weight:600}
   .chart-wrap{border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff;margin-bottom:10px}
   .chart-cap{font-size:12px;color:var(--sub);padding:2px 4px 6px}
+  /* ===== 实时资讯（财经快讯） ===== */
+  .flash-list{border:1px solid var(--line);border-radius:12px;background:#fff;max-height:660px;overflow:auto}
+  .flash-item{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #eef2f8}
+  .flash-item:last-child{border-bottom:0}
+  .flash-item.star{background:linear-gradient(90deg,#fffaf0,#fffdf8)}
+  .flash-time{flex:0 0 42px;font-size:12px;color:var(--main);font-weight:600;font-variant-numeric:tabular-nums;padding-top:1px}
+  .flash-body{flex:1;min-width:0}
+  .flash-text{font-size:13px;line-height:1.72;color:#25324a;word-break:break-word}
+  .flash-link{display:block;text-decoration:none;color:#25324a}
+  .flash-link:hover{color:var(--main)}
+  .flash-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--sub);margin-top:5px}
+  .flash-star{color:#d9480f;font-weight:600}
+  .flash-item.sm .flash-text{font-size:12.5px;line-height:1.65}
+  .news-tag.s-sina{background:#fff0f0;color:#c92a2a;border-color:#ffd3d3}
+  .news-tag.s-jin10{background:#fff8e6;color:#a86a00;border-color:#ffe6a8}
+  .news-tag.s-wscn{background:#eef4ff;color:#2b4b8f;border-color:#ccdcff}
   /* 应用内新闻阅读 */
   .art-title{font-size:17px;line-height:1.5;margin:0 0 6px;color:var(--text)}
   .art-meta{font-size:12px;color:var(--sub);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -320,8 +338,7 @@
     <button id="tab_weekly" onclick="switchTab('weekly')">⑤ 周报生成</button>
     <button id="tab_monthly" onclick="switchTab('monthly')">⑥ 月度考核报表</button>
     <button id="tab_data" onclick="switchTab('data')">⑦ 数据管理</button>
-    <button id="tab_news" onclick="switchTab('news')">⑧ 摸鱼新闻</button>
-    <button id="tab_stock" onclick="switchTab('stock')">⑨ 股市行情</button>
+    <button id="tab_news" onclick="switchTab('news')">⑧ 摸鱼（新闻+行情）</button>
   </div>
 
   <!-- ============ 日报录入 ============ -->
@@ -743,71 +760,108 @@
     </div>
   </div>
 
-  <!-- ============ 摸鱼新闻 ============ -->
+  <!-- ============ 摸鱼模块（热榜 / 行情 / 实时资讯） ============ -->
   <div id="view_news" style="display:none">
     <div class="card">
-      <h2>📰 实时热榜 <span class="muted" id="news_status" style="font-weight:400;font-size:12px">准备加载…</span></h2>
-      <div class="news-bar">
-        <button class="btn gray sm news-chip" data-group="资讯" onclick="newsSetGroup('资讯')">📰 资讯</button>
-        <button class="btn gray sm news-chip" data-group="技术" onclick="newsSetGroup('技术')">💻 技术</button>
-        <button class="btn gray sm news-chip on" data-group="全部" onclick="newsSetGroup('全部')">🗂 全部</button>
-        <input id="news_q" placeholder="搜关键词…（边输边筛，回车搜全网）" style="flex:1;min-width:170px" oninput="newsFilter()" onkeydown="newsKeydown(event)">
-        <select id="news_engine" style="width:auto">
-          <option value="juejin">掘金</option>
-          <option value="hn">Hacker News</option>
-        </select>
-        <button class="btn sm" onclick="newsSearchOnline()">🌐 搜全网</button>
-        <button class="btn gray sm" onclick="newsRefresh(true)">🔄 刷新</button>
-        <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
-          <input type="checkbox" id="news_auto" onchange="newsAutoToggle()"> 自动刷新
-        </label>
-        <select id="news_interval" style="width:auto" onchange="newsAutoToggle()">
-          <option value="30">30 秒</option>
-          <option value="60" selected>1 分钟</option>
-          <option value="300">5 分钟</option>
-        </select>
-        <button class="btn warn sm" onclick="newsBossKey()" title="Esc：立即切回日报页；全局 Ctrl+Alt+H：直接隐藏窗口">🙈 老板键</button>
+      <h2>🐟 摸鱼模块 <span class="muted" id="news_status" style="font-weight:400;font-size:12px">准备加载…</span></h2>
+      <div class="news-bar" style="margin-bottom:10px">
+        <button class="btn gray sm fish-sub on" data-sub="hot" onclick="fishTab('hot')">📰 热榜</button>
+        <button class="btn gray sm fish-sub" data-sub="market" onclick="fishTab('market')">📈 行情</button>
+        <button class="btn gray sm fish-sub" data-sub="flash" onclick="fishTab('flash')">⚡ 实时资讯</button>
+        <button class="btn warn sm" style="margin-left:auto" onclick="newsBossKey()" title="Esc：立即切回日报页；全局 Ctrl+Alt+H：直接隐藏窗口">🙈 老板键</button>
       </div>
-      <div id="news_sources" class="muted" style="font-size:12px;margin-top:8px"></div>
-      <div class="muted" style="font-size:12px;margin-top:4px">💡 <b>点标题直接在应用内阅读全文</b>（代码块、图片完整保留）· 输入关键词即时过滤，回车「搜全网」 · <b>Esc</b> 或点「🙈 老板键」秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 立即隐藏窗口</div>
+      <div id="fish_hot">
+        <div class="news-bar">
+          <button class="btn gray sm news-chip" data-group="资讯" onclick="newsSetGroup('资讯')">📰 资讯</button>
+          <button class="btn gray sm news-chip" data-group="技术" onclick="newsSetGroup('技术')">💻 技术</button>
+          <button class="btn gray sm news-chip on" data-group="全部" onclick="newsSetGroup('全部')">🗂 全部</button>
+          <input id="news_q" placeholder="搜关键词…（边输边筛，回车搜全网）" style="flex:1;min-width:170px" oninput="newsFilter()" onkeydown="newsKeydown(event)">
+          <select id="news_engine" style="width:auto">
+            <option value="juejin">掘金</option>
+            <option value="hn">Hacker News</option>
+          </select>
+          <button class="btn sm" onclick="newsSearchOnline()">🌐 搜全网</button>
+          <button class="btn gray sm" onclick="newsRefresh(true)">🔄 刷新</button>
+          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+            <input type="checkbox" id="news_auto" onchange="newsAutoToggle()"> 自动刷新
+          </label>
+          <select id="news_interval" style="width:auto" onchange="newsAutoToggle()">
+            <option value="30">30 秒</option>
+            <option value="60" selected>1 分钟</option>
+            <option value="300">5 分钟</option>
+          </select>
+        </div>
+        <div id="news_sources" class="muted" style="font-size:12px;margin-top:8px"></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">💡 <b>点标题直接在应用内阅读全文</b>（代码块、图片完整保留）· 输入关键词即时过滤，回车「搜全网」 · <b>Esc</b> 或点「🙈 老板键」秒切回日报页</div>
+      </div>
+      <div id="fish_market" style="display:none">
+        <div class="news-bar">
+          <button class="btn gray sm" onclick="stockRefresh()">🔄 刷新行情</button>
+          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+            <input type="checkbox" id="stock_auto" checked onchange="stockAutoToggle()"> 自动刷新
+          </label>
+          <select id="stock_interval" style="width:auto" onchange="stockAutoToggle()">
+            <option value="15">15 秒</option>
+            <option value="30" selected>30 秒</option>
+            <option value="60">1 分钟</option>
+          </select>
+          <span class="muted" id="stock_status" style="font-size:12px"></span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">💡 点任意指数 / 自选股，在应用内查看<b>分时图、日K线、关键数据与相关实时资讯</b> · <b>Esc</b> 秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 隐藏窗口</div>
+      </div>
+      <div id="fish_flash" style="display:none">
+        <div class="news-bar">
+          <button class="btn gray sm" onclick="flashLoad(true)">🔄 刷新</button>
+          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+            <input type="checkbox" id="flash_auto" checked onchange="flashAutoToggle()"> 自动刷新
+          </label>
+          <select id="flash_interval" style="width:auto" onchange="flashAutoToggle()">
+            <option value="30">30 秒</option>
+            <option value="60" selected>1 分钟</option>
+            <option value="180">3 分钟</option>
+          </select>
+          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+            <input type="checkbox" id="flash_only_star" onchange="flashRender()"> 只看重要
+          </label>
+          <span class="muted" id="flash_status" style="font-size:12px"></span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">💡 <b>财经快讯三源聚合</b>：新浪财经 7×24 / 华尔街见闻 / 金十数据 —— 快讯全文直接展示（无需跳转），点文本可在应用内看原文</div>
+      </div>
     </div>
-    <div class="card">
-      <h2 id="news_list_title">热榜</h2>
-      <div id="news_list"><div class="empty">加载中…</div></div>
+
+    <div id="fish_hot_body">
+      <div class="card">
+        <h2 id="news_list_title">热榜</h2>
+        <div id="news_list"><div class="empty">加载中…</div></div>
+      </div>
+    </div>
+
+    <div id="fish_market_body" style="display:none">
+      <div class="card">
+        <h2>📈 主要指数</h2>
+        <div class="idx-grid" id="stock_index"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="card">
+        <h2>⭐ 自选股</h2>
+        <div class="news-bar">
+          <input id="stock_q" placeholder="输入代码或名称（600519 / 茅台 / 宁德时代）" style="flex:1;min-width:220px" oninput="stockSearchInput()" onkeydown="stockSearchKey(event)">
+          <button class="btn sm" onclick="stockSearchNow()">🔍 搜索</button>
+          <button class="btn gray sm" onclick="stockResetWatch()">恢复默认</button>
+        </div>
+        <div id="stock_search_res"></div>
+        <div id="stock_watch" style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px"><div class="empty">加载中…</div></div>
+        <div class="muted" style="font-size:12px;margin-top:6px">数据来源：腾讯行情（免密钥）· 自选股保存在本机，点 ✕ 移除</div>
+      </div>
+    </div>
+
+    <div id="fish_flash_body" style="display:none">
+      <div class="card">
+        <h2>⚡ 实时资讯</h2>
+        <div id="flash_list" class="flash-list"><div class="empty">加载中…</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- ============ 股市行情 ============ -->
-  <div id="view_stock" style="display:none">
-    <div class="card">
-      <h2>📈 主要指数 <span class="muted" id="stock_status" style="font-weight:400;font-size:12px">准备加载…</span></h2>
-      <div class="idx-grid" id="stock_index"><div class="empty">加载中…</div></div>
-      <div class="news-bar" style="margin-top:10px">
-        <button class="btn gray sm" onclick="stockRefresh()">🔄 刷新</button>
-        <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
-          <input type="checkbox" id="stock_auto" checked onchange="stockAutoToggle()"> 自动刷新
-        </label>
-        <select id="stock_interval" style="width:auto" onchange="stockAutoToggle()">
-          <option value="15">15 秒</option>
-          <option value="30" selected>30 秒</option>
-          <option value="60">1 分钟</option>
-        </select>
-        <button class="btn warn sm" onclick="stockBossKey()" title="Esc：立即切回日报页">🙈 老板键</button>
-      </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">💡 点任意指数 / 自选股，在应用内查看<b>分时图、日K线与关键数据</b> · <b>Esc</b> 秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 隐藏窗口</div>
-    </div>
-    <div class="card">
-      <h2>⭐ 自选股</h2>
-      <div class="news-bar">
-        <input id="stock_q" placeholder="输入代码或名称（600519 / 茅台 / 宁德时代）" style="flex:1;min-width:220px" oninput="stockSearchInput()" onkeydown="stockSearchKey(event)">
-        <button class="btn sm" onclick="stockSearchNow()">🔍 搜索</button>
-        <button class="btn gray sm" onclick="stockResetWatch()">恢复默认</button>
-      </div>
-      <div id="stock_search_res"></div>
-      <div id="stock_watch" style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px"><div class="empty">加载中…</div></div>
-      <div class="muted" style="font-size:12px;margin-top:6px">数据来源：腾讯行情（免密钥）· 自选股保存在本机，点 ✕ 移除</div>
-    </div>
-  </div>
 </div>
 <!-- ===== 通用弹窗 ===== -->
 <div id="modal_mask">
@@ -1144,9 +1198,8 @@ document.addEventListener("keydown", function(ev){
     // 摸鱼新闻页：Esc = 老板键，立即切回日报页
     var nv=document.getElementById("view_news");
     if(nv && nv.style.display!=="none"){ newsBossKey(); return; }
-    // 股市行情页：Esc 同样秒切回日报页
-    var sv=document.getElementById("view_stock");
-    if(sv && sv.style.display!=="none") stockBossKey();
+    // 其它页签：Esc 直接回日报页
+    switchTab("daily");
   }
 });
 document.getElementById("modal_mask").addEventListener("click", function(ev){
@@ -1173,7 +1226,7 @@ function groupByProject(entries){ var map={},order=[]; entries.forEach(function(
 
 /* ================= 标签页 ================= */
 function switchTab(t){
-  ["daily","project","task","calendar","weekly","monthly","data","news","stock"].forEach(function(x){
+  ["daily","project","task","calendar","weekly","monthly","data","news"].forEach(function(x){
     document.getElementById("view_"+x).style.display = (x===t)?"":"none";
     document.getElementById("tab_"+x).classList.toggle("on", x===t);
   });
@@ -1183,8 +1236,7 @@ function switchTab(t){
   if(t==="calendar") renderCalendar();
   if(t==="weekly") renderWeekly();
   if(t==="monthly") renderMonthly();
-  if(t==="news") newsEnter();
-  if(t==="stock") stockEnter(); else stockLeave();
+  if(t==="news") fishEnter(); else fishLeave();
 }
 window.switchTab=switchTab;
 
@@ -3912,7 +3964,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.12.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.13.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4220,7 +4272,10 @@ function newsAutoToggle(){
   if(_newsTimer){ clearInterval(_newsTimer); _newsTimer=null; }
   if(!document.getElementById("news_auto").checked) return;
   var sec=parseInt(document.getElementById("news_interval").value,10)||60;
-  _newsTimer=setInterval(function(){ if(document.getElementById("view_news").style.display!=="none") newsLoad(); }, sec*1000);
+  _newsTimer=setInterval(function(){
+    var v=document.getElementById("view_news"), h=document.getElementById("fish_hot");
+    if(v && v.style.display!=="none" && h && h.style.display!=="none") newsLoad();
+  }, sec*1000);
 }
 function newsBossKey(){
   var mask=document.getElementById("modal_mask");
@@ -4228,7 +4283,76 @@ function newsBossKey(){
   switchTab("daily");
   toast("🙈 已切回日报页");
 }
-function newsEnter(){ if(!NEWS_ALL.length) newsLoad(); else newsRender(); }
+function newsEnter(){ fishEnter(); }
+/* ================= 摸鱼模块子页签（热榜 / 行情 / 实时资讯） ================= */
+var FISH_TAB="hot";
+function fishEnter(){ fishTab(FISH_TAB||"hot"); }
+function fishLeave(){ stockLeave(); flashLeave(); }
+function fishTab(t){
+  FISH_TAB=t||"hot";
+  var subs=document.querySelectorAll(".fish-sub");
+  for(var i=0;i<subs.length;i++) subs[i].classList.toggle("on", subs[i].getAttribute("data-sub")===FISH_TAB);
+  var map={hot:["fish_hot","fish_hot_body"],market:["fish_market","fish_market_body"],flash:["fish_flash","fish_flash_body"]};
+  for(var k in map){
+    var on=(k===FISH_TAB);
+    for(var j=0;j<map[k].length;j++){ var el=document.getElementById(map[k][j]); if(el) el.style.display=on?"":"none"; }
+  }
+  if(FISH_TAB==="market"){ stockEnter(); } else { stockLeave(); }
+  if(FISH_TAB==="flash"){ if(!_flashAll.length) flashLoad(); else flashRender(); flashAutoToggle(); } else { flashLeave(); }
+  if(FISH_TAB==="hot"){ if(!NEWS_ALL.length) newsLoad(); else newsRender(); }
+}
+window.fishTab=fishTab; window.fishEnter=fishEnter; window.fishLeave=fishLeave;
+/* ================= 实时资讯（财经快讯：新浪7x24 / 华尔街见闻 / 金十数据） ================= */
+var _flashAll=[], _flashTimer=null, _flashLoading=false;
+function flashStatus(m){ var el=document.getElementById("flash_status"); if(el) el.textContent=m; }
+function flashLeave(){ if(_flashTimer){ clearInterval(_flashTimer); _flashTimer=null; } }
+function flashAutoToggle(){
+  if(_flashTimer){ clearInterval(_flashTimer); _flashTimer=null; }
+  var cb=document.getElementById("flash_auto"); if(!cb||!cb.checked) return;
+  var sec=parseInt(document.getElementById("flash_interval").value,10)||60;
+  _flashTimer=setInterval(function(){
+    var v=document.getElementById("fish_flash");
+    if(v && v.style.display!=="none") flashLoad();
+  }, sec*1000);
+}
+function flashSrcCls(src){ return (src==="新浪财经")?"s-sina":((src==="金十数据")?"s-jin10":"s-wscn"); }
+function flashLoad(manual){
+  if(_flashLoading) return;
+  _flashLoading=true;
+  if(manual) flashStatus("刷新中…");
+  fetch("/api/stock/flash").then(function(r){ return r.json(); }).then(function(j){
+    _flashLoading=false;
+    if(!j || !j.items){ flashStatus("加载失败"); return; }
+    _flashAll=j.items;
+    var d=new Date(j.updatedAt);
+    flashStatus("共 "+j.items.length+" 条 · 更新于 "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2));
+    flashRender();
+    if(document.getElementById("stock_detail")) stockRenderRelated(_stockSym);
+  }).catch(function(e){ _flashLoading=false; flashStatus("加载失败："+e.message); });
+}
+function flashRender(){
+  var box=document.getElementById("flash_list"); if(!box) return;
+  var star=document.getElementById("flash_only_star");
+  var onlyStar=!!(star&&star.checked);
+  var items=_flashAll.filter(function(x){ return !onlyStar || x.star; });
+  if(!items.length){ box.innerHTML='<div class="empty">'+(onlyStar?"暂无重要快讯":"暂无快讯，点 🔄 刷新")+'</div>'; return; }
+  box.innerHTML=items.map(function(x){
+    var stockTxt=(x.stocks||[]).slice(0,3).map(function(s){ return s.name; }).filter(Boolean).join("、");
+    var txt=esc(x.text);
+    return '<div class="flash-item'+(x.star?" star":"")+'">'
+      +'<div class="flash-time">'+esc(x.timeText||"")+'</div>'
+      +'<div class="flash-body">'
+      +(x.url?('<a class="flash-text flash-link" href="#" data-url="'+esc(x.url)+'" data-title="'+esc(String(x.text).slice(0,40))+'" onclick="return newsOpen(this)">'+txt+'</a>')
+             :('<div class="flash-text">'+txt+'</div>'))
+      +'<div class="flash-meta"><span class="news-tag '+flashSrcCls(x.source)+'">'+esc(x.source)+'</span>'
+      +(x.star?'<span class="flash-star">★ 重要</span>':'')
+      +((x.tags&&x.tags.length)?('<span>'+esc(x.tags.join(" / "))+'</span>'):'')
+      +(stockTxt?('<span>相关：'+esc(stockTxt)+'</span>'):'')
+      +'</div></div></div>';
+  }).join("");
+}
+window.flashLoad=flashLoad; window.flashRender=flashRender; window.flashAutoToggle=flashAutoToggle;
+window.flashLeave=flashLeave;
 // 应用内阅读：点标题即在本应用弹窗里读正文（不跳系统浏览器，老板键才能一键收干净）
 function newsOpen(el){
   var url=el.getAttribute("data-url")||"", title=el.getAttribute("data-title")||"";
@@ -4278,7 +4402,7 @@ window.newsAutoToggle=newsAutoToggle; window.newsBossKey=newsBossKey; window.new
 /* ================= 股市行情（数据走服务端代理：腾讯行情，免密钥） ================= */
 var STOCK_INDEX=[["sh000001","上证指数"],["sz399001","深证成指"],["sz399006","创业板指"],["sh000688","科创50"],["hkHSI","恒生指数"],["usDJI","道琼斯"],["usIXIC","纳斯达克"],["usINX","标普500"]];
 var WATCH_KEY="jzd_watch_v1", DEFAULT_WATCH=["sh600519","sz300750","sz002594","sh688981","sz300059"];
-var _stockTimer=null, _stockQ={}, _stockAt=0, _stockSrTimer=null;
+var _stockTimer=null, _stockQ={}, _stockAt=0, _stockSrTimer=null, _stockSym="";
 
 function stockWatchList(){ try{ var a=JSON.parse(localStorage.getItem(WATCH_KEY)); if(a&&a.length) return a; }catch(e){} return DEFAULT_WATCH.slice(); }
 function stockSaveWatch(a){ try{ localStorage.setItem(WATCH_KEY, JSON.stringify(a)); }catch(e){} }
@@ -4354,6 +4478,23 @@ function stockAdd(sym){
   var sr=document.getElementById("stock_search_res"); if(sr) sr.innerHTML="";
   stockRefresh(); toast("已加入自选");
 }
+// 个股相关实时资讯：优先按快讯自带的相关股票代码匹配，其次按股票名匹配正文
+function stockRenderRelated(sym){
+  var box=document.getElementById("stock_related"); if(!box) return;
+  var q=_stockQ[sym]||{}, name=q.name||"";
+  var rel=_flashAll.filter(function(x){
+    if((x.stocks||[]).some(function(s){ return s.symbol===sym; })) return true;
+    return (name && name.length>=2 && String(x.text).indexOf(name)>=0);
+  }).slice(0,8);
+  if(!rel.length){ box.innerHTML='<div class="muted">暂无相关快讯（可切到「⚡ 实时资讯」查看全部）</div>'; return; }
+  box.innerHTML=rel.map(function(x){
+    return '<div class="flash-item sm"><div class="flash-time">'+esc(x.timeText||"")+'</div><div class="flash-body">'
+      +'<div class="flash-text">'+esc(x.text)+'</div>'
+      +'<div class="flash-meta"><span class="news-tag '+flashSrcCls(x.source)+'">'+esc(x.source)+'</span>'
+      +'</div></div></div>';
+  }).join("");
+}
+window.stockRenderRelated=stockRenderRelated;
 function stockToggleWatch(sym){
   var a=stockWatchList();
   if(a.indexOf(sym)>=0){ a=a.filter(function(x){return x!==sym;}); toast("已移出自选"); } else { a.push(sym); toast("已加入自选"); }
@@ -4411,6 +4552,7 @@ function stockKlineSVG(bars){
 }
 function stockOpen(sym){
   var q=_stockQ[sym]||{}, inWatch=stockWatchList().indexOf(sym)>=0;
+  _stockSym=sym;
   openModal((q.name||sym)+"  "+stockShort(sym),
     '<div id="stock_detail"><div class="muted" style="padding:8px 0">正在加载分时与日K…</div></div>',
     '<button class="btn gray" onclick="stockToggleWatch(&#39;'+sym+'&#39;)">'+(inWatch?"☆ 移出自选":"★ 加入自选")+'</button>'
@@ -4438,7 +4580,9 @@ function stockOpen(sym){
       +(m.points?stockLineSVG(m.points, m.prevClose||q.prevClose):('<div class="muted">分时加载失败：'+esc(m.error||"未知")+'</div>'))+'</div>';
     h+='<div class="chart-wrap"><div class="chart-cap">近 60 个交易日日K</div>'
       +(k.bars?stockKlineSVG(k.bars):('<div class="muted">日K加载失败：'+esc(k.error||"未知")+'</div>'))+'</div>';
+    h+='<div class="chart-wrap"><div class="chart-cap">📰 相关实时资讯</div><div id="stock_related"><div class="muted">加载中…</div></div></div>';
     box.innerHTML=h;
+    if(!_flashAll.length) flashLoad(); else stockRenderRelated(sym);
   });
   return false;
 }

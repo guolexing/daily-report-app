@@ -525,6 +525,7 @@ const server = http.createServer((req, res) => {
   if (stockModule && urlPath === '/api/stock/minute' && method === 'GET') { stockModule.handleStockMinute(req, res, json); return; }
   if (stockModule && urlPath === '/api/stock/kline' && method === 'GET') { stockModule.handleStockKline(req, res, json); return; }
   if (stockModule && urlPath === '/api/stock/search' && method === 'GET') { stockModule.handleStockSearch(req, res, json); return; }
+  if (stockModule && urlPath === '/api/stock/flash' && method === 'GET') { stockModule.handleStockFlash(req, res, json); return; }
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const file = path.join(ROOT, path.normalize(urlPath));

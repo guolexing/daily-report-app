@@ -124,6 +124,84 @@ function parseCodes(req) {
   const u = new URL(req.url, 'http://127.0.0.1');
   return String(u.searchParams.get('codes') || INDEX_CODES.join(','));
 }
+
+// ================= 实时资讯（财经快讯，三个源聚合，正文自带无需再抓页面） =================
+function stripHtml(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
+function bjTime(s) {   // "2026-09-30 14:21:01" -> epoch ms（北京时间）
+  const t = Date.parse(String(s || '').replace(' ', 'T') + '+08:00');
+  return isFinite(t) ? t : null;
+}
+async function flashSina() {
+  const j = await getJson('https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=30&zhibo_id=152&tag_id=0&dire=f&dpc=1', { Referer: 'https://finance.sina.com.cn/' });
+  const list = ((((j.result || {}).data || {}).feed || {}).list) || [];
+  return list.map(function (it) {
+    let stocks = [], tags = [];
+    try {
+      const ext = (typeof it.ext === 'string') ? JSON.parse(it.ext) : (it.ext || {});
+      stocks = (ext.stocks || []).map(function (s) { return { symbol: String(s.symbol || '').toLowerCase(), name: stripHtml(s.key) }; });
+    } catch (e) {}
+    try { (it.tag || []).forEach(function (t) { if (t && t.name) tags.push(String(t.name)); }); } catch (e) {}
+    return { time: bjTime(it.create_time), text: stripHtml(it.rich_text), source: '新浪财经', url: it.docurl || '', stocks: stocks, tags: tags, star: false };
+  }).filter(function (x) { return x.text; });
+}
+async function flashWallstreet() {
+  const j = await getJson('https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&client=pc&limit=30');
+  const items = ((j.data || {}).items) || [];
+  return items.map(function (it) {
+    const t = it.display_time ? it.display_time * 1000 : null;
+    const title = stripHtml(it.title), body = stripHtml(it.content_text || it.content || '');
+    return { time: t, text: (title ? ('【' + title + '】') : '') + body, source: '华尔街见闻', url: it.uri || '', stocks: [], tags: [], star: false };
+  }).filter(function (x) { return x.text; });
+}
+async function flashJin10() {
+  const j = await getJson('https://flash-api.jin10.com/get_flash_list?channel=-8200&vip=1', { 'x-app-id': 'bVBF4FyRTn5NJF5n', 'x-version': '1.0.0' });
+  const list = j.data || [];
+  return list.map(function (it) {
+    const c = (it.data && it.data.content) || it.content || '';
+    return { time: bjTime(it.time), text: stripHtml(c), source: '金十数据', url: '', stocks: [], tags: [], star: Number(it.important) === 1 };
+  }).filter(function (x) { return x.text; });
+}
+function flashKey(t) {
+  return String(t || '').replace(/^【[^】]*】/, '').replace(/[\s\p{P}]+/gu, '').slice(0, 26);
+}
+async function flash() {
+  const parts = await Promise.all([
+    flashSina().catch(function () { return []; }),
+    flashWallstreet().catch(function () { return []; }),
+    flashJin10().catch(function () { return []; })
+  ]);
+  const all = [];
+  parts.forEach(function (arr) { arr.forEach(function (x) { all.push(x); }); });
+  if (!all.length) throw new Error('快讯源均未取到数据');
+  all.sort(function (a, b) { return (b.time || 0) - (a.time || 0); });
+  const seen = {}, out = [];
+  all.forEach(function (x) {
+    const k = flashKey(x.text);
+    if (!k) return;
+    if (seen[k]) {   // 同一事件去重，但把相关股票信息并进来
+      const prev = seen[k];
+      (x.stocks || []).forEach(function (s) {
+        if (s.symbol && !prev.stocks.some(function (y) { return y.symbol === s.symbol; })) prev.stocks.push(s);
+      });
+      if (x.star) prev.star = true;
+      return;
+    }
+    seen[k] = x;
+    out.push(x);
+  });
+  return out.slice(0, 80).map(function (x) {
+    return {
+      time: x.time ? new Date(x.time).toISOString() : null,
+      timeText: x.time ? new Date(x.time).toLocaleTimeString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }).slice(0, 5) : '',
+      text: x.text, source: x.source, url: x.url, stocks: x.stocks, tags: x.tags, star: !!x.star
+    };
+  });
+}
+async function handleStockFlash(req, res, json) {
+  try { json(res, 200, { updatedAt: new Date().toISOString(), items: await cached('flash', 60000, flash) }); }
+  catch (e) { json(res, 502, { error: String((e && e.message) || e) }); }
+}
+
 async function handleStockQuotes(req, res, json) {
   try { json(res, 200, { updatedAt: new Date().toISOString(), items: await cached('q:' + parseCodes(req), 5000, function () { return quotes(parseCodes(req)); }) }); }
   catch (e) { json(res, 502, { error: String((e && e.message) || e) }); }
@@ -153,6 +231,7 @@ async function handleStockSearch(req, res, json) {
 module.exports = {
   handleStockQuotes: handleStockQuotes, handleStockMinute: handleStockMinute,
   handleStockKline: handleStockKline, handleStockSearch: handleStockSearch,
+  handleStockFlash: handleStockFlash,
   INDEX_CODES: INDEX_CODES,
-  _internal: { quotes: quotes, minute: minute, kline: kline, search: search, parseQuote: parseQuote }
+  _internal: { quotes: quotes, minute: minute, kline: kline, search: search, parseQuote: parseQuote, flash: flash }
 };

@@ -209,7 +209,17 @@ if (!notesFile) {
   log(`  说明文件由 git log 生成（${prev || '首个版本'}..HEAD）`);
 }
 const title = argVal('--title') || `${tag} ${(sh('git', ['log', '-1', '--pretty=format:%s']).out || '').replace(/^\w+(\([^)]*\))?:\s*/, '')}`.slice(0, 120);
-const exists = sh('gh', ['release', 'view', tag, '--json', 'tagName']).code === 0;
+// 注意：gh 偶发瞬时失败（网络/API 抖动）会返回非 0，此时若直接走「创建」分支会在
+// release 明明存在的情况下报出「tag 指向不是 HEAD」这类误导信息。故重试一次，并在
+// 最终仍失败时把 gh 的 stderr 原样打出来，便于区分「确实不存在」与「查询失败」。
+let viewRes = sh('gh', ['release', 'view', tag, '--json', 'tagName']);
+if (viewRes.code !== 0) {
+  cp.spawnSync(process.execPath, ['-e', 'setTimeout(function(){}, 1500)'], { cwd: ROOT });   // 同步等待约 1.5s 再重试
+  viewRes = sh('gh', ['release', 'view', tag, '--json', 'tagName']);
+  if (viewRes.code !== 0) log(`  [提示] gh release view 返回非 0（${viewRes.err || '无 stderr'}），按「release 不存在」处理`);
+}
+const exists = viewRes.code === 0;
+if (!exists && process.env.JZD_RELEASE_DEBUG) log('  [debug] gh release view => ' + JSON.stringify(viewRes));
 if (exists) {
   // 已发布的版本常常在发布后又追加了「只改工具/文档」的提交，此时 master 会领先于 release 的 tag，
   // 那属正常情况：tag 必须留在发布那一刻的提交上，因此这里不做「tag == HEAD」校验。

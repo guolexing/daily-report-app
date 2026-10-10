@@ -211,15 +211,52 @@ if (!notesFile) {
 const title = argVal('--title') || `${tag} ${(sh('git', ['log', '-1', '--pretty=format:%s']).out || '').replace(/^\w+(\([^)]*\))?:\s*/, '')}`.slice(0, 120);
 const exists = sh('gh', ['release', 'view', tag, '--json', 'tagName']).code === 0;
 if (exists) {
+  // 已发布的版本常常在发布后又追加了「只改工具/文档」的提交，此时 master 会领先于 release 的 tag，
+  // 那属正常情况：tag 必须留在发布那一刻的提交上，因此这里不做「tag == HEAD」校验。
   log(`  release ${tag} 已存在 → 用 --clobber 覆盖上传资产`);
   const r = sh('gh', ['release', 'upload', tag].concat(ASSETS, ['--clobber']), { stdio: 'inherit' });
   if (r.code !== 0) { bad('上传失败'); process.exit(1); }
 } else {
+  // 先把 tag 推上远端再建 release。
+  // 理由：gh 用 --target 现造 tag 时会偶发「release 已建好、资产上传 404」
+  // （v1.22.0 首次发布实测遇到：uploads.github.com/.../releases/<id>/assets 404，release 未落库），
+  // 先推 tag 可消除该竞态。
+  const localTag = (sh('git', ['rev-parse', '-q', '--verify', 'refs/tags/' + tag]).out || '').trim();
+  if (localTag && localTag !== headFull) {
+    bad(`本地已存在 ${tag} 但指向 ${localTag.slice(0, 7)}，不是当前 HEAD ${head.slice(0, 7)}（换版本号，或先删掉该 tag）`);
+  } else if (!localTag) {
+    const t = sh('git', ['tag', tag, headFull]);
+    if (t.code !== 0) bad('创建本地 tag 失败：' + (t.err || t.out));
+    else log(`  已创建本地 tag ${tag} → ${head}`);
+  }
+  const remoteTag = (sh('git', ['ls-remote', 'origin', 'refs/tags/' + tag]).out || '').trim().split(/\s+/)[0] || '';
+  if (remoteTag === headFull) {
+    log(`  远端 tag ${tag} 已存在且指向 ${head}`);
+  } else if (remoteTag) {
+    bad(`远端已存在 tag ${tag} 但指向 ${remoteTag.slice(0, 7)}，不是当前 HEAD ${head.slice(0, 7)}（换版本号，或先删掉远端 tag）`);
+  } else {
+    log('  推送 tag 到 origin ...');
+    const p = sh('git', ['push', 'origin', tag]);
+    if (p.code !== 0) bad('推送 tag 失败：' + (p.err || p.out || '未知错误'));
+    else log(`  远端 tag ${tag} → ${head}`);
+  }
+  if (failed) process.exit(1);
   log(`  创建 release ${tag}（tag → ${head}）：${title}`);
   const r = sh('gh', ['release', 'create', tag].concat(ASSETS, [
-    '--title', title, '--notes-file', notesFile, '--target', headFull]), { stdio: 'inherit' });
-  if (r.code !== 0) { bad('gh release create 失败'); process.exit(1); }
+    '--title', title, '--notes-file', notesFile, '--verify-tag']), { stdio: 'inherit' });
+  if (r.code !== 0) {
+    // 兜底：GitHub 偶发「release 建好、资产上传 404」→ 先建 release（不带资产），再单独上传资产
+    log('  gh release create 失败 → 回退为「先建 release（不带资产），再单独上传资产」');
+    const r1 = sh('gh', ['release', 'create', tag, '--title', title, '--notes-file', notesFile, '--verify-tag'], { stdio: 'inherit' });
+    if (r1.code !== 0) bad('gh release create（不带资产）失败');
+    else {
+      const r2 = sh('gh', ['release', 'upload', tag].concat(ASSETS, ['--clobber']), { stdio: 'inherit' });
+      if (r2.code !== 0) bad('资产上传失败');
+      else ok('资产已单独上传完成');
+    }
+  }
 }
+if (failed) process.exit(1);
 // 发布后复核：latest.yml 必须能从「最新 release」的下载地址取到，且版本正确
 sh('git', ['fetch', '--tags', '--quiet']);   // gh 是在远端建 tag，本地补一次
 const check = sh('gh', ['release', 'view', tag, '--json', 'assets,tagName,isDraft,isPrerelease']);

@@ -707,8 +707,8 @@ function collectDirtyState(){
 // 回填：服务器 → 本地。hydrating 期间不打脏标记；已被用户改过（脏）的 key 保留本地值，
 // 避免「刚改完还没推上去就被回填覆盖」造成用户输入丢失。返回 {applied, skipped}。
 function hydrateFromServer(items, opts){
-  var applied=0, skipped=[], pruned=[];
-  if(!items) return {applied:0, skipped:skipped, pruned:pruned};
+  var applied=0, skipped=[], pruned=[], prunedDirty=[];
+  if(!items) return {applied:0, skipped:skipped, pruned:pruned, prunedDirty:prunedDirty};
   hydrating=true;
   try{
     Object.keys(items).forEach(function(k){
@@ -722,12 +722,17 @@ function hydrateFromServer(items, opts){
      * 永远不会被推回数据库 —— 本地与库静默分叉，用户完全不知道。
      * 两个保险：① 只在显式 opts.prune（恢复备份）时执行，启动回填绝不清本地数据，
      *           以免「服务端返回空/读失败」把本机数据抹掉；② 备份本身为空对象时不清理（拒绝用一个
-     *           看似合法却没有内容的文件清空本机）。
+     *           看似合法却没有内容的文件清空本机）。⚠️ 保险② 只能护住本机这一侧：服务端此时已经
+     *           DELETE 过了，所以「空 items 的备份」必须在 dbImportJson 里于上传之前就被拒掉，
+     *           否则结果是「库空、本机满」——同样是分叉，只是翻到了另一侧。
      */
     if(opts && opts.prune && Object.keys(items).length>0){
       DB_KEYS.forEach(function(k){
         if(Object.prototype.hasOwnProperty.call(items,k)) return;   // 备份里有 → 归回填管
         if(localStorage.getItem(k)===null) return;                 // 本机本来就没有 → 无事可做
+        // 该 key 在恢复前是「用户已改、还没推上去」的状态 → 这次清理等于丢弃那些修改，
+        // 单独记下来在提示里说明，避免用户以为只是删了无用残留。
+        if(dirtyKeys[k]) prunedDirty.push(k);
         localStorage.removeItem(k);   // 故意用裸 removeItem：服务端已不存在该 key，不该再推一次（D33）
         delete dirtyKeys[k];
         pruned.push(k);
@@ -738,7 +743,7 @@ function hydrateFromServer(items, opts){
   // 若回填时跳过了「用户刚改过、还没推上去」的 key（或被前置门挡下过推送），立刻安排一次推送。
   // 这样「不丢用户编辑」的保证就内聚在本函数里，不依赖每个调用点都记得补一次 pushStateDebounced()。
   if(skipped.length || pendingPushAfterHydrate) pushStateDebounced();
-  return {applied:applied, skipped:skipped, pruned:pruned};
+  return {applied:applied, skipped:skipped, pruned:pruned, prunedDirty:prunedDirty};
 }
 // 结束 hydration 前置门（未连 MySQL / 网络失败等场景），使后续推送恢复正常
 function markHydrated(){ hydrated=true; }
@@ -887,6 +892,13 @@ async function dbImportJson(input){
         input.value="";
         return;
       }
+      // 空 items 的备份绝不能上传：服务端导入是「DELETE jzd_state + 插入 items」，上传一个没有内容的
+      // 文件会把数据库整表清空，而本机（保险②）又不会清理 → 库空、本机满，同样是分叉且用户无从察觉。
+      if(!Object.keys(data.items).length){
+        toast("❌ 备份文件里没有任何数据项，已拒绝恢复（避免清空数据库）");
+        input.value="";
+        return;
+      }
       var r=await fetch("/api/db/import-json", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:data.items})});
       var j=await r.json().catch(function(){return {};});
       if(j.ok){
@@ -911,6 +923,9 @@ async function dbImportJson(input){
                 var extra="";
                 if(hy && hy.pruned && hy.pruned.length){
                   extra="；已清理本机残留 "+hy.pruned.length+" 项（备份中不存在）："+hy.pruned.map(dbKeyLabel).join("、");
+                  if(hy.prunedDirty && hy.prunedDirty.length){
+                    extra+="；其中 "+hy.prunedDirty.length+" 项含尚未同步到服务器的本机修改（已被备份内容取代）";
+                  }
                 }
                 toast("✅ 数据已刷新"+extra);
               }
@@ -4837,7 +4852,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.21.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.22.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);

@@ -145,8 +145,15 @@ if (has('--publish-only')) {
 }
 const cnPath = path.join(DIST, CN_EXE);
 const asciiPath = path.join(DIST, ASCII_EXE);
+const asciiBlockmap = asciiPath + '.blockmap';
 if (!fs.existsSync(cnPath) && !fs.existsSync(asciiPath)) { bad(`找不到产物 ${CN_EXE}`); log('\n已中止。'); process.exit(1); }
 if (fs.existsSync(cnPath)) fs.copyFileSync(cnPath, asciiPath);   // electron-updater 按 latest.yml 里的 ASCII 名下载
+// blockmap 也必须发，且同样要用 ASCII 名（electron-updater 请求的是「latest.yml 里那个文件名 + .blockmap」）。
+// 少了它：增量更新 404 → 回退成整包全量下载，用户每次更新都要重下 103MB（实测日志：
+//   Cannot download differentially, fallback to full download: ... .blockmap, status 404）。
+if (fs.existsSync(cnPath + '.blockmap')) fs.copyFileSync(cnPath + '.blockmap', asciiBlockmap);
+if (fs.existsSync(asciiBlockmap)) log(`  blockmap ${path.basename(asciiBlockmap)} = ${fs.statSync(asciiBlockmap).size} B`);
+else bad('缺少 blockmap（增量更新会退化为全量下载）');
 const exeBuf = fs.readFileSync(asciiPath);
 log(`  安装包 ${ASCII_EXE} = ${exeBuf.length} B`);
 // latest.yml 自检
@@ -192,6 +199,7 @@ if (!has('--publish') && !has('--publish-only')) {
   process.exit(0);
 }
 const tag = 'v' + V;
+const ASSETS = [asciiPath, ymlPath, asciiBlockmap].filter((p) => fs.existsSync(p));
 let notesFile = argVal('--notes');
 if (!notesFile) {
   const prev = sh('git', ['describe', '--tags', '--abbrev=0', tag + '^']).out;
@@ -204,12 +212,12 @@ const title = argVal('--title') || `${tag} ${(sh('git', ['log', '-1', '--pretty=
 const exists = sh('gh', ['release', 'view', tag, '--json', 'tagName']).code === 0;
 if (exists) {
   log(`  release ${tag} 已存在 → 用 --clobber 覆盖上传资产`);
-  const r = sh('gh', ['release', 'upload', tag, asciiPath, ymlPath, '--clobber'], { stdio: 'inherit' });
+  const r = sh('gh', ['release', 'upload', tag].concat(ASSETS, ['--clobber']), { stdio: 'inherit' });
   if (r.code !== 0) { bad('上传失败'); process.exit(1); }
 } else {
   log(`  创建 release ${tag}（tag → ${head}）：${title}`);
-  const r = sh('gh', ['release', 'create', tag, asciiPath, ymlPath,
-    '--title', title, '--notes-file', notesFile, '--target', headFull], { stdio: 'inherit' });
+  const r = sh('gh', ['release', 'create', tag].concat(ASSETS, [
+    '--title', title, '--notes-file', notesFile, '--target', headFull]), { stdio: 'inherit' });
   if (r.code !== 0) { bad('gh release create 失败'); process.exit(1); }
 }
 // 发布后复核：latest.yml 必须能从「最新 release」的下载地址取到，且版本正确

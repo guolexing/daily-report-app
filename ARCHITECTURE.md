@@ -34,6 +34,17 @@ electron-builder 打包 → dist/latest.yml（url: jzd-daily-app-setup-<ver>.exe
 - electron-updater 及传递依赖（builder-util-runtime / fs-extra / js-yaml / lazy-val / lodash.escaperegexp / lodash.isequal / semver / tiny-typed-emitter / jsonfile / graceful-fs / universalify）必须全部列进 build.files（进 app.asar），否则主进程 require 失败
 - mysql2 走 runtime/ 目录（ELECTRON_RUN_AS_NODE 子进程 require 不了 asar）
 
+## ⚠️ 新增静态资源（P6 必读：漏了这一步等于发布事故）
+安装包里的页面与服务端代码**全部**来自 `extraResources` 指向的 `runtime/` 目录（`build.files` 不含任何业务 js/html/css），
+而 `runtime/` 是**生成物、不随源码自动更新**。因此：
+
+> **在 `日报工具/` 下新增任何被 `index.html`/`translate.html` 引用的静态文件（如 `styles.css`），
+> 必须同步复制到 `日报工具/runtime/`，并确认它确实存在于打包产物中。否则打包版会 404 或样式全丢，
+> 而开发模式（直接读源码目录）完全正常 —— 这是最隐蔽的「本地好的、装出来坏的」类故障。**
+
+已核实：`server.js` 的 MIME 表含 `.css`（server.js:279），所以外链 `styles.css` 能被正确
+以 `text/css; charset=utf-8` 托管；`runtime/` 现有文件已含全部 `index.html` 引用的静态资源。
+
 ## 发布新版本 3 步
 ```bash
 cd <本仓库目录>

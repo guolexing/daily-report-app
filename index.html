@@ -4,324 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>工作日报 · 周报月报生成器</title>
-<style>
-  :root{
-    --main:#2f6fed; --main-d:#1e50b8; --main-l:#e8f0ff;
-    --bg:#eef2f9; --card:#ffffff; --line:#e2e8f2;
-    --text:#1f2a3d; --sub:#718096; --ok:#16a34a; --ok-l:#e7f8ee;
-    --warn:#d97706; --warn-l:#fdf3e3; --err:#dc2626; --err-l:#fdeaea;
-    --shadow:0 1px 3px rgba(30,42,61,.06),0 4px 14px rgba(30,42,61,.05);
-    --shadow-h:0 6px 20px rgba(30,42,61,.12);
-    --radius:12px; --radius-s:8px;
-    --transition:.18s ease;
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{margin:0;background:
-    radial-gradient(1200px 500px at 80% -10%, rgba(47,111,237,.08), transparent 60%),
-    radial-gradient(900px 400px at -10% 10%, rgba(22,163,74,.06), transparent 60%),
-    var(--bg);
-    color:var(--text);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1400px;margin:0 auto;padding:16px 20px 80px}
-
-  /* ===== 头部 ===== */
-  header{background:linear-gradient(135deg,#2f6fed 0%,#4f8af7 55%,#7aa8fb 100%);
-    color:#fff;border-radius:14px;padding:16px 22px;margin-bottom:14px;
-    box-shadow:0 6px 20px rgba(47,111,237,.24);position:relative;overflow:hidden}
-  header::after{content:"";position:absolute;right:-40px;top:-60px;width:220px;height:220px;
-    background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);border-radius:50%}
-  header h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  header .sub{opacity:.9;font-size:12.5px;margin-top:4px;line-height:1.6}
-  .hdr-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .hdr-stats .hs{background:rgba(255,255,255,.16);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.22);
-    border-radius:9px;padding:5px 12px;font-size:12.5px;font-variant-numeric:tabular-nums}
-  .hdr-stats .hs b{font-size:14.5px;margin-right:3px}
-
-  /* ===== 标签页 ===== */
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-  .tabs button{border:1px solid var(--line);background:var(--card);color:var(--sub);padding:9px 18px;
-    border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;transition:var(--transition);
-    box-shadow:var(--shadow)}
-  .tabs button:hover{color:var(--main);border-color:var(--main);transform:translateY(-1px)}
-  .tabs button.on{background:linear-gradient(135deg,var(--main),var(--main-d));color:#fff;border-color:transparent;
-    box-shadow:0 4px 12px rgba(47,111,237,.35)}
-
-  /* ===== 卡片 ===== */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
-    margin-bottom:16px;box-shadow:var(--shadow)}
-  /* 数据管理页：宽屏双列，显著减少滚动 */
-  #view_data{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
-  #view_data>.card{margin-bottom:0}
-  @media (max-width:1100px){ #view_data{grid-template-columns:1fr} }
-  .card h2{margin:0 0 12px;font-size:16px;font-weight:600;color:var(--text);
-    border-left:4px solid var(--main);padding-left:10px;display:flex;align-items:center;gap:8px}
-  .card h3{margin:16px 0 8px;font-size:14px;color:var(--main);font-weight:600}
-
-  /* ===== 表单 ===== */
-  label{display:block;font-size:12px;color:var(--sub);margin:10px 0 5px;font-weight:500}
-  input[type=text],input[type=number],input[type=date],input[type=month],input[type=password],select,textarea{
-    width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-s);font-size:14px;
-    font-family:inherit;background:#fff;color:var(--text);transition:var(--transition);outline:none}
-  input:focus,select:focus,textarea:focus{border-color:var(--main);box-shadow:0 0 0 3px rgba(47,111,237,.13)}
-  input:disabled,select:disabled{background:#f4f6fa;color:var(--sub);cursor:not-allowed;opacity:.85}
-  textarea{min-height:76px;resize:vertical}
-  input[type=checkbox]{width:16px;height:16px;accent-color:var(--main);vertical-align:-3px}
-  .row{display:flex;gap:12px;flex-wrap:wrap}
-  .row>div{flex:1;min-width:130px}
-  .hint-line{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
-
-  /* ===== 按钮 ===== */
-  .btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:var(--radius-s);padding:9px 18px;
-    cursor:pointer;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--main),var(--main-d));
-    transition:var(--transition);box-shadow:0 2px 6px rgba(47,111,237,.25);font-weight:500}
-  .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(47,111,237,.35)}
-  .btn:active{transform:translateY(0)}
-  .btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
-  .btn.gray{background:linear-gradient(135deg,#94a3b8,#7c8ba1);box-shadow:0 2px 6px rgba(100,116,139,.25)}
-  .btn.green{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 2px 6px rgba(22,163,74,.25)}
-  .btn.warn{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 2px 6px rgba(217,119,6,.25)}
-  .btn.danger{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 2px 6px rgba(220,38,38,.25)}
-  .btn.sm{padding:4px 12px;font-size:12px;border-radius:6px}
-  .btn.blue{background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:0 2px 6px rgba(14,165,233,.25)}
-  /* 键盘可达性：仅键盘聚焦时显示焦点环 */
-  button:focus-visible,a:focus-visible{outline:2px solid var(--main);outline-offset:2px}
-  .tabs button:focus-visible{outline-offset:3px}
-
-  /* ===== 表格 ===== */
-  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:10px;
-    border:1px solid var(--line);border-radius:var(--radius-s);font-variant-numeric:tabular-nums}
-  th,td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
-  th{background:#f4f7fd;white-space:nowrap;font-weight:600;color:#45536b;font-size:12.5px;
-    position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
-  tr:first-child th:first-child{border-top-left-radius:var(--radius-s)}
-  tr:first-child th:last-child{border-top-right-radius:var(--radius-s)}
-  tbody tr:last-child td:first-child{border-bottom-left-radius:var(--radius-s)}
-  tbody tr:last-child td:last-child{border-bottom-right-radius:var(--radius-s)}
-  /* 数字列右对齐（工时/条数等） */
-  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  tr:last-child td{border-bottom:none}
-  tbody tr{transition:background .12s}
-  tbody tr:nth-child(even){background:#fafbfe}
-  tbody tr:hover{background:var(--main-l)}
-
-  /* ===== 状态徽章 ===== */
-  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;line-height:1.7}
-  .badge.ok{background:var(--ok-l);color:var(--ok)}
-  .badge.warn{background:var(--warn-l);color:var(--warn)}
-  .badge.err{background:var(--err-l);color:var(--err)}
-  .badge.info{background:var(--main-l);color:var(--main)}
-
-  /* ===== 预览区/统计/工具条 ===== */
-  .pre{background:#fbfcfe;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
-    white-space:pre-wrap;word-break:break-word;font-family:"Microsoft YaHei",sans-serif;font-size:13px;
-    max-height:520px;overflow:auto;line-height:1.7}
-  /* 周报预览：Markdown 渲染后的排版（预览不再是原始 Markdown 源码） */
-  #wk_preview h2{font-size:15.5px;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);color:var(--main)}
-  #wk_preview h2:first-child{margin-top:0}
-  #wk_preview h3{font-size:14px;margin:13px 0 5px;color:var(--text)}
-  #wk_preview h4{font-size:13.5px;margin:11px 0 4px;color:var(--sub)}
-  #wk_preview p{margin:6px 0}
-  #wk_preview ul,#wk_preview ol{margin:5px 0 9px;padding-left:22px}
-  #wk_preview li{margin:3px 0}
-  #wk_preview li.ck{list-style:none;margin-left:-16px}
-  #wk_preview strong{color:#16233a}
-  #wk_preview code{background:var(--main-l);color:var(--main-d);padding:1px 5px;border-radius:4px;font-size:12px}
-  #wk_preview blockquote{margin:7px 0;padding:5px 11px;border-left:3px solid var(--main);background:#f6f9ff;color:var(--sub);border-radius:0 6px 6px 0}
-  #wk_preview hr{border:0;border-top:1px dashed var(--line);margin:12px 0}
-  #wk_preview table{border-collapse:collapse;width:100%;margin:9px 0;font-size:12.5px}
-  #wk_preview th,#wk_preview td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
-  #wk_preview th{background:#f2f6fc;font-weight:600;white-space:nowrap}
-
-  /* ===== 摸鱼新闻（美化） ===== */
-  .news-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .news-chip{transition:transform .15s ease,box-shadow .15s ease}
-  .news-chip:hover{transform:translateY(-1px)}
-  .news-chip.on,.fish-sub.on{background:linear-gradient(135deg,var(--main),var(--main-d));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(37,99,235,.28)}
-  .fish-sub{transition:transform .15s ease,box-shadow .15s ease}
-  .fish-sub:hover{transform:translateY(-1px)}
-  #news_list{max-height:640px;overflow:auto;margin-top:2px;border:1px solid var(--line);border-radius:12px;background:#fff}
-  .news-item{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border-bottom:1px solid #eef2f8;transition:background .15s ease}
-  .news-item:hover{background:linear-gradient(90deg,#f4f8ff,#fbfdff)}
-  .news-item:last-child{border-bottom:0}
-  .news-rank{flex:0 0 24px;height:24px;line-height:24px;text-align:center;font-weight:700;color:var(--sub);font-size:12px;border-radius:7px;background:#f1f5fb}
-  .news-item.top1 .news-rank{background:linear-gradient(135deg,#ff8a3d,#f2600c);color:#fff;box-shadow:0 3px 8px rgba(242,96,12,.35)}
-  .news-item.top2 .news-rank{background:linear-gradient(135deg,#ffc078,#f08c00);color:#fff}
-  .news-item.top3 .news-rank{background:linear-gradient(135deg,#ffe08a,#d9a406);color:#fff}
-  .news-main{flex:1;min-width:0}
-  .news-title{color:var(--text);text-decoration:none;font-size:13.5px;line-height:1.55;word-break:break-word;font-weight:500}
-  .news-title:hover{color:var(--main)}
-  .news-meta{font-size:11.5px;color:var(--sub);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .news-tag{border-radius:999px;padding:1px 8px;font-size:11px;border:1px solid transparent}
-  .news-tag.s-juejin{background:#e8f0ff;color:#1d4ed8;border-color:#c7dbff}
-  .news-tag.s-csdn{background:#fff1e6;color:#c2410c;border-color:#ffd9bd}
-  .news-tag.s-sspai{background:#ffe9ef;color:#be123c;border-color:#ffcede}
-  .news-tag.s-zhihu{background:#e6f0ff;color:#0b5bd3;border-color:#c3dbff}
-  .news-tag.s-hn{background:#fdecec;color:#b91c1c;border-color:#f8cfcf}
-  .news-hot{color:var(--err);font-variant-numeric:tabular-nums}
-  .news-extra{font-size:11.5px;color:var(--sub);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .news-skel{padding:12px 13px}
-  .news-skel i{display:block;height:11px;border-radius:6px;background:linear-gradient(90deg,#eef2f8 25%,#f7faff 37%,#eef2f8 63%);background-size:400% 100%;animation:skel 1.3s ease infinite;margin-bottom:8px}
-  @keyframes skel{0%{background-position:100% 50%}100%{background-position:0 50%}}
-  @media (min-width:1180px){ #news_list{columns:2;column-gap:0} .news-item{break-inside:avoid} }
-  /* ===== 股市行情 ===== */
-  .idx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:10px;margin-top:6px}
-  .idx-card{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
-  .idx-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(15,23,42,.10)}
-  .idx-name{font-size:12.5px;color:var(--sub);display:flex;justify-content:space-between;gap:6px}
-  .idx-price{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;margin:4px 0 2px}
-  .idx-chg{font-size:12.5px;font-variant-numeric:tabular-nums}
-  .up{color:#e03131}.down{color:#0ca678}.flat{color:var(--sub)}
-  .up-bg{background:linear-gradient(180deg,#fff5f5,#ffecec)}
-  .down-bg{background:linear-gradient(180deg,#f2fdf8,#e9fbf3)}
-  .watch-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #eef2f8;cursor:pointer;transition:background .15s}
-  .watch-row:hover{background:#f6f9ff}
-  .watch-row:last-child{border-bottom:0}
-  .watch-name{font-size:13px;font-weight:500}
-  .watch-code{font-size:11px;color:var(--sub);margin-left:6px}
-  .watch-num{font-variant-numeric:tabular-nums;text-align:right;flex:1}
-  .sr-item{padding:8px 11px;border-bottom:1px solid #eef2f8;cursor:pointer;font-size:13px}
-  .sr-item:hover{background:#f6f9ff}
-  .sr-item:last-child{border-bottom:0}
-  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:5px 16px;margin:8px 0 10px;font-size:13px}
-  .kv div{display:flex;justify-content:space-between;border-bottom:1px dashed #eef2f8;padding:3px 0}
-  .kv b{font-variant-numeric:tabular-nums;font-weight:600}
-  .chart-wrap{border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff;margin-bottom:10px}
-  .chart-cap{font-size:12px;color:var(--sub);padding:2px 4px 6px}
-  /* ===== 实时资讯（财经快讯） ===== */
-  .flash-list{border:1px solid var(--line);border-radius:12px;background:#fff;max-height:660px;overflow:auto}
-  .flash-item{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #eef2f8}
-  .flash-item:last-child{border-bottom:0}
-  .flash-item.star{background:linear-gradient(90deg,#fffaf0,#fffdf8)}
-  .flash-time{flex:0 0 42px;font-size:12px;color:var(--main);font-weight:600;font-variant-numeric:tabular-nums;padding-top:1px}
-  .flash-body{flex:1;min-width:0}
-  .flash-text{font-size:13px;line-height:1.72;color:#25324a;word-break:break-word}
-  .flash-link{display:block;text-decoration:none;color:#25324a}
-  .flash-link:hover{color:var(--main)}
-  .flash-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--sub);margin-top:5px}
-  .flash-star{color:#d9480f;font-weight:600}
-  .flash-item.sm .flash-text{font-size:12.5px;line-height:1.65}
-  .news-tag.s-sina{background:#fff0f0;color:#c92a2a;border-color:#ffd3d3}
-  .news-tag.s-jin10{background:#fff8e6;color:#a86a00;border-color:#ffe6a8}
-  .news-tag.s-wscn{background:#eef4ff;color:#2b4b8f;border-color:#ccdcff}
-  /* ===== ⑨ 工具箱 · 翻译工具 ===== */
-  .tr-out{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;min-height:110px;max-height:420px;overflow:auto;font-family:inherit;font-size:13px;line-height:1.78;color:#25324a}
-  .tr-fmt{cursor:pointer}
-  #view_tools label{margin:0 0 4px}
-  #view_tools code{background:#eef2f8;padding:1px 5px;border-radius:4px;font-size:11.5px}
-  /* 应用内新闻阅读 */
-  .art-title{font-size:17px;line-height:1.5;margin:0 0 6px;color:var(--text)}
-  .art-meta{font-size:12px;color:var(--sub);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
-  .art-img{max-width:100%;border-radius:8px;margin:6px 0 12px;display:block}
-  .art-p{font-size:14px;line-height:1.85;color:#25324a;margin:0 0 12px;text-align:justify}
-  .art-tip{background:var(--warn-l);border:1px solid #f0c36d;color:#7c4a03;font-size:12.5px;line-height:1.7;padding:10px 12px;border-radius:8px;margin-top:6px}
-  .art-code{background:#f6f8fa;border:1px solid #e3e8ef;border-radius:8px;padding:10px 12px;font-family:Consolas,"Courier New",monospace;
-    font-size:12.5px;line-height:1.7;color:#24292f;white-space:pre;overflow-x:auto;margin:0 0 12px}
-  .art-img2{max-width:100%;border-radius:8px;margin:8px 0 12px;display:block}
-  .art-h{font-size:15px;font-weight:600;margin:16px 0 8px;color:var(--text)}
-  .art-li{font-size:14px;line-height:1.85;color:#25324a;margin:0 0 8px;padding-left:14px}
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-  .muted{color:var(--sub);font-size:12px}
-  /* 宽屏可读性：说明类段落限制行宽，避免超长行 */
-  .card>p,.card>ul,.card>ol{max-width:96ch}
-  .stat{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-  .stat .item{background:#f4f7fd;border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12.5px;
-    box-shadow:var(--shadow)}
-  .stat .item b{color:var(--main);font-size:14px;font-variant-numeric:tabular-nums}
-
-  /* ===== Toast ===== */
-  #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(10px);
-    background:rgba(31,42,61,.94);color:#fff;padding:11px 22px;border-radius:12px;font-size:13.5px;
-    opacity:0;transition:all .25s;pointer-events:none;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.25);
-    backdrop-filter:blur(6px);max-width:86vw}
-  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* ===== 其他 ===== */
-  .empty{color:var(--sub);text-align:center;padding:26px 0;font-size:13px;border:1px dashed var(--line);
-    border-radius:var(--radius-s);margin-top:8px}
-  details{border:1px solid var(--line);border-radius:var(--radius-s);padding:10px 14px;margin:10px 0;background:#fbfcfe}
-  details summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--text);transition:var(--transition)}
-  details summary:hover{color:var(--main)}
-  details[open]{background:#fff}
-  ::-webkit-scrollbar{width:9px;height:9px}
-  ::-webkit-scrollbar-thumb{background:#c3cddd;border-radius:6px}
-  ::-webkit-scrollbar-thumb:hover{background:#a5b3c9}
-  ::-webkit-scrollbar-track{background:transparent}
-
-  /* ===== 项目管理 ===== */
-  .proj-done{color:var(--sub)}
-  .proj-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);
-    border-radius:var(--radius-s);margin-bottom:8px;background:#fff;transition:var(--transition)}
-  .proj-row:hover{box-shadow:var(--shadow);border-color:var(--main)}
-  .proj-row.done{background:var(--bg);opacity:.75}
-  .proj-row .pn{font-weight:600;font-size:14px}
-  .proj-row .pn .tag{font-size:11px;margin-left:6px}
-  .proj-row .pm{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-
-  /* ===== 任务日历 ===== */
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-  .cal-hd{text-align:center;font-size:12px;color:var(--sub);font-weight:600;padding:4px 0}
-  .cal-hd.sun{color:var(--err)} .cal-hd.sat{color:var(--warn)}
-  .cal-day{border:1px solid var(--line);border-radius:var(--radius-s);min-height:86px;padding:5px 7px;
-    background:#fff;cursor:pointer;transition:var(--transition);display:flex;flex-direction:column;gap:3px;overflow:hidden}
-  .cal-day:hover{border-color:var(--main);box-shadow:var(--shadow)}
-  .cal-day.other{background:var(--bg);opacity:.55}
-  .cal-day.today{border-color:var(--main);border-width:2px;background:var(--main-l)}
-  .cal-day.sel{border-color:var(--main-d);box-shadow:0 0 0 2px rgba(47,111,237,.25)}
-  .cal-day .cd-num{font-size:12px;color:var(--sub);font-weight:600}
-  .cal-day.today .cd-num{color:var(--main);font-weight:700}
-  .cal-day .cd-hours{margin-left:auto;font-size:11px;color:var(--ok);font-weight:600}
-  .cal-tag{font-size:11px;line-height:1.4;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .cal-tag.plan{background:var(--main-l);color:var(--main)}
-  .cal-tag.done{background:var(--ok-l);color:var(--ok)}
-  .cal-tag.entry{background:var(--ok-l);color:var(--ok);cursor:pointer}
-  .cal-tag.entry:hover{background:#d7eed9}
-  .cal-tag.urgent{background:var(--err-l);color:var(--err);font-weight:600}
-  .cal-tag.over{background:var(--err-l);color:var(--err)}
-  .cal-more{font-size:10.5px;color:var(--sub);text-align:center}
-  .cal-empty{color:var(--sub);font-size:12px;padding:14px;text-align:center;border:1px dashed var(--line);border-radius:var(--radius-s)}
-  @media (max-width:640px){
-    .cal-day{min-height:64px;padding:3px 4px}
-    .cal-tag{font-size:10px}
-  }
-
-  /* ===== 弹窗 Modal ===== */
-  #modal_mask{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);
-    display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s}
-  #modal_mask.show{opacity:1;visibility:visible}
-  #modal_box{background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.35);
-    width:min(560px,92vw);max-height:86vh;display:flex;flex-direction:column;
-    transform:translateY(16px) scale(.96);transition:transform .22s ease}
-  #modal_mask.show #modal_box{transform:translateY(0) scale(1)}
-  #modal_head{display:flex;align-items:center;padding:16px 20px 12px;border-bottom:1px solid var(--line)}
-  #modal_head h3{margin:0;font-size:16px;flex:1;color:var(--text)}
-  #modal_close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--sub);line-height:1;padding:2px 6px;border-radius:6px;transition:var(--transition)}
-  #modal_close:hover{color:var(--err);background:var(--err-l)}
-  #modal_body{padding:18px 20px;overflow-y:auto;flex:1}
-  #modal_foot{padding:12px 20px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-  .modal-row{display:flex;gap:10px;flex-wrap:wrap}
-  .modal-row>div{flex:1;min-width:120px}
-
-  /* ===== 未填日报提醒横幅 ===== */
-  .reminder{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#fff7e6,#ffedcc);
-    border:1.5px solid #f0c36d;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;
-    box-shadow:0 4px 14px rgba(217,119,6,.15);position:relative}
-  .reminder .ri{font-size:22px;flex-shrink:0}
-  .reminder .rm{flex:1;color:#7c4a03}
-  .reminder .rm b{color:#b45309}
-  .reminder .rm .sub2{font-size:12px;opacity:.85;margin-top:2px}
-  .reminder .btn{margin-left:auto;flex-shrink:0}
-  .reminder.ok{background:linear-gradient(135deg,#e7f8ee,#d3f2df);border-color:#86d9a8}
-  .reminder.ok .rm{color:#14532d}
-  .reminder.ok .rm b{color:#15803d}
-
-  @media (max-width:640px){
-    .row>div{min-width:100%}
-    .tabs button{flex:1;padding:9px 6px;font-size:13px}
-    header{padding:18px}
-    .card{padding:14px}
-    .toolbar .btn{flex:1;justify-content:center}
-  }
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="wrap">
@@ -361,31 +44,33 @@
       <h2>填写今日工作日报</h2>
       <div class="row">
         <div><label>日期</label><input type="date" id="in_date"></div>
-        <div style="flex:2"><label>所属任务（选任务后自动带入项目）</label>
+        <div class="col-2" ><label>所属任务（选任务后自动带入项目）</label>
           <select id="in_task" onchange="onTaskPick()"><option value="">（无任务，直接选项目）</option></select>
-          <label id="in_task_done_box" style="display:none;margin:6px 0 0;align-items:center;gap:5px;font-size:12.5px;color:var(--sub);cursor:pointer">
+          <label class="label-flex-sm-2" id="in_task_done_box" style="display:none">
             <input type="checkbox" id="in_task_done"> ✔ 勾选表示<b>该任务今天已完成</b>（自动填入实际完成时间）
           </label>
         </div>
         <div><label>项目名称（选任务后自动带入）</label><select id="in_project"></select></div>
-        <div style="flex:1"><label>工作时长（小时）</label><input type="number" id="in_hours" min="0" max="24" step="0.5" value="8"></div>
+        <div class="col-1" ><label>工作时长（小时）</label><input type="number" id="in_hours" min="0" max="24" step="0.5" value="8"></div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
-        <input type="text" id="in_project_new" placeholder="无合适任务时输入新项目名称" style="flex:1">
-        <button class="btn gray sm" onclick="addProject()">+ 添加项目</button>
-        <span class="muted">任务在「③ 任务管理」中维护；选择任务后项目自动带入。</span>
-        <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub);white-space:nowrap">
+      <div class="fx-6 mt6" >
+        <input class="col-1" type="text" id="in_task_new" placeholder="无合适任务时输入新任务名称" >
+        <label class="label-inline-xs" >计划完成时间（可选）</label>
+        <input class="in-date-auto" type="date" id="in_task_new_plan" >
+        <button class="btn gray sm" onclick="addTaskFromDaily()">+ 添加任务</button>
+        <span class="muted">新任务挂到上方「项目名称」选中的项目下；项目在「② 项目管理」中维护。</span>
+        <label class="label-inline-xs" >
           <input type="checkbox" id="in_proj_show_done" onchange="toggleProjShowDone()"> 显示已完结项目
         </label>
       </div>
       <label>今日工作内容</label><textarea id="in_work" placeholder="例：完成XX功能开发，修复XX BUG，参加XX会议…"></textarea>
-      <label>明日计划（可选）</label><textarea id="in_plan" style="min-height:44px" placeholder="明天准备做什么…"></textarea>
+      <label>明日计划（可选）</label><textarea class="minh-44" id="in_plan"  placeholder="明天准备做什么…"></textarea>
       <label>备注（可选）</label><input type="text" id="in_remark" placeholder="备注/休息/请假等">
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <div class="bar-top10" >
         <button class="btn" onclick="saveEntry()">💾 保存日报</button>
         <button class="btn gray" onclick="clearForm()">清空表单</button>
       </div>
-      <div class="muted" style="margin-top:8px">提示：选择「所属任务」后项目自动带入（任务=项目细分）；无合适任务时可直接选项目（如学习/会议）。一天可保存多条记录。</div>
+      <div class="muted mt8" >提示：选择「所属任务」后项目自动带入（任务=项目细分）；无合适任务时可直接选项目（如学习/会议）。一天可保存多条记录。</div>
     </div>
 
     <div class="card">
@@ -399,9 +84,9 @@
   <div id="view_project" style="display:none">
     <div class="card">
       <h2>项目列表</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <div class="fx-mb8" >
         <button class="btn green sm" onclick="projAdd()">＋ 添加项目</button>
-        <label style="margin:0 0 0 12px;display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--sub)">
+        <label class="label-indent" >
           <input type="checkbox" id="proj_show_done" onchange="toggleProjShowDone()"> 显示已完结项目
         </label>
       </div>
@@ -410,9 +95,9 @@
     </div>
     <div class="card">
       <h2>说明</h2>
-      <div class="muted" style="line-height:1.8">
-        <p style="margin:0">· 项目是任务的上级分类，任务挂在项目下；日报录入时选任务即可自动带入项目。</p>
-        <p style="margin:4px 0 0"><b>完结项目</b>：项目完成后点击「✔ 完结」，完结项目默认不出现在日报/任务的项目下拉中（勾选「显示已完结项目」可恢复查看）。历史日报/任务数据不受影响。</p>
+      <div class="muted lh18" >
+        <p class="m0" >· 项目是任务的上级分类，任务挂在项目下；日报录入时选任务即可自动带入项目。</p>
+        <p class="mt4" ><b>完结项目</b>：项目完成后点击「✔ 完结」，完结项目默认不出现在日报/任务的项目下拉中（勾选「显示已完结项目」可恢复查看）。历史日报/任务数据不受影响。</p>
       </div>
     </div>
   </div>
@@ -421,29 +106,29 @@
   <div id="view_task" style="display:none">
     <div class="card">
       <h2>任务管理（任务 = 项目下的进一步细分）</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="fx" >
         <button class="btn" onclick="openTaskModal()">＋ 新增任务</button>
         <span class="muted">任务的实际完成工时 = 挂载到该任务下的日报工时 <b>自动累加</b>；在「日报录入」选择「所属任务」即可挂载。</span>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-        <label style="font-size:13px">按月导出任务列表：</label>
-        <input type="month" id="tk_export_month" value="'+thisMonth()+'" style="padding:6px">
+      <div class="fx-mt10" >
+        <label class="fs13" >按月导出任务列表：</label>
+        <input class="pad6" type="month" id="tk_export_month" value="" >
         <button class="btn green" onclick="downloadTaskMonth('xls')">⬇ 导出 Excel(.xls)</button>
         <button class="btn" onclick="downloadTaskMonth('md')">⬇ 导出 Markdown</button>
-        <span class="muted" style="font-size:12px">按任务「计划完成 / 计划开始 / 实际完成」时间中任一落在所选月份筛选</span>
+        <span class="muted fs12" >按任务「计划完成 / 计划开始 / 实际完成」时间中任一落在所选月份筛选</span>
       </div>
     </div>
 
     <div class="card">
       <h2>任务列表（<span id="tk_count">0</span> 个）</h2>
       <div class="stat" id="tk_stat"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
-        <label style="font-size:12px">项目</label>
-        <select id="tk_filter_proj" style="width:auto;min-width:130px" onchange="renderTasks()">
+      <div class="fx-my10" >
+        <label class="fs12" >项目</label>
+        <select class="w-auto-minw-130" id="tk_filter_proj"  onchange="renderTasks()">
           <option value="">全部项目</option>
         </select>
-        <label style="font-size:12px">状态</label>
-        <select id="tk_filter_status" style="width:auto;min-width:110px" onchange="renderTasks()">
+        <label class="fs12" >状态</label>
+        <select class="w-auto-minw-110" id="tk_filter_status"  onchange="renderTasks()">
           <option value="">全部状态</option>
           <option value="doing">🔄 进行中</option>
           <option value="done">✅ 已完成</option>
@@ -451,10 +136,10 @@
           <option value="cancelled">✖ 已取消</option>
           <option value="urgent">⚡ 紧急</option>
         </select>
-        <label style="font-size:12px">关键字</label>
-        <input type="text" id="tk_filter_key" placeholder="任务名称搜索…" style="width:auto;min-width:180px" oninput="renderTasks()">
+        <label class="fs12" >关键字</label>
+        <input class="w-auto-minw-180" type="text" id="tk_filter_key" placeholder="任务名称搜索…"  oninput="renderTasks()">
         <button class="btn gray sm" onclick="tkClearFilter()">✕ 清空筛选</button>
-        <span class="muted" style="font-size:12px" id="tk_filter_note"></span>
+        <span class="muted fs12"  id="tk_filter_note"></span>
       </div>
       <div id="task_list"><div class="empty">还没有任务，先在上方添加</div></div>
     </div>
@@ -464,14 +149,19 @@
   <!-- ============ 任务日历 ============ -->
   <div id="view_calendar" style="display:none">
     <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="fx-head" >
         <button class="btn gray sm" onclick="calPrev()">◀ 上月</button>
-        <h2 style="margin:0;flex:1;border:none;padding:0;text-align:center;font-size:18px" id="cal_title">2026年9月</h2>
+        <h2 class="cal-title"  id="cal_title">2026年9月</h2>
         <button class="btn gray sm" onclick="calToday()">今天</button>
         <button class="btn gray sm" onclick="calNext()">下月 ▶</button>
       </div>
       <div id="cal_grid" class="cal-grid"></div>
-      <div class="muted" style="margin-top:8px">📌 日历显示各任务的<b>计划完成日期</b>与当天日报工时；点击任意日期查看当天计划详情。</div>
+      <div class="muted cal-legend" >
+        <span>📌 日历显示各任务的<b>计划完成日期</b>与当天日报工时；点击任意日期查看当天计划详情。</span>
+        <span><span class="legend-mark-err" >节日</span> 法定节假日（放假，不计应出勤）</span>
+        <span><span class="legend-mark-warn" >节日班</span> 调休上班（计应出勤）</span>
+        <span class="c-warn" id="cal_year_note" ></span>
+      </div>
     </div>
     <div class="card" id="cal_detail_card" style="display:none">
       <h2 id="cal_detail_title">当天计划</h2>
@@ -483,21 +173,21 @@
     <div class="card">
       <h2>选择周次</h2>
       <div class="row">
-        <div style="flex:2"><label>本周任意一天</label><input type="date" id="wk_date" onchange="renderWeekly()"></div>
+        <div class="col-2" ><label>本周任意一天</label><input type="date" id="wk_date" onchange="renderWeekly()"></div>
         <div><label>完成进度（% 默认值）</label><input type="number" id="wk_progress" value="100" min="0" max="100" onchange="renderWeekly()"></div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="fx-mt8" >
         <button class="btn gray" onclick="shiftWeek(-7)">← 上一周</button>
         <button class="btn gray" onclick="shiftWeek(7)">下一周 →</button>
         <span class="muted" id="wk_range"></span>
       </div>
-      <label style="margin-top:10px"><input type="checkbox" id="wk_include_todo" checked> 周报末尾包含「本周未完成（留待填写）」栏目</label>
+      <label class="mt10" ><input type="checkbox" id="wk_include_todo" checked> 周报末尾包含「本周未完成（留待填写）」栏目</label>
     </div>
 
     <div class="card">
       <h2>📄 周报模板（可导入自定义模板 / AI 解析）</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <select id="tpl_mode_weekly" onchange="setTplMode('weekly',this.value)" style="max-width:200px">
+      <div class="fx" >
+        <select class="maxw-200" id="tpl_mode_weekly" onchange="setTplMode('weekly',this.value)" >
           <option value="builtin">内置模板（默认）</option>
           <option value="sections">栏目列表（自定义栏目 + 撰写要求，AI 生成）</option>
           <option value="placeholder">占位符模板</option>
@@ -511,24 +201,24 @@
           可用占位符：{姓名} {部门} {岗位} {周期} {周起始} {周结束} {出勤天数} {总工时} {日报条数} {项目明细}
         </span>
       </div>
-      <textarea id="tpl_text_weekly" style="display:none;min-height:140px;margin-top:8px" placeholder="【栏目清单模式】每行只写一个栏目名，例如：&#10;本周进展&#10;本周未完成&#10;下周工作计划&#10;&#10;【占位符模板】粘贴模板，支持 {姓名} {部门} {周期} {出勤天数} {总工时} {项目明细} 等&#10;【AI 套模板】粘贴公司参考周报样例，AI 按样例格式生成"></textarea>
-      <div id="tpl_ai_weekly" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center">
+      <textarea class="ta-lg" id="tpl_text_weekly" style="display:none" placeholder="【栏目清单模式】每行只写一个栏目名，例如：&#10;本周进展&#10;本周未完成&#10;下周工作计划&#10;&#10;【占位符模板】粘贴模板，支持 {姓名} {部门} {周期} {出勤天数} {总工时} {项目明细} 等&#10;【AI 套模板】粘贴公司参考周报样例，AI 按样例格式生成"></textarea>
+      <div class="fx-row-mt8" id="tpl_ai_weekly" style="display:none">
         <button class="btn warn" id="btn_tpl_ai_weekly" onclick="aiApply('weekly')">🤖 AI 按栏目生成周报</button>
-        <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key；AI 会按栏目要求，结合日报 + 任务管理数据生成。</span>
+        <span class="muted ml8" >需先在「数据管理 → AI设置」配置 Key；AI 会按栏目要求，结合日报 + 任务管理数据生成。</span>
       </div>
-      <div id="wk_sec_editor" style="display:none;margin-top:10px">
-        <div class="muted" style="font-size:12px;margin-bottom:6px">
+      <div class="mt10" id="wk_sec_editor" style="display:none">
+        <div class="muted hint-mb6" >
           <b>栏目列表</b>：每行一个栏目，可分别填写该栏目的<b>撰写要求（提示词）</b>。也可粘贴一段<b>示例内容</b>，点「🤖 解析示例」由 AI 自动生成该栏目的要求。
         </div>
         <div id="wk_sec_list"></div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="fx-mt8" >
           <button class="btn green sm" onclick="addWkSection()">➕ 添加栏目</button>
           <button class="btn sm" onclick="saveWkSectionsEditor()">💾 保存栏目设置</button>
           <button class="btn gray sm" onclick="resetWkSections()">↺ 恢复默认栏目</button>
-          <span class="muted" style="font-size:12px" id="wk_sec_hint"></span>
+          <span class="muted fs12"  id="wk_sec_hint"></span>
         </div>
       </div>
-      <div style="margin-top:8px">
+      <div class="mt8" >
         <button class="btn green sm" onclick="saveTplText('weekly')">💾 保存模板</button>
       </div>
     </div>
@@ -550,78 +240,63 @@
   <!-- ============ 月报 ============ -->
   <div id="view_monthly" style="display:none">
     <div class="card">
-      <h2>选择月份</h2>
+      <h2>月报（单页：模板 → AI 提炼分段提示词 → 结合实际任务与日报生成）</h2>
       <div class="row">
         <div><label>月份</label><input type="month" id="mo_month" onchange="renderMonthly()"></div>
-        <div style="flex:2"><label>完成进度（% 默认值，用于月报）</label><input type="number" id="mo_progress" value="100" min="0" max="100"></div>
+        <div class="col-2" ><label>完成进度（% 默认值，用于月报）</label><input type="number" id="mo_progress" value="100" min="0" max="100"></div>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>① 月度绩效考核评分表（评分列留空，供填写）</h2>
-      <details>
-        <summary>📄 评分表模板（可导入自定义模板 / AI 解析）</summary>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-          <select id="tpl_mode_score" onchange="setTplMode('score',this.value)" style="max-width:200px">
-            <option value="builtin">内置模板（默认）</option>
-            <option value="placeholder">占位符模板</option>
-            <option value="ai">AI 套模板（解析示例）</option>
-          </select>
-          <button class="btn gray sm" onclick="document.getElementById('tpl_file_score').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
-          <input type="file" id="tpl_file_score" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importTplFile('score',this)">
-          <button class="btn gray sm" onclick="loadTpl('score')">↻ 载入已保存模板</button>
-          <button class="btn green sm" id="tpl_dl_score" style="display:none" onclick="downloadTplFile('score')">⬇ 按模板生成 Word/Excel</button>
-          <span class="muted" id="tpl_hint_score" style="display:none">
-            占位符：{姓名} {部门} {岗位} {月份} {月份短} {出勤天数} {应出勤} {缺报天数} {总工时} {日报条数}
-          </span>
+      <details class="mt10" id="mo_tpl_box">
+        <summary>📁 月报模板（可导入/粘贴参考模板 → AI 提炼分段提示词 → 逐条可改）</summary>
+        <div class="muted hint-mb6" >
+          <b>用法</b>：先「➕ 新建模板」或「📂 导入模板文件」，把公司参考月报模板的原文放进「参考模板原文」，再点「🤖 AI 提炼提示词」
+          自动生成每段的撰写要求；<b>可以逐条修改</b>，改完点「💾 保存提示词」。
+          ⚠️ 重新提炼<b>只能手动点</b>（AI 绝不自动覆盖你改过的提示词）。没建模板 / 没选中模板时，下面仍可直接生成<b>规则版月报</b>。
         </div>
-        <textarea id="tpl_text_score" style="display:none;min-height:120px;margin-top:8px" placeholder="粘贴你的考核评分表模板…&#10;支持占位符：{姓名} {部门} {月份} {出勤天数} {总工时} 等&#10;或选「AI 套模板」粘贴参考样例，AI 按样例格式生成"></textarea>
-        <div id="tpl_ai_score" style="display:none;margin-top:8px">
-          <button class="btn warn" id="btn_tpl_ai_score" onclick="aiApply('score')">🤖 AI 按模板生成评分表</button>
-          <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key。</span>
+        <div id="mo_tpl_list"></div>
+        <div class="fx-mt8" >
+          <button class="btn green sm" onclick="addMonthTpl()">➕ 新建模板</button>
+          <button class="btn gray sm" id="btn_mo_import_legacy" style="display:none" onclick="importLegacyMonthTpl()">📥 导入旧版模板（一次性）</button>
+          <span class="muted fs12" id="mo_tpl_hint"></span>
         </div>
-        <div style="margin-top:8px"><button class="btn green sm" onclick="saveTplText('score')">💾 保存模板</button></div>
+
+        <div class="mt10" id="mo_tpl_editor" style="display:none">
+          <div class="row">
+            <div><label>模板名称</label><input type="text" id="mo_tpl_name" placeholder="例：月报·项目版" oninput="syncMonthTplFromDom(true)"></div>
+            <div class="col-2" ><label>来源</label><input type="text" id="mo_tpl_srcname" readonly placeholder="（手工输入）"></div>
+          </div>
+          <label>参考模板原文（粘贴或导入 .txt/.md/.docx/.xlsx）</label>
+          <textarea class="ta-lg" id="mo_tpl_source" placeholder="把公司参考月报模板的原文粘贴到这里（标题、表头、各段落标题、示例内容都可以）…&#10;AI 会据此提炼出「有哪些段落」以及「每段写什么、从哪些数据取、什么格式」。"></textarea>
+          <div class="fx-mt8" >
+            <button class="btn gray sm" onclick="document.getElementById('mo_tpl_file').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
+            <input type="file" id="mo_tpl_file" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importMonthTplFile(this)">
+            <button class="btn warn sm" id="btn_mo_extract" onclick="aiExtractMonthTpl()">🤖 AI 提炼提示词</button>
+            <button class="btn gray sm" onclick="aiExtractMonthTpl(null,true)">🔄 重新解析</button>
+            <span class="muted fs12">需先在「数据管理 → AI设置」配置 Key。</span>
+          </div>
+          <div class="muted hint-mb6" id="mo_tpl_stale" style="display:none;color:var(--err);font-weight:600"></div>
+
+          <div class="mt10">
+            <div class="muted hint-mb6" ><b>分段提示词</b>：每段一条「段落名 + 撰写要求」。生成月报时严格按此<b>顺序与名称</b>输出，实际任务与日报数据会自动带入。</div>
+            <div id="mo_sec_list"></div>
+            <div class="fx-mt8" >
+              <button class="btn green sm" onclick="addMonthSection()">➕ 添加段落</button>
+              <button class="btn sm" onclick="saveMonthSections()">💾 保存提示词</button>
+              <span class="muted fs12" id="mo_sec_hint"></span>
+            </div>
+          </div>
+        </div>
       </details>
+
       <div class="stat" id="mo_att"></div>
       <div class="toolbar">
-        <button class="btn" onclick="copyMonthlyScore()">📋 复制</button>
-        <button class="btn green" onclick="downloadMonthlyScore('md')">⬇ MD</button>
-        <button class="btn green" onclick="downloadMonthlyScore('xls')">⬇ Excel</button>
-      </div>
-      <div class="pre" id="mo_score_preview"></div>
-    </div>
-
-    <div class="card">
-      <h2>② OKR绩效考核表（按项目自动生成目标与KR）</h2>
-      <details>
-        <summary>📄 OKR 模板（可导入自定义模板 / AI 解析）</summary>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-          <select id="tpl_mode_okr" onchange="setTplMode('okr',this.value)" style="max-width:200px">
-            <option value="builtin">内置模板（默认）</option>
-            <option value="placeholder">占位符模板</option>
-            <option value="ai">AI 套模板（解析示例）</option>
-          </select>
-          <button class="btn gray sm" onclick="document.getElementById('tpl_file_okr').click()">📂 导入模板文件(.txt/.md/.docx/.xlsx)</button>
-          <input type="file" id="tpl_file_okr" accept=".txt,.md,.text,.docx,.xlsx" style="display:none" onchange="importTplFile('okr',this)">
-          <button class="btn gray sm" onclick="loadTpl('okr')">↻ 载入已保存模板</button>
-          <button class="btn green sm" id="tpl_dl_okr" style="display:none" onclick="downloadTplFile('okr')">⬇ 按模板生成 Word/Excel</button>
-          <span class="muted" id="tpl_hint_okr" style="display:none">
-            占位符：{姓名} {部门} {岗位} {月份} {月份短} {出勤天数} {总工时} {日报条数}
-          </span>
-        </div>
-        <textarea id="tpl_text_okr" style="display:none;min-height:120px;margin-top:8px" placeholder="粘贴你的OKR模板…&#10;支持占位符：{姓名} {部门} {月份} {总工时} 等&#10;或选「AI 套模板」粘贴参考样例，AI 按样例格式生成"></textarea>
-        <div id="tpl_ai_okr" style="display:none;margin-top:8px">
-          <button class="btn warn" id="btn_tpl_ai_okr" onclick="aiApply('okr')">🤖 AI 按模板生成 OKR 表</button>
-          <span class="muted" style="margin-left:8px">需先在「数据管理 → AI设置」配置 Key。</span>
-        </div>
-        <div style="margin-top:8px"><button class="btn green sm" onclick="saveTplText('okr')">💾 保存模板</button></div>
-      </details>
-      <div class="toolbar">
-        <button class="btn warn" id="btn_ai_okr" onclick="aiOKR()">🤖 AI 润色复盘</button>
+        <button class="btn warn" id="btn_mo_run" onclick="aiRunMonth()">🤖 生成月报</button>
+        <button class="btn sm" onclick="showMonthScoreCard()">📄 评分表（规则版）</button>
         <button class="btn" onclick="copyMonthlyOKR()">📋 复制</button>
         <button class="btn green" onclick="downloadMonthlyOKR('md')">⬇ MD</button>
         <button class="btn green" onclick="downloadMonthlyOKR('xls')">⬇ Excel</button>
       </div>
+      <div class="muted" id="mo_okr_warn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--err-l);color:var(--err);font-weight:600"></div>
       <div class="pre" id="mo_okr_preview"></div>
     </div>
   </div>
@@ -635,32 +310,32 @@
         <div><label>部门/事业部</label><input type="text" id="set_dept" value="研发部"></div>
         <div><label>岗位名称</label><input type="text" id="set_post" value="开发工程师"></div>
       </div>
-      <div style="margin-top:10px"><button class="btn" onclick="saveProfile()">保存个人信息</button></div>
+      <div class="mt10" ><button class="btn" onclick="saveProfile()">保存个人信息</button></div>
     </div>
 
     <div class="card">
       <h2>🤖 AI 设置（可选，OpenAI 兼容接口）</h2>
       <div class="row">
-        <div style="flex:2"><label>API Base URL</label><input type="text" id="ai_base" placeholder="https://api.deepseek.com/v1"></div>
-        <div style="flex:2"><label>API Key</label><input type="password" id="ai_key" placeholder="sk-..."></div>
+        <div class="col-2" ><label>API Base URL</label><input type="text" id="ai_base" placeholder="https://api.deepseek.com/v1"></div>
+        <div class="col-2" ><label>API Key</label><input type="password" id="ai_key" placeholder="sk-..."></div>
         <div><label>模型名称</label><input type="text" id="ai_model" placeholder="deepseek-chat"></div>
       </div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <div class="bar-top10" >
         <button class="btn" onclick="saveAI()">保存AI设置</button>
         <button class="btn gray" id="ai_test" onclick="testAI()">测试连接</button>
       </div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="fx-mt10" >
         <button class="btn green" onclick="importCC()">⚡ 从 CC Switch 一键导入</button>
-        <select id="ai_cc_select" style="max-width:340px;flex:1">
+        <select class="col-1-340" id="ai_cc_select" >
           <option value="">（导入后在此选择供应商）</option>
         </select>
       </div>
-      <div class="muted" id="ai_cc_note" style="margin-top:6px">使用 AI 汇总需在桌面版中配置 API Key；未配置 Key 时，周报/月报仍可正常使用规则版生成。</div>
+      <div class="muted mt6" id="ai_cc_note" >使用 AI 汇总需在桌面版中配置 API Key；未配置 Key 时，周报/月报仍可正常使用规则版生成。</div>
     </div>
 
     <div class="card">
       <h2>🗄️ MySQL 数据存储（数据持久化 + 可移植备份）</h2>
-      <div class="muted" style="margin-bottom:8px">日报/任务/项目/模板/设置全部保存在本机 MySQL 中，打开 APP 即自动读写，无需手动同步。可用「导出 SQL」生成全库备份文件（标准 SQL，可在任意 MySQL 恢复），实现数据可移植。</div>
+      <div class="muted mb8" >日报/任务/项目/模板/设置全部保存在本机 MySQL 中，打开 APP 即自动读写，无需手动同步。可用「导出 SQL」生成全库备份文件（标准 SQL，可在任意 MySQL 恢复），实现数据可移植。</div>
       <div class="row">
         <div><label>主机</label><input type="text" id="db_host" value="127.0.0.1"></div>
         <div><label>端口</label><input type="text" id="db_port" value="3306"></div>
@@ -669,40 +344,40 @@
       <div class="row">
         <div><label>密码</label><input type="password" id="db_pass" placeholder="MySQL 密码"></div>
         <div><label>数据库名</label><input type="text" id="db_name" value="jzd_daily"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" id="db_btn" onclick="dbSaveConfig()">🔌 保存并测试连接</button></div>
+        <div class="fx-align-end" ><button class="btn" id="db_btn" onclick="dbSaveConfig()">🔌 保存并测试连接</button></div>
       </div>
-      <div class="muted" id="db_status" style="margin-top:6px">未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。</div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="muted mt6" id="db_status" >未配置 MySQL —— 数据仅保存在当前浏览器的 localStorage。</div>
+      <div class="fx-mt10" >
         <button class="btn green" onclick="dbExportJson()">⬇ 导出全库备份</button>
         <button class="btn blue" onclick="dbImportJsonPick()">⬆ 从备份恢复</button>
         <input type="file" id="db_import_file" accept=".json" style="display:none" onchange="dbImportJson(this)">
-        <span class="muted" style="font-size:12px">导出 <b>.json</b> 全库备份文件（含日报/任务/项目/设置），拷贝到任意电脑 → 安装本 APP → 「从备份恢复」即可完整迁移数据；恢复前自动备份当前数据。</span>
+        <span class="muted fs12" >导出 <b>.json</b> 全库备份文件（含日报/任务/项目/设置），拷贝到任意电脑 → 安装本 APP → 「从备份恢复」即可完整迁移数据；恢复前自动备份当前数据。</span>
       </div>
     </div>
 
     <div class="card">
       <h2>🔔 Windows 通知（任务计划开始提醒）</h2>
-      <div class="muted" style="margin-bottom:8px">开启后，服务端会每 30 秒检查一次任务：当任务的<b>计划开始时间</b>到达时，弹出 Windows 原生通知提醒你开始处理（无需打开页面）。</div>
+      <div class="muted mb8" >开启后，服务端会每 30 秒检查一次任务：当任务的<b>计划开始时间</b>到达时，弹出 Windows 原生通知提醒你开始处理（无需打开页面）。</div>
       <div class="row">
-        <div style="display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="nt_enabled" checked> 启用任务开始提醒</label></div>
+        <div class="fx-align-end" ><label class="fx-center-6" ><input type="checkbox" id="nt_enabled" checked> 启用任务开始提醒</label></div>
         <div><label>提前提醒（分钟）</label><input type="number" id="nt_advance" min="0" max="120" value="5"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="ntSave()">💾 保存通知设置</button></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn green" onclick="ntTest()">🔔 发送测试通知</button></div>
+        <div class="fx-align-end" ><button class="btn" onclick="ntSave()">💾 保存通知设置</button></div>
+        <div class="fx-align-end" ><button class="btn green" onclick="ntTest()">🔔 发送测试通知</button></div>
       </div>
-      <div class="muted" id="nt_status" style="margin-top:6px">通知服务状态：检查中…</div>
-      <div class="muted" style="margin-top:6px">💡 在「③ 任务管理」添加/编辑任务时填写「计划开始时间」，到点即提醒。</div>
+      <div class="muted mt6" id="nt_status" >通知服务状态：检查中…</div>
+      <div class="muted mt6" >💡 在「③ 任务管理」添加/编辑任务时填写「计划开始时间」，到点即提醒。</div>
     </div>
 
     <div class="card">
       <h2>ℹ️ 关于与更新</h2>
       <div class="row">
-        <div><label>当前版本</label><div style="padding:9px 12px;background:#f4f7fd;border:1px solid var(--line);border-radius:8px;font-weight:600" id="app_version">-</div></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="appCheckUpdate()">🔄 检查更新</button></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn gray" onclick="appOpenRepo()">🌐 GitHub 仓库</button></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn green" id="app_install_btn" style="display:none" onclick="appInstallUpdate()">⬇️ 立即重启并安装</button></div>
+        <div><label>当前版本</label><div class="static-field"  id="app_version">-</div></div>
+        <div class="fx-align-end" ><button class="btn" onclick="appCheckUpdate()">🔄 检查更新</button></div>
+        <div class="fx-align-end" ><button class="btn gray" onclick="appOpenRepo()">🌐 GitHub 仓库</button></div>
+        <div class="fx-align-end" ><button class="btn green" id="app_install_btn" style="display:none" onclick="appInstallUpdate()">⬇️ 立即重启并安装</button></div>
       </div>
-      <div class="muted" id="app_update_status" style="margin-top:8px">桌面版支持自动更新：新版本发布后，点击「🔄 检查更新」即可下载；下载完成后会出现「⬇️ 立即重启并安装」按钮。</div>
-      <div class="muted" style="margin-top:6px">💡 若为浏览器/Web 方式打开，请直接访问 GitHub Releases 下载最新安装包。</div>
+      <div class="muted mt8" id="app_update_status" >桌面版支持自动更新：新版本发布后，点击「🔄 检查更新」即可下载；下载完成后会出现「⬇️ 立即重启并安装」按钮。</div>
+      <div class="muted mt6" >💡 若为浏览器/Web 方式打开，请直接访问 GitHub Releases 下载最新安装包。</div>
     </div>
 
     <div class="card">
@@ -717,20 +392,20 @@
       <input type="file" id="file_input" accept=".json,text/plain" style="display:none" onchange="handleFile(this)">
       <details>
         <summary>📖 使用说明</summary>
-        <div class="muted" style="margin-top:6px">
+        <div class="muted mt6" >
           <p>1. <b>日报录入</b>：每天选择项目、填写工作内容保存即可，一天可多条。</p>
           <p>2. <b>周报生成</b>：自动按「周一~周日」汇总本周，按项目生成总工时与任务总结（参考模板格式），可复制/下载 MD、Excel。</p>
-          <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤，周六日计入休息）、月度评分表与 OKR绩效考核表。</p>
+          <p>3. <b>月度考核报表</b>：自动汇总本月出勤（有日报即出勤；周末与<b>法定节假日</b>计入休息，<b>调休上班日</b>计入应出勤）。内置 2024–2026 年国务院办公厅节假日安排，日历上用角标标出节日名与调休上班日。</p>
           <p>4. <b>数据存储</b>：数据保存在本机 MySQL（「数据管理 → MySQL 数据存储」配置主机/端口/用户名/密码/库名，保存并测试连接后自动读写）。<b>数据可移植</b>：点「⬇ 导出全库备份」生成 .json 备份文件，拷贝到任意电脑安装本 APP 后点「⬆ 从备份恢复」即可完整还原（恢复前自动备份当前数据）。</p>
           <p>5. 若需把已有 Excel 日报导入：在 Excel 中另存为 CSV（逗号分隔、UTF-8），列顺序为：日期,项目名称,工作时长,今日工作,明日计划,备注。粘贴到下方导入。</p>
           <p>6. <b>AI 汇总（可选）</b>：在「数据管理 → AI设置」填写 OpenAI 兼容接口的 Base URL / Key / 模型（如 DeepSeek），保存后点「测试连接」；然后在周报页点「🤖 AI 汇总周报」、月报页点「🤖 AI 润色复盘」即可。不配置 Key 时，规则版照常可用。</p>
           <p>7. <b>周报栏目列表（推荐用法）</b>：周报页「周报模板」选择<b>「栏目列表」</b>，下方会出现<b>栏目列表</b>编辑区：</p>
-          <ul style="margin:4px 0 8px 18px">
+          <ul class="ml-list" >
             <li><b>栏目名</b>：想汇报什么就加什么，如 <code>本周进展</code> / <code>本周未完成</code> / <code>下周工作计划</code> / <code>风险与问题</code>。可「➕ 添加栏目」「🗑 删除」。</li>
             <li><b>撰写要求（提示词）</b>：每个栏目可单独填写该栏目的写作要求，例如"按项目分组，每项写清做了什么、关键结果与工时"。留空则按默认规则生成。填好后点「💾 保存栏目设置」。</li>
             <li><b>示例解析</b>：不想写要求？点「📄 粘贴示例」把该栏目<b>期望的样子</b>（公司模板片段或上次的汇报）粘进去，再点「🤖 AI 解析为要求」，AI 会自动生成该栏目的撰写要求。</li>
           </ul>
-          <p style="margin-top:-4px">点「🤖 AI 按栏目生成周报」，AI 会按<b>各栏目要求 + 日报数据 + 任务管理数据</b>生成：<code>本周进展</code>按项目汇总本周日报（含工时）；<code>本周未完成</code>逐条列出任务管理中未完成的任务；<code>下周工作计划</code>根据下周计划任务、逾期需顺延任务及日报后续计划生成。</p>
+          <p class="mt-n4" >点「🤖 AI 按栏目生成周报」，AI 会按<b>各栏目要求 + 日报数据 + 任务管理数据</b>生成：<code>本周进展</code>按项目汇总本周日报（含工时）；<code>本周未完成</code>逐条列出任务管理中未完成的任务；<code>下周工作计划</code>根据下周计划任务、逾期需顺延任务及日报后续计划生成。</p>
           <p>7. <b>从 CC Switch 一键导入</b>：若本机装有 CC Switch（供应商配置在 ~/.cc-switch/cc-switch.db），在「AI设置」点「⚡ 从 CC Switch 一键导入」即可读取全部供应商（名称/BaseURL/Key/模型），选一个自动填入，再点「保存AI设置」。<b>会自动记忆上次选择的供应商</b>，下次导入时自动选中。注意：Codex 型供应商可能不兼容 /chat/completions，导入后请用「测试连接」验证。</p>
           <p>8. <b>一键载入历史日报</b>：数据管理 →「📥 一键载入历史日报（2025-05~2026-09）」可把入职至今的 333 条日报（历史日报.xlsx 转换而来，已含 8月/9月初）合并进应用，自动去重；或点「⬆ 导入数据(JSON)」手动选择「日报工具/历史日报备份.json」。之后周报/月报即可基于完整历史生成。</p>
           <p>9. <b>项目管理</b>：「② 项目管理」可添加/改名/删除项目，并可将项目<b>完结</b>（完成后点「✔ 完结」，默认不再出现在日报/任务的项目下拉中；勾选「显示已完结项目」可恢复查看）。项目完结不影响历史日报/任务数据。</p>
@@ -742,96 +417,96 @@
 
     <div class="card">
       <h2>CSV 快速导入（从Excel复制/导出）</h2>
-      <textarea id="csv_input" style="min-height:120px" placeholder="2026-09-07,澄湾市蓝湾食品MOM系统,8,完成XX功能开发,,&#10;2026-09-07,泊州市星河制药MES系统,4,修复XX BUG,,&#10;..."></textarea>
-      <div style="margin-top:8px"><button class="btn" onclick="importCSV()">导入 CSV</button></div>
-      <div class="muted" style="margin-top:6px">支持逗号或制表符(Tab)分隔；日期格式 YYYY-MM-DD；小时数为数字；今日工作必须填写。</div>
+      <textarea class="minh-120" id="csv_input"  placeholder="2026-09-07,澄湾市蓝湾食品MOM系统,8,完成XX功能开发,,&#10;2026-09-07,泊州市星河制药MES系统,4,修复XX BUG,,&#10;..."></textarea>
+      <div class="mt8" ><button class="btn" onclick="importCSV()">导入 CSV</button></div>
+      <div class="muted mt6" >支持逗号或制表符(Tab)分隔；日期格式 YYYY-MM-DD；小时数为数字；今日工作必须填写。</div>
     </div>
 
     <div class="card">
       <h2>🤖 AI 智能导入（任意格式日程 → 日报）</h2>
-      <div class="muted" style="margin-bottom:6px">把任意格式的日程 / 日历 / 聊天记录 / Excel 复制内容粘贴到下方（<b>不限定格式</b>），AI 会自动识别日期、项目、工时与工作内容，生成日报预览后再一键导入。需要已配置 AI（数据管理 → AI设置）。</div>
-      <textarea id="ai_imp_text" style="min-height:140px" placeholder="例如：
+      <div class="muted mb6" >把任意格式的日程 / 日历 / 聊天记录 / Excel 复制内容粘贴到下方（<b>不限定格式</b>），AI 会自动识别日期、项目、工时与工作内容，生成日报预览后再一键导入。需要已配置 AI（数据管理 → AI设置）。</div>
+      <textarea class="minh-140" id="ai_imp_text"  placeholder="例如：
 9月3日 上午：退料单标签打印开发 4小时
 9/3 下午 开会1小时
 2026-09-04 完成完工入库撤销修复 bug 8h
 9月5日 项目例会 半天
 ...（任意格式均可，AI 自动分析）"></textarea>
-      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <div class="fx-8-mt8" >
         <button class="btn green" onclick="aiImportAnalyze()">🤖 AI 分析并预览</button>
         <button class="btn" onclick="aiImportConfirm()" id="ai_imp_btn" style="display:none">✅ 确认导入（0 条）</button>
         <button class="btn gray" onclick="aiImportClear()">清空</button>
-        <span class="muted" style="font-size:12px" id="ai_imp_status"></span>
+        <span class="muted fs12"  id="ai_imp_status"></span>
       </div>
-      <div id="ai_imp_preview" style="margin-top:8px"></div>
+      <div class="mt8" id="ai_imp_preview" ></div>
     </div>
   </div>
 
   <!-- ============ 摸鱼模块（热榜 / 行情 / 实时资讯） ============ -->
   <div id="view_news" style="display:none">
     <div class="card">
-      <h2>🐟 摸鱼模块 <span class="muted" id="news_status" style="font-weight:400;font-size:12px">准备加载…</span></h2>
-      <div class="news-bar" style="margin-bottom:10px">
+      <h2>🐟 摸鱼模块 <span class="muted note-weak" id="news_status" >准备加载…</span></h2>
+      <div class="news-bar mb10" >
         <button class="btn gray sm fish-sub on" data-sub="hot" onclick="fishTab('hot')">📰 热榜</button>
         <button class="btn gray sm fish-sub" data-sub="market" onclick="fishTab('market')">📈 行情</button>
         <button class="btn gray sm fish-sub" data-sub="flash" onclick="fishTab('flash')">⚡ 实时资讯</button>
-        <button class="btn warn sm" style="margin-left:auto" onclick="newsBossKey()" title="Esc：立即切回日报页；全局 Ctrl+Alt+H：直接隐藏窗口">🙈 老板键</button>
+        <button class="btn warn sm ml-auto"  onclick="newsBossKey()" title="Esc：立即切回日报页；全局 Ctrl+Alt+H：直接隐藏窗口">🙈 老板键</button>
       </div>
       <div id="fish_hot">
         <div class="news-bar">
           <button class="btn gray sm news-chip" data-group="资讯" onclick="newsSetGroup('资讯')">📰 资讯</button>
           <button class="btn gray sm news-chip" data-group="技术" onclick="newsSetGroup('技术')">💻 技术</button>
           <button class="btn gray sm news-chip on" data-group="全部" onclick="newsSetGroup('全部')">🗂 全部</button>
-          <input id="news_q" placeholder="搜关键词…（边输边筛，回车搜全网）" style="flex:1;min-width:170px" oninput="newsFilter()" onkeydown="newsKeydown(event)">
-          <select id="news_engine" style="width:auto">
+          <input class="col-1-170" id="news_q" placeholder="搜关键词…（边输边筛，回车搜全网）"  oninput="newsFilter()" onkeydown="newsKeydown(event)">
+          <select class="w-auto" id="news_engine" >
             <option value="juejin">掘金</option>
             <option value="hn">Hacker News</option>
           </select>
           <button class="btn sm" onclick="newsSearchOnline()">🌐 搜全网</button>
           <button class="btn gray sm" onclick="newsRefresh(true)">🔄 刷新</button>
-          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+          <label class="muted label-inline" >
             <input type="checkbox" id="news_auto" onchange="newsAutoToggle()"> 自动刷新
           </label>
-          <select id="news_interval" style="width:auto" onchange="newsAutoToggle()">
+          <select class="w-auto" id="news_interval"  onchange="newsAutoToggle()">
             <option value="30">30 秒</option>
             <option value="60" selected>1 分钟</option>
             <option value="300">5 分钟</option>
           </select>
         </div>
-        <div id="news_sources" class="muted" style="font-size:12px;margin-top:8px"></div>
-        <div class="muted" style="font-size:12px;margin-top:4px">💡 <b>点标题直接在应用内阅读全文</b>（代码块、图片完整保留）· 输入关键词即时过滤，回车「搜全网」 · <b>Esc</b> 或点「🙈 老板键」秒切回日报页</div>
+        <div id="news_sources" class="muted hint-8" ></div>
+        <div class="muted hint-4" >💡 <b>点标题直接在应用内阅读全文</b>（代码块、图片完整保留）· 输入关键词即时过滤，回车「搜全网」 · <b>Esc</b> 或点「🙈 老板键」秒切回日报页</div>
       </div>
       <div id="fish_market" style="display:none">
         <div class="news-bar">
           <button class="btn gray sm" onclick="stockRefresh()">🔄 刷新行情</button>
-          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+          <label class="muted label-inline" >
             <input type="checkbox" id="stock_auto" checked onchange="stockAutoToggle()"> 自动刷新
           </label>
-          <select id="stock_interval" style="width:auto" onchange="stockAutoToggle()">
+          <select class="w-auto" id="stock_interval"  onchange="stockAutoToggle()">
             <option value="15">15 秒</option>
             <option value="30" selected>30 秒</option>
             <option value="60">1 分钟</option>
           </select>
-          <span class="muted" id="stock_status" style="font-size:12px"></span>
+          <span class="muted fs12" id="stock_status" ></span>
         </div>
-        <div class="muted" style="font-size:12px;margin-top:6px">💡 点任意指数 / 自选股，在应用内查看<b>分时图、日K线、关键数据与相关实时资讯</b> · <b>Esc</b> 秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 隐藏窗口</div>
+        <div class="muted hint-6" >💡 点任意指数 / 自选股，在应用内查看<b>分时图、日K线、关键数据与相关实时资讯</b> · <b>Esc</b> 秒切回日报页 · 全局 <b>Ctrl+Alt+H</b> 隐藏窗口</div>
       </div>
       <div id="fish_flash" style="display:none">
         <div class="news-bar">
           <button class="btn gray sm" onclick="flashLoad(true)">🔄 刷新</button>
-          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+          <label class="muted label-inline" >
             <input type="checkbox" id="flash_auto" checked onchange="flashAutoToggle()"> 自动刷新
           </label>
-          <select id="flash_interval" style="width:auto" onchange="flashAutoToggle()">
+          <select class="w-auto" id="flash_interval"  onchange="flashAutoToggle()">
             <option value="30">30 秒</option>
             <option value="60" selected>1 分钟</option>
             <option value="180">3 分钟</option>
           </select>
-          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0">
+          <label class="muted label-inline" >
             <input type="checkbox" id="flash_only_star" onchange="flashRender()"> 只看重要
           </label>
-          <span class="muted" id="flash_status" style="font-size:12px"></span>
+          <span class="muted fs12" id="flash_status" ></span>
         </div>
-        <div class="muted" style="font-size:12px;margin-top:6px">💡 <b>财经快讯三源聚合</b>：新浪财经 7×24 / 华尔街见闻 / 金十数据 —— 快讯全文直接展示（无需跳转），点文本可在应用内看原文</div>
+        <div class="muted hint-6" >💡 <b>财经快讯三源聚合</b>：新浪财经 7×24 / 华尔街见闻 / 金十数据 —— 快讯全文直接展示（无需跳转），点文本可在应用内看原文</div>
       </div>
     </div>
 
@@ -850,13 +525,13 @@
       <div class="card">
         <h2>⭐ 自选股</h2>
         <div class="news-bar">
-          <input id="stock_q" placeholder="输入代码或名称（600519 / 茅台 / 宁德时代）" style="flex:1;min-width:220px" oninput="stockSearchInput()" onkeydown="stockSearchKey(event)">
+          <input class="col-1-220" id="stock_q" placeholder="输入代码或名称（600519 / 茅台 / 宁德时代）"  oninput="stockSearchInput()" onkeydown="stockSearchKey(event)">
           <button class="btn sm" onclick="stockSearchNow()">🔍 搜索</button>
           <button class="btn gray sm" onclick="stockResetWatch()">恢复默认</button>
         </div>
         <div id="stock_search_res"></div>
-        <div id="stock_watch" style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px"><div class="empty">加载中…</div></div>
-        <div class="muted" style="font-size:12px;margin-top:6px">数据来源：腾讯行情（免密钥）· 自选股保存在本机，点 ✕ 移除</div>
+        <div class="panel-mt8" id="stock_watch" ><div class="empty">加载中…</div></div>
+        <div class="muted hint-6" >数据来源：腾讯行情（免密钥）· 自选股保存在本机，点 ✕ 移除</div>
       </div>
     </div>
 
@@ -871,81 +546,81 @@
   <!-- ============ ⑨ 工具箱 ============ -->
   <div id="view_tools" style="display:none">
     <div class="card">
-      <h2>🧰 翻译工具 <span class="muted" id="tr_status" style="font-weight:400;font-size:12px"></span></h2>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">配好接口即可使用：<b>输入框翻译</b> + <b>划词快捷键翻译</b>。留空的字段自动沿用「数据管理 → AI 设置」里的配置。<br>
+      <h2>🧰 翻译工具 <span class="muted note-weak" id="tr_status" ></span></h2>
+      <div class="muted hint-mb6" >配好接口即可使用：<b>输入框翻译</b> + <b>划词快捷键翻译</b>。留空的字段自动沿用「数据管理 → AI 设置」里的配置。<br>
         <b>翻译通道</b>：默认走 AI 模型（指令可控）；想更快可切成 <b>极速（免密钥，约 0.1 秒）</b>、<b>DeepL</b> 或 <b>有道智云</b>，任何通道失败都会自动回退到 AI，不会卡住。<br>
         <b>要给变量 / 常量命名</b>：把「目标语言」设为 <code>英文</code>，复制格式选 <code>camelCase</code> / <code>PascalCase</code> / <code>snake_case</code> / <code>CONSTANT_CASE</code> / <code>kebab-case</code> 任一即可；中文内容也会被译成英文。</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-        <div style="flex:2;min-width:220px"><label>API Base URL</label><input type="text" id="tr_base" placeholder="留空 = 沿用 AI 设置"></div>
-        <div style="flex:2;min-width:170px"><label>API Key</label><input type="password" id="tr_key" placeholder="留空 = 沿用 AI 设置"></div>
-        <div style="min-width:150px"><label>模型</label><input type="text" id="tr_model" placeholder="deepseek-chat"></div>
-        <div style="min-width:110px"><label>目标语言</label><input type="text" id="tr_target" placeholder="中文 / 英文"></div>
-        <div style="min-width:150px"><label>翻译通道</label><select id="tr_provider" onchange="trProviderChange()">
+      <div class="fx-end" >
+        <div class="col-2-220" ><label>API Base URL</label><input type="text" id="tr_base" placeholder="留空 = 沿用 AI 设置"></div>
+        <div class="col-2-170" ><label>API Key</label><input type="password" id="tr_key" placeholder="留空 = 沿用 AI 设置"></div>
+        <div class="minw-150" ><label>模型</label><input type="text" id="tr_model" placeholder="deepseek-chat"></div>
+        <div class="minw-110" ><label>目标语言</label><input type="text" id="tr_target" placeholder="中文 / 英文"></div>
+        <div class="minw-150" ><label>翻译通道</label><select id="tr_provider" onchange="trProviderChange()">
           <option value="ai">AI 模型（默认）</option>
           <option value="fast">极速（免密钥）</option>
           <option value="deepl">DeepL</option>
           <option value="youdao">有道智云</option>
         </select></div>
       </div>
-      <div id="tr_deepl_box" style="display:none;margin-top:8px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:2;min-width:240px"><label>DeepL API Key</label><input type="password" id="tr_deepl_key" placeholder="例如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"></div>
-          <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12.5px;margin:0 0 7px"><input type="checkbox" id="tr_deepl_free" checked> 免费版端点（api-free.deepl.com）</label>
+      <div class="mt8" id="tr_deepl_box" style="display:none">
+        <div class="fx-end" >
+          <div class="col-2-240" ><label>DeepL API Key</label><input type="password" id="tr_deepl_key" placeholder="例如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"></div>
+          <label class="muted label-inline-mb7" ><input type="checkbox" id="tr_deepl_free" checked> 免费版端点（api-free.deepl.com）</label>
         </div>
       </div>
-      <div id="tr_youdao_box" style="display:none;margin-top:8px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:190px"><label>有道智云 appKey（应用 ID）</label><input type="text" id="tr_yd_key" placeholder="应用 ID"></div>
-          <div style="flex:1;min-width:220px"><label>有道智云 appSecret（应用密钥）</label><input type="password" id="tr_yd_secret" placeholder="应用密钥"></div>
+      <div class="mt8" id="tr_youdao_box" style="display:none">
+        <div class="fx-end" >
+          <div class="col-1-190" ><label>有道智云 appKey（应用 ID）</label><input type="text" id="tr_yd_key" placeholder="应用 ID"></div>
+          <div class="col-1-220" ><label>有道智云 appSecret（应用密钥）</label><input type="password" id="tr_yd_secret" placeholder="应用密钥"></div>
         </div>
       </div>
-      <div id="tr_prov_hint" class="muted" style="font-size:12px;margin-top:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div id="tr_prov_hint" class="muted hint-6" ></div>
+      <div class="fx" >
         <button class="btn" onclick="trSave()">保存翻译设置</button>
         <button class="btn gray" onclick="trUseAI()">沿用 AI 设置</button>
         <button class="btn gray" onclick="trTest()">测试连接</button>
-        <span class="muted" id="tr_cfg_note" style="font-size:12px"></span>
+        <span class="muted fs12" id="tr_cfg_note" ></span>
       </div>
     </div>
 
     <div class="card">
       <h2>✍️ 输入框翻译</h2>
-      <textarea id="tr_in" style="min-height:130px" placeholder="粘贴或输入要翻译的内容，点「翻译」或按 Ctrl+Enter" onkeydown="trKeydown(event)"></textarea>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <textarea class="minh-130" id="tr_in"  placeholder="粘贴或输入要翻译的内容，点「翻译」或按 Ctrl+Enter" onkeydown="trKeydown(event)"></textarea>
+      <div class="fx-mt8" >
         <button class="btn" onclick="trRun()">🌐 翻译</button>
         <button class="btn gray" onclick="trSwap()">🔄 译文放回输入框</button>
         <button class="btn gray" onclick="trClear()">清空</button>
-        <span class="muted" id="tr_note" style="font-size:12px"></span>
+        <span class="muted fs12" id="tr_note" ></span>
       </div>
     </div>
 
     <div class="card">
-      <h2>📋 翻译结果 <span class="muted" id="tr_meta" style="font-weight:400;font-size:12px"></span></h2>
-      <div class="news-bar" style="margin-bottom:8px">
-        <span class="muted" style="font-size:12px">复制格式：</span>
-        <span id="tr_fmts" style="display:flex;gap:6px;flex-wrap:wrap"></span>
-        <button class="btn green sm" onclick="trCopy()" style="margin-left:auto">📋 复制</button>
+      <h2>📋 翻译结果 <span class="muted note-weak" id="tr_meta" ></span></h2>
+      <div class="news-bar mb8" >
+        <span class="muted fs12" >复制格式：</span>
+        <span class="fx-6" id="tr_fmts" ></span>
+        <button class="btn green sm ml-auto" onclick="trCopy()" >📋 复制</button>
       </div>
       <pre id="tr_out" class="tr-out">（译文会显示在这里；选 camelCase 等命名格式时显示转换后的标识符）</pre>
     </div>
 
     <div class="card">
-      <h2>🖱️ 划词翻译 → 粘贴到光标处 <span class="muted" style="font-weight:400;font-size:12px">两个快捷键配合使用</span></h2>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">
+      <h2>🖱️ 划词翻译 → 粘贴到光标处 <span class="muted note-weak" >两个快捷键配合使用</span></h2>
+      <div class="muted hint-mb6" >
         <b>① 划词翻译</b>：在任意程序里选中文字 → 按快捷键 → 弹出小窗，<b>点哪一行就复制哪种命名</b>（纯译文 / camelCase / PascalCase / snake_case / CONSTANT_CASE / kebab-case）。<br>
         <b>② 粘贴翻译</b>：光标放到要插入的位置 → 按快捷键 → 选择器里<b>点哪种命名就直接粘进光标处</b>。两个浮窗都<b>不抢焦点</b>，光标位置不会丢。
       </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-        <div style="min-width:190px"><label>① 划词翻译快捷键</label><input type="text" id="tr_shortcut" placeholder="Control+Alt+Q"></div>
+      <div class="fx-end" >
+        <div class="minw-190" ><label>① 划词翻译快捷键</label><input type="text" id="tr_shortcut" placeholder="Control+Alt+Q"></div>
         <button class="btn" onclick="trSaveShortcut()">保存并注册</button>
         <button class="btn gray" onclick="trTryCapture()">试一次划词</button>
-        <div style="min-width:190px"><label>② 粘贴翻译快捷键</label><input type="text" id="tr_paste_shortcut" placeholder="Control+Alt+V"></div>
+        <div class="minw-190" ><label>② 粘贴翻译快捷键</label><input type="text" id="tr_paste_shortcut" placeholder="Control+Alt+V"></div>
         <button class="btn" onclick="trSavePasteShortcut()">保存并注册</button>
         <button class="btn gray" onclick="trTryChooser()">试一次粘贴</button>
       </div>
-      <div class="muted" id="tr_hotkey_note" style="font-size:12px;margin-top:6px"></div>
-      <div class="muted" style="font-size:12px;margin-top:6px">💡 写法：<code>Control+Alt+Q</code>、<code>Control+Alt+V</code>、<code>Control+Shift+D</code>；被占用时换一个组合即可。取词是向你的前台程序发送 Ctrl+C，取完会<b>自动还原你原来的剪贴板</b>；粘贴时会把你选中的那条译文放进剪贴板后再发送 Ctrl+V。</div>
-      <div class="muted" style="font-size:12px;margin-top:6px">翻译历史保存在本机（最近 12 条），可在粘贴选择器里随时切换；点这里 <button class="btn gray sm" onclick="trClearHist()">清空翻译历史</button></div>
+      <div class="muted hint-6" id="tr_hotkey_note" ></div>
+      <div class="muted hint-6" >💡 写法：<code>Control+Alt+Q</code>、<code>Control+Alt+V</code>、<code>Control+Shift+D</code>；被占用时换一个组合即可。取词是向你的前台程序发送 Ctrl+C，取完会<b>自动还原你原来的剪贴板</b>；粘贴时会把你选中的那条译文放进剪贴板后再发送 Ctrl+V。</div>
+      <div class="muted hint-6" >翻译历史保存在本机（最近 12 条），可在粘贴选择器里随时切换；点这里 <button class="btn gray sm" onclick="trClearHist()">清空翻译历史</button></div>
     </div>
   </div>
 
@@ -974,21 +649,110 @@ var TASKKEY = "jzd_tasks_v1";
 var DEFAULT_PROJECTS = ["澄湾市蓝湾食品MOM系统","泊州市星河制药MES系统","云岚市云启精密QMS系统","示例项目：内部工具开发","示例项目：数据平台建设"];
 
 function getEntries(){ try{ return JSON.parse(localStorage.getItem(KEY)||"[]"); }catch(e){ return []; } }
-function saveEntries(list){ localStorage.setItem(KEY, JSON.stringify(list)); pushStateDebounced(); }
+function saveEntries(list){ lsSet(KEY, JSON.stringify(list)); pushStateDebounced(); }
 function getTasks(){ try{ var a=JSON.parse(localStorage.getItem(TASKKEY)); if(a&&a.length)return a; }catch(e){} return []; }
-function saveTasks(a){ localStorage.setItem(TASKKEY, JSON.stringify(a)); pushStateDebounced(); }
+function saveTasks(a){ lsSet(TASKKEY, JSON.stringify(a)); pushStateDebounced(); }
 function getTask(id){ if(!id) return null; var t=getTasks(),i; for(i=0;i<t.length;i++){ if(t[i].id===id) return t[i]; } return null; }
 function taskName(id){ var t=getTask(id); return t?t.name:""; }
 function taskHours(id){ var t=getTasks(), found={}; t.forEach(function(x){ if(x.id===id) found[x.id]=1; }); var h=0; getEntries().forEach(function(e){ if(e.taskId && found[e.taskId]) h+=(parseFloat(e.hours)||0); }); return h; }
 function getProfile(){ try{ return JSON.parse(localStorage.getItem(PKEY)) || {name:"张三",dept:"研发部",post:"开发工程师"}; }catch(e){ return {name:"张三",dept:"研发部",post:"开发工程师"}; } }
-function saveProfileData(p){ localStorage.setItem(PKEY, JSON.stringify(p)); pushStateDebounced(); }
+function saveProfileData(p){ lsSet(PKEY, JSON.stringify(p)); pushStateDebounced(); }
 
 /* ================= MySQL 数据持久化（客户端） ================= */
 // 全部需要同步到 MySQL 的 localStorage key（含模板/AI/任务/项目/日报/个人信息）
 // 注：AIKEY/AI_LASTCC/TWKEY 等在下方才声明，这里用字符串字面量，避免顺序问题
-var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1","jzd_wk_sections_v1"];
+var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1","jzd_wk_sections_v1",
+  // task-21 月报重写：用户自建模板 + 当前选中 + 生成结果缓存（新增，不得删除既有成员）
+  "jzd_month_templates_v1","jzd_month_active_v1","jzd_month_ai_v1"];
 
 var dbSyncing=false;
+
+/* ================= 脏标记 + hydration 前置（防陈旧副本回推覆盖 MySQL） =================
+ * 背景（CONTRACTS §7 新增条目，编号待 Lead）：旧实现里 pushStateDebounced() 无条件把 collectState()
+ * 的 13 个 key 全量 POST。只要本地副本与库存在任何不一致（离线改过、上次推送中断、残留旧值），
+ * 一次「只改了一个字段」的保存就会整份覆盖回库 —— 与 CONTRACTS §3.10「MySQL 是唯一真相」相悖。
+ * 现在：① 只推送「用户真正写过」的 key（脏标记）；② 启动回填完成前一律不推（hydration 前置）；
+ *       ③ 回填写入不打脏标记（否则等于把缺陷换个形式复现）。
+ */
+var dirtyKeys={};                    // 自上次成功推送以来被「用户操作」写过的 DB_KEYS 成员
+var hydrated=false;                  // 是否已完成一次「服务器 → 本地」回填；false 时禁止推送
+var hydrating=false;                 // 回填进行中：期间的写入不算用户变更，不打脏标记
+var pendingPushAfterHydrate=false;   // 回填完成前收到的推送请求（排队，不丢用户操作）
+var pendingPushAfterSync=false;      // 推送在途时收到的推送请求（排队，防丢）
+
+function isDbKey(k){ return DB_KEYS.indexOf(k)>=0; }
+
+// 统一写入口：语义与 localStorage.setItem 完全一致（同步写入 + 原样抛错），额外打脏标记
+function lsSet(key, value){
+  localStorage.setItem(key, value);
+  if(!hydrating && isDbKey(key)) dirtyKeys[key]=1;
+  return value;
+}
+// 统一删除入口：删除同样打脏标记（否则「删了又被回填」会静默复活）
+function lsRemove(key){
+  localStorage.removeItem(key);
+  if(!hydrating && isDbKey(key)) dirtyKeys[key]=1;
+}
+
+// 只采集「脏」的 key（值仍为 null 的已删除键不参与推送：服务端无删除语义）
+function collectDirtyState(){
+  var items={};
+  Object.keys(dirtyKeys).forEach(function(k){
+    var v=localStorage.getItem(k);
+    if(v!==null && v!==undefined) items[k]=v;
+  });
+  return items;
+}
+
+// 回填：服务器 → 本地。hydrating 期间不打脏标记；已被用户改过（脏）的 key 保留本地值，
+// 避免「刚改完还没推上去就被回填覆盖」造成用户输入丢失。返回 {applied, skipped}。
+function hydrateFromServer(items, opts){
+  var applied=0, skipped=[], pruned=[];
+  if(!items) return {applied:0, skipped:skipped, pruned:pruned};
+  hydrating=true;
+  try{
+    Object.keys(items).forEach(function(k){
+      if(dirtyKeys[k] && !(opts && opts.force)){ skipped.push(k); return; }
+      localStorage.setItem(k, items[k]);
+      applied++;
+    });
+    /* D33：备份恢复（opts.prune）时，必须把「本机还留着、而备份文件里没有」的 DB key 一并清掉。
+     * 服务端导入是 DELETE + 重新插入（server.js 同一事务），所以此刻库 == 备份快照；
+     * 本机若继续保留这些 key，界面就会显示库里早已不存在的数据，而且因为它们不是脏 key，
+     * 永远不会被推回数据库 —— 本地与库静默分叉，用户完全不知道。
+     * 两个保险：① 只在显式 opts.prune（恢复备份）时执行，启动回填绝不清本地数据，
+     *           以免「服务端返回空/读失败」把本机数据抹掉；② 备份本身为空对象时不清理（拒绝用一个
+     *           看似合法却没有内容的文件清空本机）。
+     */
+    if(opts && opts.prune && Object.keys(items).length>0){
+      DB_KEYS.forEach(function(k){
+        if(Object.prototype.hasOwnProperty.call(items,k)) return;   // 备份里有 → 归回填管
+        if(localStorage.getItem(k)===null) return;                 // 本机本来就没有 → 无事可做
+        localStorage.removeItem(k);   // 故意用裸 removeItem：服务端已不存在该 key，不该再推一次（D33）
+        delete dirtyKeys[k];
+        pruned.push(k);
+      });
+    }
+  }finally{ hydrating=false; }
+  hydrated=true;
+  // 若回填时跳过了「用户刚改过、还没推上去」的 key（或被前置门挡下过推送），立刻安排一次推送。
+  // 这样「不丢用户编辑」的保证就内聚在本函数里，不依赖每个调用点都记得补一次 pushStateDebounced()。
+  if(skipped.length || pendingPushAfterHydrate) pushStateDebounced();
+  return {applied:applied, skipped:skipped, pruned:pruned};
+}
+// 结束 hydration 前置门（未连 MySQL / 网络失败等场景），使后续推送恢复正常
+function markHydrated(){ hydrated=true; }
+
+// DB key → 人话（仅用于提示文案；新增 DB_KEYS 成员时补一行，未登记的原样显示 key）
+var DB_KEY_LABELS={
+  jzd_daily_v1:"日报记录", jzd_profile_v1:"个人信息", jzd_projects_v1:"项目", jzd_tasks_v1:"任务",
+  jzd_ai_v1:"AI 配置", jzd_ai_lastcc_v1:"AI 调用记录",
+  jzd_tpl_weekly_v1:"周报模板", jzd_tpl_score_v1:"评分表模板", jzd_tpl_okr_v1:"OKR 模板",
+  jzd_tpl_ai_weekly_v1:"周报 AI 缓存", jzd_tpl_ai_score_v1:"评分表 AI 缓存", jzd_tpl_ai_okr_v1:"OKR AI 缓存",
+  jzd_wk_sections_v1:"周报栏目",
+  jzd_month_templates_v1:"月报模板", jzd_month_active_v1:"当前月报模板", jzd_month_ai_v1:"月报生成缓存"
+};
+function dbKeyLabel(k){ return DB_KEY_LABELS[k]||k; }
 
 // 收集当前 localStorage 全部数据
 function collectState(){
@@ -998,6 +762,76 @@ function collectState(){
     if(v!==null && v!==undefined) items[k]=v;
   });
   return items;
+}
+
+/* ================= 国家法定节假日（内置表，2024–2026） =================
+ * 用途：日历 / 出勤统计 / 缺报提醒统一按「法定节假日 + 调休上班日 + 普通周末」判定，纯前端内置，不联网。
+ * 数据来源：国务院办公厅《关于XXXX年部分节假日安排的通知》原文（每个年份的 doc 字段即文号与日期）。
+ * 表结构（便于逐年追加）：
+ *   CN_HOLIDAY_YEARS = [{ year, doc, holiday:[[起MM-DD, 止MM-DD, 名称]], makeup:[[起MM-DD, 止MM-DD, 名称]] }]
+ *   启动时展开为扁平查表 CN_HOLIDAY_TABLE["YYYY-MM-DD"] = { t:"holiday"|"makeup", n:"名称" }
+ *     t:"holiday" = 法定节假日（放假，不计应出勤）
+ *     t:"makeup"  = 调休上班日（周末补班，计应出勤）
+ *   普通周末不进表，由 dateType() 按星期推导。
+ * ⚠️ 任务书把「调休上班」写作 workday；本实现改用 "makeup"，避免与 dateType() 的 "workday"
+ *    （普通周一~周五）撞名。dateType() 的返回集合仍严格是 holiday / makeup / weekend / workday 四种。
+ * 确证状态：2024、2025、2026 三年的全部法定节假日与调休上班日均逐条取自国务院办公厅通知原文，
+ *    并已用脚本核对每个日期的真实星期与通知括号内标注一致 → **无未确证项**（见 CN_HOLIDAY_UNCONFIRMED）。
+ * 如何新增一年：
+ *   ① 等国务院办公厅在上一年 10–11 月发布《关于YYYY年部分节假日安排的通知》（每年一次，2024/2025/2026 分别在 2023-10-25 / 2024-11-12 / 2025-11-04 发布）；
+ *   ② 在 CN_HOLIDAY_YEARS 追加一块：假日区间写 holiday、补班日写 makeup，并把通知文号与发布日期写进 doc；
+ *   ③ 自测：用 dateType() 打印该年每个 holiday/makeup 日期的星期，必须与通知括号内标注一致（自测脚本见 skills/p1-frontend/reference.md «国家节假日实现»）；
+ *   ④ 若通知尚未发布，**不要凭推测填表**：把该年加入 CN_HOLIDAY_UNCONFIRMED，日历会自动显示「未确证」提示；正式发布后再补数据并从此表移除。
+ */
+var CN_HOLIDAY_YEARS = [
+  { year:2024, doc:"国办发明电〔2023〕7号（2023-10-25）",
+    holiday:[["01-01","01-01","元旦"],["02-10","02-17","春节"],["04-04","04-06","清明节"],["05-01","05-05","劳动节"],["06-10","06-10","端午节"],["09-15","09-17","中秋节"],["10-01","10-07","国庆节"]],
+    makeup:[["02-04","02-04","春节"],["02-18","02-18","春节"],["04-07","04-07","清明节"],["04-28","04-28","劳动节"],["05-11","05-11","劳动节"],["09-14","09-14","中秋节"],["09-29","09-29","国庆节"],["10-12","10-12","国庆节"]] },
+  { year:2025, doc:"国办发明电〔2024〕7号（2024-11-12）",
+    holiday:[["01-01","01-01","元旦"],["01-28","02-04","春节"],["04-04","04-06","清明节"],["05-01","05-05","劳动节"],["05-31","06-02","端午节"],["10-01","10-08","国庆节·中秋节"]],
+    makeup:[["01-26","01-26","春节"],["02-08","02-08","春节"],["04-27","04-27","劳动节"],["09-28","09-28","国庆节·中秋节"],["10-11","10-11","国庆节·中秋节"]] },
+  { year:2026, doc:"国办发明电〔2025〕7号（2025-11-04）",
+    holiday:[["01-01","01-03","元旦"],["02-15","02-23","春节"],["04-04","04-06","清明节"],["05-01","05-05","劳动节"],["06-19","06-21","端午节"],["09-25","09-27","中秋节"],["10-01","10-07","国庆节"]],
+    makeup:[["01-04","01-04","元旦"],["02-14","02-14","春节"],["02-28","02-28","春节"],["05-09","05-09","劳动节"],["09-20","09-20","国庆节"],["10-10","10-10","国庆节"]] }
+];
+
+// 未确证年份清单：{ "YYYY": "原因" }。2024–2026 三年全部已确证，故当前为空对象（显式单列，绝不编造）。
+var CN_HOLIDAY_UNCONFIRMED = {};
+
+// 展开成扁平查表（脚本启动时执行一次）
+var CN_HOLIDAY_TABLE = {};
+(function buildCnHolidayTable(){
+  CN_HOLIDAY_YEARS.forEach(function(yr){
+    var y=String(yr.year);
+    [["holiday",yr.holiday],["makeup",yr.makeup]].forEach(function(pair){
+      (pair[1]||[]).forEach(function(rg){
+        var cur=new Date(y+"-"+rg[0]+"T00:00:00"), end=new Date(y+"-"+rg[1]+"T00:00:00");
+        for(var d=cur; d<=end; d.setDate(d.getDate()+1)){
+          CN_HOLIDAY_TABLE[iso(d)]={t:pair[0], n:rg[2]};
+        }
+      });
+    });
+  });
+})();
+
+// 统一日期类型判定：holiday 法定节假日 / makeup 调休上班 / weekend 普通周末 / workday 普通工作日
+function dateType(dateStr){
+  var ds=String(dateStr||"").slice(0,10);
+  var rec=CN_HOLIDAY_TABLE[ds];
+  if(rec) return {type:rec.t, name:rec.n};
+  var wd=new Date(ds+"T00:00:00").getDay();
+  if(wd===0||wd===6) return {type:"weekend", name:"周末"};
+  return {type:"workday", name:""};
+}
+window.dateType=dateType;
+
+// 该年份的节假日安排是否已内置/已确证（日历用它显示「未确证」提示，绝不静默按周一~周五推算）
+function holidayYearState(y){
+  y=String(y);
+  var has=false, i;
+  for(i=0;i<CN_HOLIDAY_YEARS.length;i++){ if(String(CN_HOLIDAY_YEARS[i].year)===y){ has=true; break; } }
+  if(has && !CN_HOLIDAY_UNCONFIRMED[y]) return {known:true, confirmed:true, note:""};
+  return {known:has, confirmed:false, note:CN_HOLIDAY_UNCONFIRMED[y]||(has?"":"未内置该年国务院办公厅节假日安排")};
 }
 
 // 导出全库备份（JSON，含日报/任务/项目/设置，可移植到任意电脑恢复）
@@ -1043,7 +877,7 @@ function dbImportJsonPick(){
 async function dbImportJson(input){
   var file=input && input.files && input.files[0];
   if(!file){ return; }
-  if(!confirm("从备份恢复将覆盖当前数据库全部数据。\n恢复前会自动备份当前数据到本机备份目录。\n确认继续？")){ input.value=""; return; }
+  if(!confirm("从备份恢复将覆盖当前数据库全部数据。\n· 恢复前会自动把当前数据备份到本机备份目录\n· 本机有、而备份文件里没有的数据项会被一并清理（否则本机与数据库会不一致）\n确认继续？")){ input.value=""; return; }
   var reader=new FileReader();
   reader.onload=async function(ev){
     try{
@@ -1061,9 +895,10 @@ async function dbImportJson(input){
           dbRefreshStatus().then(function(){
             fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(jj){
               if(jj && jj.ok && jj.items){
-                Object.keys(jj.items).forEach(function(k){ localStorage.setItem(k, jj.items[k]); });
+                // 刚恢复完备份：此刻服务端即权威 —— 强制回填（忽略本地脏标记），并清理备份里没有的本机残留 key（D33）
+                var hy=hydrateFromServer(jj.items, {force:true, prune:true});
                 refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
-                loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+                loadTpl("weekly"); renderWeekly(); renderMonthly();
                 refreshHeaderStats();
                 var p=getProfile();
                 document.getElementById("set_name").value=p.name;
@@ -1073,7 +908,11 @@ async function dbImportJson(input){
                 document.getElementById("ai_base").value=a.base;
                 document.getElementById("ai_key").value=a.key;
                 document.getElementById("ai_model").value=a.model;
-                toast("✅ 数据已刷新");
+                var extra="";
+                if(hy && hy.pruned && hy.pruned.length){
+                  extra="；已清理本机残留 "+hy.pruned.length+" 项（备份中不存在）："+hy.pruned.map(dbKeyLabel).join("、");
+                }
+                toast("✅ 数据已刷新"+extra);
               }
             });
           });
@@ -1157,13 +996,15 @@ async function dbSaveConfig(){
       // 连接成功后：若服务器有数据则静默拉取覆盖本地（MySQL 唯一真相）；服务器空则本地数据下次保存时自动上传
       fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(jj){
         if(jj && jj.ok && jj.items && Object.keys(jj.items).length>0){
-          Object.keys(jj.items).forEach(function(k){ localStorage.setItem(k, jj.items[k]); });
+          hydrateFromServer(jj.items);          // 回填不打脏标记；用户刚改过的 key 保留本地值
           refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
-          loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+          loadTpl("weekly"); renderWeekly(); renderMonthly();
           refreshHeaderStats();
           toast("✅ 已加载 MySQL 数据");
         }
-      }).catch(function(){});
+        markHydrated();                          // 结束前置门：此后推送只发变更 key
+        pushStateDebounced();                    // 回填期间排队的推送在此补发
+      }).catch(function(){ markHydrated(); });
     }else{
       toast("❌ 连接失败："+(j.error||"未知错误"));
       dbRefreshStatus();
@@ -1196,19 +1037,30 @@ async function dbRefreshStatus(){
 window.dbRefreshStatus=dbRefreshStatus;
 
 // 所有保存操作的统一推送（防抖：300ms 内多次保存只推送一次）
-// 桌面版数据流：页面读写 localStorage → 防抖推送到 MySQL（唯一真相）
+// 桌面版数据流：页面读写 localStorage → 防抖推送「变更过的 key」到 MySQL（唯一真相）
 var dbPushTimer=null;
 function pushStateDebounced(){
   clearTimeout(dbPushTimer);
   dbPushTimer=setTimeout(function(){
-    if(dbSyncing) return;
+    if(dbSyncing){ pendingPushAfterSync=true; return; }              // 在途推送：排队，不丢
+    if(!hydrated){ pendingPushAfterHydrate=true; return; }           // 前置门：回填未完成，绝不推陈旧副本
+    var items=collectDirtyState();
+    var sending=Object.keys(items);
+    if(!sending.length) return;                                      // 无变更 → 不发请求（旧实现会全量推 13 个 key）
     dbSyncing=true;
-    var items=collectState();
     fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:items})})
       .then(function(r){ return r.json().catch(function(){return {};}); })
-      .then(function(j){ if(!(j && j.ok)) { /* MySQL 未连接时静默忽略，数据保留在 localStorage */ } })
+      .then(function(j){
+        // 只在服务端确认成功、且本地值自本次发送后未被再次改动时，才清除脏标记；失败则保留待重推
+        if(j && j.ok){ sending.forEach(function(k){ if(localStorage.getItem(k)===items[k]) delete dirtyKeys[k]; }); }
+        /* MySQL 未连接时静默忽略：数据保留在 localStorage，脏标记保留待下次重推 */
+      })
       .catch(function(){})
-      .finally(function(){ dbSyncing=false; });
+      .finally(function(){
+        dbSyncing=false;
+        if(pendingPushAfterSync){ pendingPushAfterSync=false; pushStateDebounced(); }
+        else if(pendingPushAfterHydrate){ pendingPushAfterHydrate=false; pushStateDebounced(); }
+      });
   }, 300);
 }
 window.pushStateDebounced=pushStateDebounced;
@@ -1225,7 +1077,7 @@ function getProjects(){
   }catch(e){}
   return DEFAULT_PROJECTS.map(function(n){ return {id:"p_"+n, name:n, status:"active", doneDate:""}; });
 }
-function saveProjects(a){ localStorage.setItem(PROJKEY, JSON.stringify(a)); pushStateDebounced(); }
+function saveProjects(a){ lsSet(PROJKEY, JSON.stringify(a)); pushStateDebounced(); }
 function getProjectNames(){ return getProjects().map(function(p){ return p.name; }); }
 function getProjectName(p){
   if(!p) return "";
@@ -1358,15 +1210,29 @@ function fillProjectSelect(){
 }
 window.fillProjectSelect=fillProjectSelect;
 
-function addProject(){
-  var inp=document.getElementById("in_project_new");
-  var v=inp.value.trim(); if(!v){toast("请输入项目名称");return;}
-  var ps=getProjects();
-  var exists=ps.some(function(p){ return p.name===v; });
-  if(!exists){ ps.push({id:"p_"+Date.now()+"_"+Math.random().toString(36).slice(2,6), name:v, status:"active", doneDate:""}); saveProjects(ps); }
-  inp.value=""; fillProjectSelect(); document.getElementById("in_project").value=v; toast("已添加项目："+v);
+// 日报录入页：任务下拉里没有合适的 → 直接新建任务，挂到上方「项目名称」当前选中的项目下
+function addTaskFromDaily(){
+  var inp=document.getElementById("in_task_new");
+  var name=((inp&&inp.value)||"").trim(); if(!name){toast("请输入任务名称");return;}
+  var projSel=document.getElementById("in_project");
+  var proj=(projSel&&projSel.value)||"";
+  if(!proj){ toast("请先在上方「项目名称」中选择一个项目（可在「② 项目管理」中新建）"); return; }
+  var list=getTasks();
+  if(list.some(function(t){ return t.project===proj && t.name===name && !t.cancelled; })){
+    toast("该项目下已有同名任务："+name); return;
+  }
+  var planEl=document.getElementById("in_task_new_plan");
+  var nid=Date.now()+"_"+Math.random().toString(36).slice(2,7);
+  list.push({id:nid, project:proj, name:name, plan:((planEl&&planEl.value)||""), done:"", start:""});
+  saveTasks(list);
+  if(inp) inp.value=""; if(planEl) planEl.value="";
+  fillTaskSelect();   // 重建任务下拉（函数末尾会调 onTaskPick）
+  var sel=document.getElementById("in_task");
+  if(sel && sel.querySelector && sel.querySelector('option[value="'+nid+'"]')){ sel.value=nid; onTaskPick(); }
+  else{ if(projSel) projSel.value=proj; }
+  toast("✅ 已添加任务："+name+"（"+proj+"）");
 }
-window.addProject=addProject;
+window.addTaskFromDaily=addTaskFromDaily;
 
 // 已完结项目显示开关（作用于日报/任务表单的项目下拉 + 任务下拉）
 function toggleProjShowDone(){
@@ -1492,22 +1358,22 @@ function openEntryModal(id){
     '<div><label>项目名称（选任务后自动带入）</label><select id="em_project">'+projOpts+'</select></div>'+
     '<div><label>工作时长（小时）</label><input type="number" id="em_hours" min="0" max="24" step="0.5" value="'+esc(e.hours)+'"></div>'+
     '</div>'+
-    '<label id="em_task_done_box" style="display:none;align-items:center;gap:5px;font-size:12.5px;color:var(--sub);cursor:pointer;margin:2px 0 10px"><input type="checkbox" id="em_task_done"> ✔ 勾选表示该任务已完成（自动填入实际完成时间）</label>'+
-    '<div style="border-top:1px dashed var(--line);margin:4px 0 10px"></div>'+
-    '<div id="em_newtask_box" style="padding:12px;background:#fbfcfe;border:1px solid var(--line);border-radius:10px;margin-bottom:12px">'+
-      '<div style="font-weight:600;font-size:13px;margin-bottom:8px">➕ 在弹框中新增任务（下拉里没有？直接创建）</div>'+
-      '<div class="modal-row" style="margin-bottom:8px">'+
-        '<div style="flex:2"><label>任务名称</label><input type="text" id="em_nt_name" placeholder="输入新任务名称" style="width:100%;box-sizing:border-box"></div>'+
-        '<div><label>计划完成时间</label><input type="date" id="em_nt_plan" style="width:100%;box-sizing:border-box"></div>'+
+    '<label class="label-flex-sm" id="em_task_done_box" style="display:none"><input type="checkbox" id="em_task_done"> ✔ 勾选表示该任务已完成（自动填入实际完成时间）</label>'+
+    '<div class="divider" ></div>'+
+    '<div class="panel-soft" id="em_newtask_box" >'+
+      '<div class="subhead" >➕ 在弹框中新增任务（下拉里没有？直接创建）</div>'+
+      '<div class="modal-row mb8" >'+
+        '<div class="col-2" ><label>任务名称</label><input class="w-full-bb" type="text" id="em_nt_name" placeholder="输入新任务名称" ></div>'+
+        '<div><label>计划完成时间</label><input class="w-full-bb" type="date" id="em_nt_plan" ></div>'+
       '</div>'+
-      '<div class="modal-row" style="margin-bottom:8px">'+
-        '<div><label>计划开始时间（可选，到点提醒）</label><input type="datetime-local" id="em_nt_start" style="width:100%;box-sizing:border-box"></div>'+
-        '<div style="display:flex;align-items:flex-end"><button class="btn green" onclick="addTaskFromEntry()" style="width:100%;padding:8px 0">＋ 添加任务并挂载到本日报</button></div>'+
+      '<div class="modal-row mb8" >'+
+        '<div><label>计划开始时间（可选，到点提醒）</label><input class="w-full-bb" type="datetime-local" id="em_nt_start" ></div>'+
+        '<div class="fx-align-end" ><button class="btn green btn-block" onclick="addTaskFromEntry()" >＋ 添加任务并挂载到本日报</button></div>'+
       '</div>'+
-      '<div style="font-size:12px;color:var(--sub)">添加到当前项目（'+esc(e.project)+'），计划完成时间会显示在日历上</div>'+
+      '<div class="fs12-sub" >添加到当前项目（'+esc(e.project)+'），计划完成时间会显示在日历上</div>'+
     '</div>'+
     '<label>工作内容</label><textarea id="em_work">'+esc(e.work)+'</textarea>'+
-    '<label>明日计划（可选）</label><textarea id="em_plan" style="min-height:40px">'+esc(e.plan||"")+'</textarea>'+
+    '<label>明日计划（可选）</label><textarea class="minh-40" id="em_plan" >'+esc(e.plan||"")+'</textarea>'+
     '<label>备注（可选）</label><input type="text" id="em_remark" value="'+esc(e.remark||"")+'">';
   var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
     '<button class="btn" onclick="submitEntryModal()">💾 保存修改</button>';
@@ -1663,7 +1529,7 @@ function renderProjects(){
   });
   // 已完结项目（默认折叠显示在底部）
   if(done.length){
-    h+='<h3 style="margin-top:18px">已完结项目（'+done.length+'）</h3>';
+    h+='<h3 class="mt18" >已完结项目（'+done.length+'）</h3>';
     done.forEach(function(p){
       h+=projRowHtml(p, tasks, entries);
     });
@@ -1805,9 +1671,25 @@ function shiftMonth(ym, delta){
   return y+"-"+String(m).padStart(2,"0");
 }
 
+// 日期状态徽标（日历标题 / 弹窗标题复用）：法定节假日与调休上班日带节日名称，普通周末只标「周末」
+function dayBadge(ds){
+  var dt=dateType(ds);
+  if(dt.type==="holiday") return "（"+dt.name+"·放假）";
+  if(dt.type==="makeup") return "（"+dt.name+"调休上班）";
+  if(dt.type==="weekend") return "（周末）";
+  return "";
+}
+
 function renderCalendar(){
   document.getElementById("cal_title").textContent=calTitle();
   var y=+calYM.slice(0,4), m=+calYM.slice(5,7);
+  // 节假日表未覆盖/未确证的年份：显式提示，不静默按周一~周五推算
+  var yState=holidayYearState(y);
+  var noteEl=document.getElementById("cal_year_note");
+  if(noteEl){
+    noteEl.textContent = yState.confirmed ? "" :
+      ("⚠️ "+y+" 年节假日安排"+(yState.known?"未确证":"未内置")+"，本页按周一~周五推算"+(yState.note?"（"+yState.note+"）":""));
+  }
   // 当月 1 号的星期几（0=周日）
   var first=new Date(y, m-1, 1).getDay();
   var daysInMonth=new Date(y, m, 0).getDate();
@@ -1872,9 +1754,17 @@ function monthStr(y,m,d){
 }
 
 function dayCell(ds, dnum, cls, planTasks, dayInfo){
-  var h='<div class="cal-day '+cls+'" data-ds="'+ds+'" onclick="selectDay(\''+ds+'\')">';
-  h+='<div style="display:flex;align-items:center">';
+  // 节假日/调休上班日：底色标记 + 节日名称角标（可区分、可读名称）
+  var dt=dateType(ds);
+  var tintCls = ((dt.type==="holiday"||dt.type==="makeup") && !cls) ? (" cal-day-"+dt.type) : "";
+  var h='<div class="cal-day '+cls+tintCls+'" data-ds="'+ds+'" onclick="selectDay(\''+ds+'\')">';
+  h+='<div class="fx-center" >';
   h+='<span class="cd-num">'+dnum+'</span>';
+  if(dt.type==="holiday"){
+    h+='<span class="cn-hol cal-day-tag-err" >'+esc(dt.name)+'</span>';
+  }else if(dt.type==="makeup"){
+    h+='<span class="cn-mk cal-day-tag-warn" >'+esc(dt.name)+'班</span>';
+  }
   if(dayInfo && dayInfo.hours>0){
     h+='<span class="cd-hours">'+sumH(dayInfo.hours)+'h</span>';
   }
@@ -1950,7 +1840,7 @@ function selectDay(ds){
   var box=document.getElementById("cal_detail");
   if(!card||!box) return;
   var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
-  var isT = (ds===t)?"（今天）":(isWorkday(ds)?"":"（周末）");
+  var isT = (ds===t)?"（今天）":dayBadge(ds); // 法定节假日/调休上班日显示节日名称，普通周末显示「（周末）」
   title.textContent=ds+" 星期"+wd+isT+" · 当天计划";
   card.style.display="";
 
@@ -1959,12 +1849,12 @@ function selectDay(ds){
     h='<div class="cal-empty">当天没有任务计划，也没有日报记录</div>';
   }else{
     if(planTasks.length>0){
-      h+='<h3 style="margin-top:0">📌 任务计划（'+planTasks.length+'）</h3>';
+      h+='<h3 class="mt0" >📌 任务计划（'+planTasks.length+'）</h3>';
       h+='<table><tr><th>项目</th><th>任务名称</th><th>开始时间</th><th>状态</th><th>实际完成工时</th></tr>';
       planTasks.forEach(function(t){
         var st=taskStatus(t);
         var stTxt=t.start && t.start.slice(0,10)===ds ? '<b>'+esc(t.start.replace("T"," ").slice(11))+'</b>' : '<span class="muted">—</span>';
-        h+='<tr'+(t.urgent?' style="background:var(--err-l)"':'')+'><td>'+esc(t.project)+'</td><td>'+esc(t.name)+(t.urgent?' <span class="badge err">⚡紧急</span>':'')+'</td><td>'+stTxt+'</td>'+
+        h+='<tr'+(t.urgent?' class="bg-err-l"':'')+'><td>'+esc(t.project)+'</td><td>'+esc(t.name)+(t.urgent?' <span class="badge err">⚡紧急</span>':'')+'</td><td>'+stTxt+'</td>'+
            '<td><span class="badge '+st.badge+'">'+st.label+'</span></td>'+
            '<td><b>'+sumH(taskHours(t.id))+' 小时</b></td></tr>';
       });
@@ -1972,12 +1862,12 @@ function selectDay(ds){
     }
     if(dayEntries.length>0){
       var total=dayEntries.reduce(function(s,e){return s+(+e.hours||0);},0);
-      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）<span class="muted" style="font-weight:400;font-size:12px">　单击编辑 · 双击任意单元格可复制其内容</span></h3>';
+      h+='<h3>📝 当天日报（'+dayEntries.length+' 条，共 '+sumH(total)+' 小时）<span class="muted note-weak" >　单击编辑 · 双击任意单元格可复制其内容</span></h3>';
       h+='<table><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
       dayEntries.forEach(function(e){
-        h+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',false)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
+        h+='<tr class="pointer"  onclick="calRowClick(\''+e.id+'\',false)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
            '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td>'+
-           '<td style="white-space:nowrap;color:var(--main)">✏️ 编辑</td></tr>';
+           '<td class="nowrap-main" >✏️ 编辑</td></tr>';
       });
       h+='</table>';
     }
@@ -1995,38 +1885,42 @@ function openDayEntriesModal(ds){
   if(!entries.length){ toast("当天没有日报"); return; }
   var total=entries.reduce(function(s,e){ return s+(+e.hours||0); },0);
   var wd=["日","一","二","三","四","五","六"][new Date(ds+"T00:00:00").getDay()];
-  var body='<div style="margin-bottom:8px;color:var(--sub)">共 '+entries.length+' 条日报，'+sumH(total)+' 小时。单击任意一行可编辑；<b>双击任意单元格可复制该单元格内容</b>。</div>'+
-    '<table style="width:100%"><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
+  var body='<div class="mb8-sub" >共 '+entries.length+' 条日报，'+sumH(total)+' 小时。单击任意一行可编辑；<b>双击任意单元格可复制该单元格内容</b>。</div>'+
+    '<table class="w-full" ><tr><th>项目</th><th>任务</th><th>工时</th><th>工作内容</th><th></th></tr>';
   entries.forEach(function(e){
-    body+='<tr style="cursor:pointer" onclick="calRowClick(\''+e.id+'\',true)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
+    body+='<tr class="pointer"  onclick="calRowClick(\''+e.id+'\',true)" title="单击编辑该条日报 · 双击单元格可复制其内容">'+
       '<td>'+esc(e.project)+'</td><td>'+esc(taskName(e.taskId)||"—")+'</td><td>'+esc(e.hours)+'</td>'+
-      '<td>'+esc(e.work)+'</td><td style="white-space:nowrap">✏️ 编辑</td></tr>';
+      '<td>'+esc(e.work)+'</td><td class="nowrap" >✏️ 编辑</td></tr>';
   });
   body+='</table>';
   var foot='<button class="btn gray" onclick="closeModal()">关闭</button>';
-  openModal(ds+" 星期"+wd+" · 当天日报", body, foot);
+  openModal(ds+" 星期"+wd+((ds===today())?"（今天）":dayBadge(ds))+" · 当天日报", body, foot);
 }
 window.openDayEntriesModal=openDayEntriesModal;
 
+// 工作日判定（稳定契约面：函数名与 window.isWorkday 导出均不变，签名 (dateStr) 不变）。
+// 语义升级：普通周一~周五 与 调休上班日 都算工作日；法定节假日与普通周末不算。
+// 统一走 dateType()，保证「日历渲染 / 出勤统计 / 缺报提醒」三处判定同源。
 function isWorkday(dateStr){
-  var d=new Date(dateStr+"T00:00:00");
-  var wd=d.getDay();
-  return wd>=1 && wd<=5;
+  var t=dateType(dateStr).type;
+  return t==="workday" || t==="makeup";
 }
 window.isWorkday=isWorkday;
 
-// 工作日日报未填写提醒：今天/昨天是工作日且未填 → 显示横幅
+// 工作日日报未填写提醒：今天/昨天是工作日且未填 → 显示横幅。
+// 节假日判定已升级：法定节假日不提醒；调休上班日照常提醒，并在标题点明是「调休上班日」。
 function checkDailyReminder(){
   var el=document.getElementById("daily_reminder"); if(!el) return;
   var t=today();
   var list=getEntries();
   var hasToday=list.some(function(e){ return e.date===t; });
   if(isWorkday(t) && !hasToday){
+    var dt=dateType(t);
     var y=new Date(); y.setDate(y.getDate()-1);
     var yStr=iso(y);
     var hasYesterday=list.some(function(e){ return e.date===yStr; });
     var yMsg = (isWorkday(yStr)&&!hasYesterday) ? "昨天（"+yStr+"）也是工作日且未填写。" : "";
-    document.getElementById("rm_title").textContent="今天（"+t+"）是工作日，还未填写日报！";
+    document.getElementById("rm_title").textContent="今天（"+t+"）是"+(dt.type==="makeup"?(dt.name+"调休上班日"):"工作日")+"，还未填写日报！";
     document.getElementById("rm_sub").textContent=yMsg?("💡 "+yMsg+" 建议现在补上，以便周报/月报自动汇总。"):"填写后本提醒自动消失。";
     el.style.display="flex";
   }else{
@@ -2062,8 +1956,9 @@ function refreshDaily(){
   statHtml+='<div class="item">出勤天数：<b>'+dates.length+'</b></div>';
   statHtml+='<div class="item">本月总工时：<b>'+sumH(sumHours(monthList))+' 小时</b></div>';
   statHtml+='<div class="item">工作日应出勤：<b>'+att.workdays+'</b> 天</div>';
-  statHtml+='<div class="item">工作日缺报：<b>'+(att.missing>0?'<span style="color:var(--err)">'+att.missing+'</span>':0)+'</b> 天</div>';
-  statHtml+='<div class="item">周六日休息：<b>'+att.weekends+'</b> 天</div>';
+  statHtml+='<div class="item">工作日缺报：<b>'+(att.missing>0?'<span class="c-err" >'+att.missing+'</span>':0)+'</b> 天</div>';
+  statHtml+='<div class="item">休息日（周末+法定节假日）：<b>'+att.weekends+'</b> 天</div>';
+  statHtml+='<div class="item">其中法定节假日：<b>'+att.holidays+'</b> 天 · 调休上班：<b>'+att.makeupDays+'</b> 天</div>';
   document.getElementById("month_stat").innerHTML=statHtml;
 
   var box=document.getElementById("daily_list");
@@ -2076,7 +1971,7 @@ function refreshDaily(){
     var tk=e.taskId?getTask(e.taskId):null;
     var tnHtml = tn ? (tk&&tk.done?'<span class="badge ok" title="已完成">✓ '+esc(tn)+'</span>':'<span class="badge info">'+esc(tn)+'</span>') : '<span class="muted">—</span>';
     h+='<tr><td>'+esc(e.date)+'</td><td>'+esc(e.project)+'</td><td>'+tnHtml+'</td><td class="num">'+esc(e.hours)+'</td><td>'+esc(e.work)+'</td><td>'+esc(e.plan||"")+'</td><td>'+esc(e.remark||"")+'</td>'+
-       '<td style="white-space:nowrap"><button class="btn gray sm" onclick="editEntry(\''+e.id+'\')">编辑</button> <button class="btn danger sm" onclick="delEntry(\''+e.id+'\')">删</button></td></tr>';
+       '<td class="nowrap" ><button class="btn gray sm" onclick="editEntry(\''+e.id+'\')">编辑</button> <button class="btn danger sm" onclick="delEntry(\''+e.id+'\')">删</button></td></tr>';
   });
   h+='</table>';
   box.innerHTML=h;
@@ -2084,32 +1979,40 @@ function refreshDaily(){
   checkDailyReminder();
 }
 
+// 出勤 / 缺报统计（唯一实现）。语义（2026-09 起）：
+//   workdays    应出勤天数 = 普通工作日 + 调休上班日（法定节假日不计）
+//   weekends    休息日天数 = 普通周末 + 法定节假日（**字段名保留以免破坏消费点，语义已扩展**）
+//   weekendWork 休息日加班天数 = 休息日里有日报的天数（调休上班日不算加班）
+//   holidays    其中法定节假日天数        makeupDays 其中调休上班天数
+//   normalWeekends 其中普通周末天数       passedWorkdays 到今天为止已到来的应出勤日数
 function attendance(monthList, ym){
   var y=+ym.slice(0,4), m=+ym.slice(5,7);
   var daysInMonth=new Date(y,m,0).getDate();
   var workdays=0, weekends=0, weekendWork=0, workDates={};
+  var holidays=0, makeupDays=0, normalWeekends=0;
   monthList.forEach(function(e){ workDates[e.date]=1; });
   for(var d=1; d<=daysInMonth; d++){
-    var dt=new Date(y,m-1,d); var wd=dt.getDay();
     var key=ym+"-"+String(d).padStart(2,"0");
-    if(wd===0||wd===6){ weekends++; if(workDates[key]) weekendWork++; }
-    else workdays++;
+    var tp=dateType(key).type;
+    if(tp==="holiday"){ holidays++; weekends++; if(workDates[key]) weekendWork++; }
+    else if(tp==="makeup"){ makeupDays++; workdays++; }
+    else if(tp==="weekend"){ normalWeekends++; weekends++; if(workDates[key]) weekendWork++; }
+    else { workdays++; }
   }
   var submitted=0, missing=0, passedWorkdays=0;
   var tdy=today(); // 今天的日期（YYYY-MM-DD）
   for(var d2=1; d2<=daysInMonth; d2++){
-    var dt2=new Date(y,m-1,d2); var wd2=dt2.getDay();
-    if(wd2===0||wd2===6) continue;
     var key2=ym+"-"+String(d2).padStart(2,"0");
+    if(!isWorkday(key2)) continue; // 法定节假日与普通周末都不计应出勤（调休上班日算工作日，继续往下走）
     if(key2>tdy) break; // 还没到来的工作日不算缺报
     passedWorkdays++;
     if(workDates[key2]) submitted++; else missing++;
   }
-  return {workdays:workdays, submitted:submitted, missing:missing, weekends:weekends, weekendWork:weekendWork, passedWorkdays:passedWorkdays};
+  return {workdays:workdays, submitted:submitted, missing:missing, weekends:weekends, weekendWork:weekendWork, passedWorkdays:passedWorkdays,
+          holidays:holidays, makeupDays:makeupDays, normalWeekends:normalWeekends};
 }
 
 /* ================= 任务管理 ================= */
-var tk_editing=null;
 var tk_editing=null;
 
 // 打开任务弹框（id 为空=新增，有 id=编辑）
@@ -2124,7 +2027,7 @@ function openTaskModal(id){
   });
   var body='<div class="modal-row">'+
     '<div><label>所属项目</label><select id="tm_project">'+projOpts+'</select></div>'+
-    '<div style="flex:2"><label>任务名称</label><input type="text" id="tm_name" value="'+esc(t?t.name:"")+'" placeholder="如：补料申请流程开发"></div>'+
+    '<div class="col-2" ><label>任务名称</label><input type="text" id="tm_name" value="'+esc(t?t.name:"")+'" placeholder="如：补料申请流程开发"></div>'+
     '</div>'+
     '<div class="modal-row">'+
     '<div><label>计划开始时间（到点 Windows 提醒）</label><input type="datetime-local" id="tm_start" value="'+esc(t&&t.start||"")+'"></div>'+
@@ -2132,16 +2035,16 @@ function openTaskModal(id){
     '</div>'+
     '<div class="modal-row">'+
     '<div><label>实际完成时间（留空=进行中）</label><input type="date" id="tm_done" value="'+esc(t&&t.done||"")+'"></div>'+
-    (t&&!t.done?'<div style="display:flex;align-items:flex-end;padding-bottom:2px"><button class="btn green sm" onclick="markTaskDone()">✔ 标记完成</button></div>':'')+
+    (t&&!t.done?'<div class="fx-end-pb2" ><button class="btn green sm" onclick="markTaskDone()">✔ 标记完成</button></div>':'')+
     '</div>'+
-    '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;background:var(--err-l);border:1px solid var(--err-l);border-radius:6px;cursor:pointer">'+
+    '<label class="alert-err-inline" >'+
     '<input type="checkbox" id="tm_urgent"'+(t&&t.urgent?' checked':'')+'>'+
-    '<b style="color:var(--err)">⚡ 紧急任务（临时插入）</b>'+
-    '<span class="muted" style="font-size:12px">勾选后保存时，会检测与原计划的冲突并<u>自动顺延冲突任务的计划时间</u>（需填写计划开始 + 计划完成时间作为占用时段）</span>'+
+    '<b class="c-err" >⚡ 紧急任务（临时插入）</b>'+
+    '<span class="muted fs12" >勾选后保存时，会检测与原计划的冲突并<u>自动顺延冲突任务的计划时间</u>（需填写计划开始 + 计划完成时间作为占用时段）</span>'+
     '</label>'+
-    (t&&t.cancelled?'<div style="margin-top:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12.5px">该任务当前为<b>已取消</b>状态，保存后仍保持取消；如需恢复，请在任务列表点「↩ 恢复」。</div>':'')+
-    (t&&!t.cancelled&&!t.done?'<label style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer">'+
-      '<input type="checkbox" id="tm_cancel_here"> <span style="font-size:12.5px;color:var(--sub)">同时<b>取消此任务</b>（保存后自动重新排期）</span>'+
+    (t&&t.cancelled?'<div class="note-box" >该任务当前为<b>已取消</b>状态，保存后仍保持取消；如需恢复，请在任务列表点「↩ 恢复」。</div>':'')+
+    (t&&!t.cancelled&&!t.done?'<label class="note-box-row" >'+
+      '<input type="checkbox" id="tm_cancel_here"> <span class="fs125-sub" >同时<b>取消此任务</b>（保存后自动重新排期）</span>'+
     '</label>':'');
   var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
     '<button class="btn" onclick="saveTask()">'+(id?'💾 保存修改':'＋ 添加任务')+'</button>';
@@ -2445,9 +2348,9 @@ function renderTasks(){
     var st=taskStatus(t);
     var n=0; getEntries().forEach(function(e){ if(e.taskId===t.id) n++; });
     var startTxt=t.start?esc(t.start.replace("T"," ")):'<span class="muted">—</span>';
-    var urgentBadge=t.urgent?'<span class="badge err" style="margin-left:4px" title="临时插入的紧急任务">⚡紧急</span>':'';
-    var nameHtml='<span'+(t.cancelled?' style="text-decoration:line-through;color:var(--sub)"':'')+'>'+esc(t.name)+'</span>'+urgentBadge;
-    var rowBg=t.urgent?' style="background:var(--err-l)"':(t.cancelled?' style="opacity:.65"':'');
+    var urgentBadge=t.urgent?'<span class="badge err ml4"  title="临时插入的紧急任务">⚡紧急</span>':'';
+    var nameHtml='<span'+(t.cancelled?' class="strike"':'')+'>'+esc(t.name)+'</span>'+urgentBadge;
+    var rowBg=t.urgent?' class="bg-err-l"':(t.cancelled?' class="dim"':'');
     var act='';
     if(t.cancelled){
       act='<button class="btn gray sm" onclick="restoreTask(\''+t.id+'\')">↩ 恢复</button> <button class="btn danger sm" onclick="delTask(\''+t.id+'\')">删</button>';
@@ -2458,7 +2361,7 @@ function renderTasks(){
     }
     h+='<tr'+rowBg+'><td>'+esc(t.project)+'</td><td>'+nameHtml+'</td><td>'+startTxt+'</td><td>'+(t.plan?esc(t.plan):'<span class="muted">—</span>')+'</td><td>'+(t.done?esc(t.done):'<span class="muted">—</span>')+'</td>'+
        '<td><span class="badge '+st.badge+'">'+st.label+'</span></td><td class="num"><b>'+sumH(taskHours(t.id))+' 小时</b></td><td class="num">'+n+' 条</td>'+
-       '<td style="white-space:nowrap">'+act+'</td></tr>';
+       '<td class="nowrap" >'+act+'</td></tr>';
   });
   h+='</table>';
   box.innerHTML=h;
@@ -2716,6 +2619,384 @@ function downloadWeekly(kind){
 window.downloadWeekly=downloadWeekly;
 
 /* ================= 月度考核报表 ================= */
+/* ================= 月报模板（用户自建）与分段提示词（task-21） =================
+ * 用户需求：月报的 AI 套模板功能 —— 用户导入/输入参考模板 → AI 提炼分段提示词 → 用户可逐条改 →
+ *           生成时结合实际任务与日报数据生成实际月报。
+ * 数据模型（契约见 CONTRACTS §3.9）：
+ *   jzd_month_templates_v1 = [{id,name,sourceName,source,srcSig,parsedSig,sections:[{name,prompt}],order}]
+ *   jzd_month_active_v1    = "<模板 id>"（空 / id 已失效 → 走规则版 buildOKR）
+ *   jzd_month_ai_v1        = {month,text,sig,tplId,tplSig}  ← 生成结果缓存，四者全等才命中
+ * 口径（用户已拍板，勿改）：
+ *   ① 模板列表**初始为空、不预置任何模板**；② 重新解析**只能手动触发**，AI 绝不自动覆盖用户改过的提示词；
+ *   ③ 旧键 jzd_tpl_okr_v1 / jzd_tpl_score_v1 **不迁移**（本模块完全不读它们）。
+ */
+var MONTH_TPL_KEY="jzd_month_templates_v1";
+var MONTH_TPL_ACTIVE_KEY="jzd_month_active_v1";
+var MONTH_AI_KEY="jzd_month_ai_v1";
+
+// 轻量指纹（djb2 → base36），用于 source / sections 的变更判断
+function monthSig(str){
+  var s=String(str==null?"":str), h=5381, i;
+  for(i=0;i<s.length;i++){ h=((h*33)^s.charCodeAt(i))>>>0; }
+  return h.toString(36);
+}
+function monthSrcSig(source){ return monthSig("src:"+String(source||"")); }
+// 模板「提示词指纹」：sections（段落名+提示词，顺序敏感）+ parsedSig（上次提炼时的源版本）
+function monthTplSig(tpl){
+  if(!tpl) return "";
+  var parts=(tpl.sections||[]).map(function(s){ return String((s&&s.name)||"")+"\u0001"+String((s&&s.prompt)||""); });
+  return monthSig("tpl:"+String(tpl.parsedSig||"")+"\u0002"+parts.join("\u0003"));
+}
+function getMonthTpls(){
+  try{ var a=JSON.parse(localStorage.getItem(MONTH_TPL_KEY)); return Array.isArray(a)? a : []; }catch(e){ return []; }
+}
+function saveMonthTpls(arr){
+  lsSet(MONTH_TPL_KEY, JSON.stringify(arr||[]));
+  pushStateDebounced();               // 与周报 saveWkSections 同款：显式请求推送
+  return arr;
+}
+function getMonthActiveId(){ return String(localStorage.getItem(MONTH_TPL_ACTIVE_KEY)||""); }
+function setMonthActiveId(id){
+  lsSet(MONTH_TPL_ACTIVE_KEY, String(id||""));
+  pushStateDebounced();
+}
+function monthTplById(id){
+  var arr=getMonthTpls();
+  for(var i=0;i<arr.length;i++){ if(arr[i] && arr[i].id===String(id)) return arr[i]; }
+  return null;
+}
+// 当前选中模板（未选中 / id 已失效 → null ⇒ 规则版兜底）
+function getMonthActiveTpl(){ var id=getMonthActiveId(); return id? monthTplById(id) : null; }
+// 「源已更新」判断：有源且 srcSig ≠ parsedSig → 提示用户手动「🔄 重新解析」
+function monthTplStale(tpl){ return !!(tpl && String(tpl.source||"").trim() && String(tpl.srcSig||"")!==String(tpl.parsedSig||"")); }
+// 生成结果缓存：month + sig(数据) + tplId + tplSig(提示词) 四者全等才命中；缺 tplSig 视为未命中（老记录自动失效）
+function readMonthAiCache(mo, tpl){
+  try{
+    var c=JSON.parse(localStorage.getItem(MONTH_AI_KEY)||"null");
+    if(!c || c.month!==mo) return null;
+    if(!c.tplId || !c.tplSig) return null;
+    if(c.tplId!==String(tpl&&tpl.id||"")) return null;
+    if(c.tplSig!==monthTplSig(tpl)) return null;
+    if(c.sig!==aiMonthTaskSig(mo)) return null;
+    return c.text||null;
+  }catch(e){ return null; }
+}
+function writeMonthAiCache(mo, tpl, text){
+  lsSet(MONTH_AI_KEY, JSON.stringify({month:mo, text:text, sig:aiMonthTaskSig(mo), tplId:String(tpl&&tpl.id||""), tplSig:monthTplSig(tpl)}));
+  pushStateDebounced();
+}
+/* 容错解析 AI 提炼返回的分段 JSON：
+ *   ① 标准 `[{name,prompt}]`；② 带 ```json 围栏；③ 前后带解释文字；④ 非法 JSON。
+ *   解析失败**不得清空已有 sections**（调用方负责保留），这里只返回 ok/err。
+ *   另容错字段别名 name|title|section，prompt|requirement|desc（模型常见漂移）。 */
+function parseSectionsReply(txt){
+  var raw=String(txt==null?"":txt).trim();
+  if(!raw) return {ok:false, err:"AI 返回为空"};
+  var unfenced=raw.replace(/^\s*```[a-zA-Z]*\s*/,"").replace(/\s*```\s*$/,"").trim();   // 剥 Markdown 围栏
+  var cand=[unfenced, raw];
+  [[unfenced,"["], [raw,"["]].forEach(function(pair){
+    var s=pair[0], i0=s.indexOf("["), i1=s.lastIndexOf("]");
+    if(i0>=0 && i1>i0) cand.push(s.slice(i0, i1+1));                                      // 花括号/废话切片
+  });
+  for(var i=0;i<cand.length;i++){
+    var arr=null;
+    try{ arr=JSON.parse(cand[i]); }catch(e){}
+    if(!Array.isArray(arr)) continue;
+    var out=[];
+    arr.forEach(function(o){
+      if(!o || typeof o!=="object") return;
+      var nm=String(o.name!=null?o.name:(o.title!=null?o.title:(o.section!=null?o.section:""))).trim();
+      var pm=String(o.prompt!=null?o.prompt:(o.requirement!=null?o.requirement:(o.desc!=null?o.desc:""))).trim();
+      if(nm) out.push({name:nm, prompt:pm});
+    });
+    if(out.length) return {ok:true, sections:out};
+    return {ok:false, err:"JSON 可解析但没有可用段落（缺少 name）"};
+  }
+  return {ok:false, err:"无法解析为 JSON 数组"};
+}
+window.getMonthTpls=getMonthTpls; window.saveMonthTpls=saveMonthTpls;
+window.getMonthActiveTpl=getMonthActiveTpl; window.getMonthActiveId=getMonthActiveId;
+window.setMonthActiveId=setMonthActiveId; window.monthTplSig=monthTplSig;
+window.monthTplStale=monthTplStale; window.parseSectionsReply=parseSectionsReply;
+window.readMonthAiCache=readMonthAiCache; window.writeMonthAiCache=writeMonthAiCache;
+
+/* ---------- 月报模板列表 / 分段提示词编辑器（交互形态沿用周报 wk_sec_list） ---------- */
+function monthTplIdNew(){
+  var id="mt_"+Date.now();
+  while(monthTplById(id)) id="mt_"+(Number(String(id).replace("mt_",""))+1);
+  return id;
+}
+// 模板列表 + 编辑区渲染（每次渲染都以「存储」为准；调用方若要保留正在编辑的内容，先 syncMonthTplFromDom()）
+function renderMonthTplList(){
+  var box=document.getElementById("mo_tpl_list");
+  if(!box) return;
+  var arr=getMonthTpls();
+  var actId=getMonthActiveId();
+  var h='<table><tr><th class="w-160" >模板名称</th><th class="w-90" >段落数</th><th class="w-170" >参考原文</th><th class="w-110" >状态</th><th>操作</th></tr>';
+  if(!arr.length){
+    h+='<tr><td colspan="5" class="muted" >（还没有模板）可点下方「➕ 新建模板」，或直接在下面生成<b>规则版月报</b>。</td></tr>';
+  }
+  arr.forEach(function(t){
+    var isAct=(t.id===actId), n=(t.sections||[]).length, stale=monthTplStale(t), hasSrc=!!String(t.source||"").trim();
+    h+='<tr>'+
+      '<td>'+esc(t.name||"（未命名）")+'</td>'+
+      '<td>'+n+' 段'+(n?'':' <span class="c-err" >未提炼</span>')+'</td>'+
+      '<td>'+(hasSrc? ('已导入 '+(t.sourceName? esc(t.sourceName) : "（手工输入）")) : '<span class="muted" >无</span>')+'</td>'+
+      '<td>'+(isAct? '✅ 当前选中' : '')+(stale? ' <span class="c-err" >源已更新</span>' : '')+'</td>'+
+      '<td>'+(isAct? '' : '<button class="btn green sm" onclick="selectMonthTpl(\''+t.id+'\')">选中</button> ')+
+        '<button class="btn gray sm" onclick="moveMonthTpl(\''+t.id+'\',-1)">⬆</button> '+
+        '<button class="btn gray sm" onclick="moveMonthTpl(\''+t.id+'\',1)">⬇</button> '+
+        '<button class="btn gray sm" onclick="delMonthTpl(\''+t.id+'\')">🗑 删除</button></td>'+
+      '</tr>';
+  });
+  box.innerHTML=h+'</table>';
+  var hint=document.getElementById("mo_tpl_hint");
+  if(hint) hint.textContent=arr.length? ("共 "+arr.length+" 个模板"+ (actId? "，当前选中："+(getMonthActiveTpl()||{}).name : "")) : "（模板列表为空）";
+  // 「📥 导入旧版模板（一次性）」：**不自动迁移**（用户决策 8），但检测到用户在旧版里导入过 AI 模板文本时给一个手动入口，
+  // 避免他刚导进去的模板在新版本里"消失"。仅当 jzd_tpl_okr_v1.mode==="ai" 且 text 非空时可见。
+  var lb=document.getElementById("btn_mo_import_legacy");
+  if(lb){ var lg=getTpl(TPL_OKR); lb.style.display=((lg && lg.mode==="ai" && String(lg.text||"").trim())? "" : "none"); }
+  // 编辑区：只有「已选中且模板存在」时展开
+  var act=getMonthActiveTpl();
+  var ed=document.getElementById("mo_tpl_editor");
+  if(ed) ed.style.display=act? "" : "none";
+  if(act){
+    var nm=document.getElementById("mo_tpl_name"); if(nm && nm.value!==String(act.name||"")) nm.value=String(act.name||"");
+    var sn=document.getElementById("mo_tpl_srcname"); if(sn) sn.value=String(act.sourceName||"（手工输入）");
+    var sc=document.getElementById("mo_tpl_source");
+    if(sc && sc.value!==String(act.source||"") && document.activeElement!==sc) sc.value=String(act.source||"");
+    renderMonthSections();
+  }
+  // 「源已更新 / 尚未提炼」提示
+  var st=document.getElementById("mo_tpl_stale");
+  if(st){
+    if(!act){ st.style.display="none"; st.textContent=""; }
+    else if(monthTplStale(act)){ st.style.display="block"; st.textContent="⚠️ 模板原文已更新，提示词可能过期 —— 请点「🔄 重新解析」（AI 不会自动覆盖你改过的提示词）。"; }
+    else if(!(act.sections||[]).length){ st.style.display="block"; st.textContent="该模板还没有分段提示词：填入参考模板原文后点「🤖 AI 提炼提示词」，或直接在下方手动「➕ 添加段落」。"; }
+    else { st.style.display="none"; st.textContent=""; }
+  }
+}
+window.renderMonthTplList=renderMonthTplList;
+
+function renderMonthSections(){
+  var box=document.getElementById("mo_sec_list");
+  if(!box) return;
+  var act=getMonthActiveTpl();
+  var arr=(act&&act.sections)||[];
+  var h='<table><tr><th class="w-160" >段落名</th><th>撰写要求（提示词）</th><th class="w-90" >操作</th></tr>';
+  if(!arr.length){
+    h+='<tr><td colspan="3" class="muted" >（还没有段落）点「🤖 AI 提炼提示词」自动生成，或「➕ 添加段落」手动添加。</td></tr>';
+  }
+  arr.forEach(function(s,i){
+    h+='<tr>'+
+      '<td><input class="w-full" type="text" id="mo_sec_name_'+i+'" value="'+esc(s.name||"")+'" ></td>'+
+      '<td><textarea class="minh-58-full" id="mo_sec_prompt_'+i+'" placeholder="例：按项目分组汇总本月完成的工作，写清做了什么与关键结果，并标注来源（任务·已完成 日期 / 日报）">'+esc(s.prompt||"")+'</textarea></td>'+
+      '<td><button class="btn gray sm" onclick="delMonthSection('+i+')">🗑 删除</button></td>'+
+      '</tr>';
+  });
+  box.innerHTML=h+'</table>';
+  var hint=document.getElementById("mo_sec_hint");
+  if(hint) hint.textContent="共 "+arr.length+" 个段落";
+}
+
+// 把编辑区 DOM 同步回「当前选中模板」。silent=true 用于逐字 oninput（不重建列表，避免打断输入）
+function syncMonthTplFromDom(silent){
+  var act=getMonthActiveTpl();
+  if(!act) return null;
+  var ed=document.getElementById("mo_tpl_editor");
+  if(ed && ed.style.display==="none") return act;          // 编辑区不可见时不回写，避免用空值覆盖
+  var nm=document.getElementById("mo_tpl_name");
+  var sc=document.getElementById("mo_tpl_source");
+  var arr=getMonthTpls(), changed=false;
+  for(var i=0;i<arr.length;i++){
+    if(!arr[i] || arr[i].id!==act.id) continue;
+    if(nm && nm.value!==String(arr[i].name||"")){ arr[i].name=nm.value; changed=true; }
+    if(sc && sc.value!==String(arr[i].source||"")){
+      arr[i].source=sc.value;
+      arr[i].srcSig=monthSrcSig(sc.value);                  // 原文变了 → srcSig 变 → 与 parsedSig 不等 → 提示重新解析
+      changed=true;
+    }
+  }
+  if(changed){
+    saveMonthTpls(arr);
+    if(silent){                                            // 静默：只更新「源已更新」提示，不重建列表/不打断输入
+      var t=monthTplById(act.id), st=document.getElementById("mo_tpl_stale");
+      if(st && t){
+        if(monthTplStale(t)){ st.style.display="block"; st.textContent="⚠️ 模板原文已更新，提示词可能过期 —— 请点「🔄 重新解析」（AI 不会自动覆盖你改过的提示词）。"; }
+        else { st.style.display="none"; st.textContent=""; }
+      }
+    } else { renderMonthTplList(); }
+  }
+  return monthTplById(act.id);
+}
+window.syncMonthTplFromDom=syncMonthTplFromDom;
+
+// 「📥 导入旧版模板（一次性）」：把用户在旧版里导入/粘贴过的月报模板原文搬进新流程。
+// 设计取舍（Lead 口径）：**不自动迁移**（决策 8 字面意思）—— 必须用户手动点；但也不让用户的劳动成果丢掉。
+//   · 只取原文（source）+ 原文件名（sourceName），sections **留空**（由用户点「🤖 AI 提炼提示词」）；
+//   · 旧键**不删**（用户可在数据管理里自行清理）；· 按 srcSig **去重**，重复点击不会重复建模板。
+function importLegacyMonthTpl(){
+  var lg=getTpl(TPL_OKR);
+  var src=String((lg&&lg.text)||"");
+  if(!lg || lg.mode!=="ai" || !src.trim()){ toast("未检测到旧版 AI 模板内容"); return; }
+  var sig=monthSrcSig(src);
+  var arr=getMonthTpls();
+  for(var i=0;i<arr.length;i++){
+    if(arr[i] && arr[i].srcSig===sig){                       // 去重：同内容已导入过 → 直接选中它
+      setMonthActiveId(arr[i].id); renderMonthTplList(); renderMonthly();
+      toast("该旧模板已导入过（内容相同），已为你选中："+String(arr[i].name||""));
+      return;
+    }
+  }
+  var nt={id:monthTplIdNew(), name:"旧版 OKR 模板（已导入）", sourceName:String(lg.fileName||""), source:src,
+          srcSig:sig, parsedSig:"", sections:[], order:arr.length};
+  arr.push(nt);
+  saveMonthTpls(arr); setMonthActiveId(nt.id);
+  renderMonthTplList(); renderMonthly();
+  toast("✅ 已导入旧版模板原文（"+src.length+" 字符）—— 请点「🤖 AI 提炼提示词」生成分段提示词");
+}
+window.importLegacyMonthTpl=importLegacyMonthTpl;
+
+function syncMonthSectionsFromDom(){
+  var act=getMonthActiveTpl();
+  if(!act) return null;
+  var arr=(act.sections||[]).slice(), changed=false;
+  var all=getMonthTpls();
+  for(var i=0;i<arr.length;i++){
+    var n=document.getElementById("mo_sec_name_"+i), p=document.getElementById("mo_sec_prompt_"+i);
+    if(n && n.value!==String(arr[i].name||"")){ arr[i].name=n.value; changed=true; }
+    if(p && p.value!==String(arr[i].prompt||"")){ arr[i].prompt=p.value; changed=true; }
+  }
+  if(changed){
+    for(var k=0;k<all.length;k++){ if(all[k] && all[k].id===act.id){ all[k].sections=arr; break; } }
+    saveMonthTpls(all);
+  }
+  return arr;
+}
+window.syncMonthSectionsFromDom=syncMonthSectionsFromDom;
+
+function selectMonthTpl(id){
+  if(!monthTplById(id)){ toast("模板不存在或已删除"); return; }
+  setMonthActiveId(id);
+  renderMonthTplList(); renderMonthly();
+  toast("✅ 已选中模板："+((monthTplById(id)||{}).name||""));
+}
+function addMonthTpl(){
+  var arr=getMonthTpls();
+  var t={id:monthTplIdNew(), name:"月报模板 "+(arr.length+1), sourceName:"", source:"", srcSig:"", parsedSig:"", sections:[], order:arr.length};
+  arr.push(t);
+  saveMonthTpls(arr); setMonthActiveId(t.id);
+  renderMonthTplList(); renderMonthly();
+  toast("✅ 已新建模板，请粘贴/导入参考模板原文后点「🤖 AI 提炼提示词」");
+}
+function delMonthTpl(id){
+  var t=monthTplById(id); if(!t) return;
+  if(!confirm("确定删除模板「"+(t.name||"（未命名）")+"」？该模板的分段提示词会一起删除（不影响已生成的月报文本）。")) return;
+  var arr=getMonthTpls().filter(function(x){ return x && x.id!==id; });
+  saveMonthTpls(arr);
+  if(getMonthActiveId()===id) setMonthActiveId(arr.length? arr[0].id : "");
+  renderMonthTplList(); renderMonthly();
+  toast("🗑 已删除模板");
+}
+function moveMonthTpl(id, dir){
+  var arr=getMonthTpls();
+  var i=-1; for(var k=0;k<arr.length;k++){ if(arr[k] && arr[k].id===id){ i=k; break; } }
+  if(i<0) return;
+  var j=i+(dir<0?-1:1);
+  if(j<0 || j>=arr.length){ toast("已经到"+(dir<0?"顶":"底")+"了"); return; }
+  var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+  arr.forEach(function(t,k){ t.order=k; });
+  saveMonthTpls(arr);
+  renderMonthTplList();
+}
+function saveMonthSections(){
+  var act=getMonthActiveTpl();
+  if(!act){ toast("请先新建并选中一个模板"); return; }
+  syncMonthTplFromDom(true);
+  var arr=(syncMonthSectionsFromDom()||[]).filter(function(s){ return String((s&&s.name)||"").trim(); });
+  if(!arr.length){ toast("至少保留一个段落（段落名不能为空）"); return; }
+  var all=getMonthTpls();
+  for(var i=0;i<all.length;i++){ if(all[i] && all[i].id===act.id){ all[i].sections=arr; break; } }
+  saveMonthTpls(all);
+  renderMonthTplList(); renderMonthly();
+  toast("✅ 提示词已保存（"+arr.length+" 个段落）");
+}
+function addMonthSection(){
+  var act=getMonthActiveTpl();
+  if(!act){ toast("请先新建并选中一个模板"); return; }
+  var arr=act.sections||[];
+  arr.push({name:"新段落", prompt:""});
+  var all=getMonthTpls();
+  for(var i=0;i<all.length;i++){ if(all[i] && all[i].id===act.id){ all[i].sections=arr; break; } }
+  saveMonthTpls(all);
+  renderMonthTplList();
+}
+function delMonthSection(i){
+  var act=getMonthActiveTpl();
+  if(!act) return;
+  var arr=(act.sections||[]).slice();
+  if(!arr[i]) return;
+  if(!confirm("确定删除段落「"+(arr[i].name||"")+"」？")) return;
+  arr.splice(i,1);
+  var all=getMonthTpls();
+  for(var k=0;k<all.length;k++){ if(all[k] && all[k].id===act.id){ all[k].sections=arr; break; } }
+  saveMonthTpls(all);
+  renderMonthTplList();
+  toast("🗑 已删除段落");
+}
+// 导入模板文件：复用既有 unzipBuf/parseDocx/parseXlsx（.docx/.xlsx）与 FileReader（文本），写入当前模板的 source
+function importMonthTplFile(input){
+  var f=input.files && input.files[0];
+  if(!f) return;
+  var act=getMonthActiveTpl();
+  if(!act){ toast("请先「➕ 新建模板」并选中，再导入参考模板文件"); input.value=""; return; }
+  var isOffice=/\.(docx|xlsx)$/i.test(f.name);
+  var reader=new FileReader();
+  reader.onload=async function(ev){
+    try{
+      var txt="";
+      if(isOffice){
+        var entries=await unzipBuf(ev.target.result);
+        txt = /\.docx$/i.test(f.name) ? parseDocx(entries) : parseXlsx(entries);
+      } else {
+        txt = String(ev.target.result||"");
+      }
+      var all=getMonthTpls();
+      for(var i=0;i<all.length;i++){
+        if(all[i] && all[i].id===act.id){
+          all[i].source=txt; all[i].sourceName=f.name; all[i].srcSig=monthSrcSig(txt);
+          break;
+        }
+      }
+      saveMonthTpls(all);
+      renderMonthTplList();
+      toast("✅ 已导入 "+f.name+"（已解析 "+txt.length+" 字符，点「🤖 AI 提炼提示词」生成分段提示词）");
+    }catch(err){
+      toast("❌ 解析失败："+err.message);
+    }
+  };
+  if(isOffice){ reader.readAsArrayBuffer(f); } else { reader.readAsText(f, "utf-8"); }
+  input.value="";                                              // 允许重复导入同一文件
+}
+window.selectMonthTpl=selectMonthTpl; window.addMonthTpl=addMonthTpl;
+window.delMonthTpl=delMonthTpl; window.moveMonthTpl=moveMonthTpl;
+window.saveMonthSections=saveMonthSections; window.addMonthSection=addMonthSection;
+window.delMonthSection=delMonthSection; window.importMonthTplFile=importMonthTplFile;
+
+// 「📄 评分表（规则版）」：把规则版评分表渲染进唯一的预览容器。
+// 说明：评分表是另一种文书（无「未达成分析」栏目），故此处**不**跑 monthGapWarn，避免误报；
+//      月报（规则版 / AI 版）路径仍照常自检。
+function showMonthScoreCard(){
+  var mo=document.getElementById("mo_month").value||thisMonth();
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  var att=attendance(list, mo);
+  document.getElementById("mo_okr_preview").textContent=buildScoreCard(mo, list, att);
+  var w=document.getElementById("mo_okr_warn"); if(w){ w.style.display="none"; w.textContent=""; }
+  toast("已显示规则版评分表（可直接复制/下载）");
+}
+window.showMonthScoreCard=showMonthScoreCard;
+
 function renderMonthly(){
   var mo=document.getElementById("mo_month").value || thisMonth();
   document.getElementById("mo_month").value=mo;
@@ -2725,14 +3006,22 @@ function renderMonthly(){
   var dates=uniq(list.map(function(e){return e.date;}));
   var html='<div class="item">出勤天数：<b>'+dates.length+'</b> / 工作日应出勤 '+att.workdays+' 天</div>'+
            '<div class="item">总工时：<b>'+sumH(sumHours(list))+' 小时</b></div>'+
-           '<div class="item">工作日缺报：<b>'+(att.missing>0?'<span style="color:var(--err)">'+att.missing+'</span>':0)+'</b> 天</div>'+
-           '<div class="item">周六日休息：<b>'+att.weekends+'</b> 天</div>'+
+           '<div class="item">工作日缺报：<b>'+(att.missing>0?'<span class="c-err" >'+att.missing+'</span>':0)+'</b> 天</div>'+
+           '<div class="item">休息日（周末+法定节假日）：<b>'+att.weekends+'</b> 天</div>'+
+           '<div class="item">其中法定节假日：<b>'+att.holidays+'</b> 天 · 调休上班：<b>'+att.makeupDays+'</b> 天</div>'+
            '<div class="item">休息日加班：<b>'+att.weekendWork+'</b> 天</div>';
   document.getElementById("mo_att").innerHTML=html;
-  var scoreTpl=buildMonthlyTplText("score", mo, list, att);
-  var okrTpl=buildMonthlyTplText("okr", mo, list, att);
-  document.getElementById("mo_score_preview").textContent = (scoreTpl!=null) ? scoreTpl : buildScoreCard(mo, list, att);
-  document.getElementById("mo_okr_preview").textContent = (okrTpl!=null) ? okrTpl : buildOKR(mo, list, att);
+  // 单一预览容器 mo_okr_preview（契约）。取值优先级：
+  //   ① 已选中模板 + 该模板的生成结果缓存命中（month+sig+tplId+tplSig 四者全等）→ 显示 AI 生成的月报；
+  //   ② 否则 → 规则版 buildOKR（用户决策 7：无模板/AI 不可用时照样出正确月报，输出不得退化）。
+  // 「📄 评分表（规则版）」由 showMonthScoreCard() 临时改写同一容器。
+  var tpl=getMonthActiveTpl();
+  var cached=tpl? readMonthAiCache(mo, tpl) : null;
+  document.getElementById("mo_okr_preview").textContent = (cached!=null) ? cached : buildOKR(mo, list, att);
+  // 每次渲染都对当前显示的月报正文跑自检（覆盖规则版 / AI 缓存两条路径），
+  // 有遗留却漏写或写假结论时在预览区上方显示警告（silent：避免每次切换月份都弹 toast）
+  monthGapWarn(mo, document.getElementById("mo_okr_preview").textContent, true);
+  renderMonthTplList();
 }
 
 function buildScoreCard(mo, list, att){
@@ -2757,7 +3046,7 @@ function buildScoreCard(mo, list, att){
   ];
   rows.forEach(function(r){ out+=r[0]+"\t"+r[1]+"\t"+r[2]+"\t\t\n"; });
   out+="\n出勤情况（依据日报自动统计）：\n";
-  out+="本月工作日应出勤 "+att.workdays+" 天，实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；周六日休息 "+att.weekends+" 天"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n";
+  out+="本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n";
   out+="（若本月存在迟到、早退、请假、旷工，请在评分时按标准扣分）\n\n";
   out+="自我评价：\n\n";
   out+="考核人签名："+prof.name+"　　项目经理确认：　　事业部负责人确认：\n";
@@ -2767,42 +3056,59 @@ function buildScoreCard(mo, list, att){
 function buildOKR(mo, list, att){
   var prof=getProfile();
   var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
-  var g=groupByProject(list);
+  var mb=aiMonthProjectBuckets(mo, list);          // 任务 + 日报「并集」分桶（本月相关任务数降序）
+  var buckets=mb.buckets;                          // 并集全集：只用于「本月最大成果」的项目清单与明细
+  // 用户口径（2026-09-30 追加）：**只有「本月相关任务数 > 0」的项目才进 O 分档**；
+  // 「只有日报、没有任务」的项目不占 40/20/10，改由兜底 O 顶上，但仍出现在「本月最大成果」里（工作不被抹掉）
+  var scored=buckets.filter(function(b){ return b.taskCount>0; });
   var out="";
   out+=ym+"  "+prof.dept+"OKR绩效考核表\n";
   out+="姓名："+prof.name+"　　部门/事业部："+prof.dept+"　　岗位："+(prof.post||"开发工程师")+"\n\n";
   out+="一、OKR目标与关键结果（70分）\n\n";
 
-  function krBlock(no, project, weight, maxKrs){
-    var entries=g.map[project]||[];
-    var sents=uniq(entries.reduce(function(a,e){return a.concat(sentences(e.work));},[]));
-    out+="O"+no+"（"+weight+"分）　"+project+"\n";
-    if(sents.length){
-      sents.slice(0,maxKrs||6).forEach(function(s,i){
-        out+="KR"+(i+1)+": "+s+"\n";
-      });
-    } else {
-      out+="KR1: （本月暂无该项目的日报记录，待补充）\n";
+  var WEIGHT=[40,20,10], KRCAP=[6,3,3];
+  var awarded=0, oNo=0, usedTexts={};
+  // 每个 O 的 KR 行统一渲染：`KRn: <内容>　（<来源标签>）`；来源标签见 monthTaskTag / monthKrLines。
+  // 去重：同一条任务/日报句子已在前面某个 O 出现过的，不再重复占用后面的 O（兜底 O 会跨项目扫到重复内容）
+  function emitO(title, weight, maxKrs, candidates, emptyNote){
+    oNo++;
+    out+="O"+oNo+"（"+weight+"分）　"+title+"\n";
+    var krLines=(candidates||[]).filter(function(k){ return !usedTexts[k.text]; }).slice(0, maxKrs);
+    if(krLines.length){
+      krLines.forEach(function(k,i){ usedTexts[k.text]=1; out+="KR"+(i+1)+": "+k.text+"　（"+k.src+"）\n"; });
+      awarded+=weight;
+    }else{
+      out+="KR1: "+(emptyNote||"（本月无对应工作内容，不计分）")+"\n";
     }
     out+="\n";
   }
-  if(g.order.length===0){
-    out+="（本月暂无日报数据，请先在「日报录入」填写）\n\n";
-  } else if(g.order.length===1){
-    krBlock(1, g.order[0], 40, 6);
-    out+="O2（20分）　项目质量与线上稳定性保障\n";
-    out+="KR1: 持续修复线上问题，保障系统稳定运行，减少一线报障。\n\n";
-    out+="O3（10分）　客户沟通与跨项目协作\n";
-    out+="KR1: 及时响应客户需求与方案确认，保持与项目干系人的有效沟通。\n\n";
-  } else {
-    krBlock(1, g.order[0], 40, 6);
-    krBlock(2, g.order[1], 20, 3);
-    out+="O3（10分）　客户沟通与跨项目协作\n";
-    out+="KR1: 及时响应客户需求与方案确认，保持与项目干系人的有效沟通。\n";
-    if(g.order.length>2){ out+="KR2: 参与"+g.order.slice(2).join("、")+"等项目的支持与推进。\n"; }
-    out+="\n";
+
+  if(!buckets.length){
+    out+="（本月暂无日报与任务数据，请先在「日报录入」或「任务管理」填写）\n\n";
+  }else{
+    // 入围项目（本月相关任务数 > 0）按任务数降序拿 40/20/10（候选给足，由 emitO 按 KRCAP 截断）
+    scored.slice(0,3).forEach(function(b,i){ emitO(b.project, WEIGHT[i], KRCAP[i], monthKrLines(b, 12)); });
+    // 入围项目第 4 个起合并为「其他项目支持」；按用户口径不计入 70 分
+    if(scored.length>3){
+      var other=[];
+      scored.slice(3).forEach(function(b){
+        monthKrLines(b, 12).forEach(function(k){ other.push({text:"["+b.project+"] "+k.text, src:k.src}); });
+      });
+      out+="其他项目支持（不计入70分）　"+scored.slice(3).map(function(b){ return b.project; }).join("、")+"\n";
+      var otherRows=other.filter(function(k){ return !usedTexts[k.text]; }).slice(0,6);
+      if(otherRows.length){ otherRows.forEach(function(k,i){ usedTexts[k.text]=1; out+="KR"+(i+1)+": "+k.text+"　（"+k.src+"）\n"; }); }
+      else { out+="KR1: （本月无对应工作记录）\n"; }
+      out+="\n";
+    }
+    // 入围项目不足 3 个：补历史模板的兜底 O（第 1 档 20 分、第 2 档 10 分），只在确有对应内容时给分，不凭空凑。
+    // 注：0 个入围项目（只有日报、没有任何任务）时只能补 20+10，40 分档无「任务型 O」可归属 → 总计行会如实写明未分配分数。
+    var slots=3-scored.length;
+    if(slots>=2){ emitO("项目质量与线上稳定性保障", 20, 3, monthFallbackKrs("quality", mo, list), "（本月无质量/稳定性相关记录，不计分）"); }
+    if(slots>=1){ emitO("客户沟通与跨项目协作", 10, 3, monthFallbackKrs("collab", mo, list), "（本月无客户沟通/跨项目协作相关记录，不计分）"); }
   }
-  out+="OKR目标与关键结果总计：70 分\n\n";
+  out+=(awarded===70)
+    ? "OKR目标与关键结果总计：70 分\n\n"
+    : "OKR目标与关键结果总计："+awarded+" 分（另有 "+(70-awarded)+" 分因本月无对应工作内容不予分配）\n\n";
   out+="二、基础行为考核（30分）\n";
   out+="考勤\t考勤达标率 100%\t迟到/早退1次扣2分；旷工1次扣10分；出差按差旅制度执行\t10\n";
   out+="周报\t每周周报填写\t未提交周报每次扣1分\t10\n";
@@ -2811,61 +3117,53 @@ function buildOKR(mo, list, att){
   out+="三、加分项（≤10分，事业部负责人填写）\n";
   out+="加分原因：\n\n";
   out+="四、本月复盘（必填）\n";
-  var sentsAll=uniq(list.reduce(function(a,e){return a.concat(sentences(e.work));},[]));
-  var best=sentsAll.slice(0,3).map(clause).map(function(c){return c.t||c.r.slice(0,10);}).join("、");
-  out+="本月最大成果：本月围绕"+(g.order.join("、"))+"等项目开展工作，累计出勤"+att.submitted+"天、总工时"+sumH(sumHours(list))+"小时，重点完成"+(best||"各项既定任务")+"等工作，主要成果如下：\n";
-  g.order.forEach(function(p){
-    var es=g.map[p]||[];
-    out+="· "+p+"："+uniq(es.reduce(function(a,e){return a.concat(sentences(e.work));},[])).slice(0,5).join("；")+"。\n";
+  // 本月最大成果：项目清单取「任务 ∪ 日报」并集（含只派任务未记日报的项目）；项目明细任务优先、日报补充
+  var projNames=buckets.map(function(b){ return b.project; });
+  var sentsAll=uniq(list.reduce(function(a,e){ return a.concat(sentences(e.work)); },[]));
+  var best = sentsAll.length
+    ? sentsAll.slice(0,3).map(clause).map(function(c){ return c.t||c.r.slice(0,10); }).join("、")
+    : buckets.reduce(function(a,b){ return a.concat(b.tasks.slice(0,2).map(function(t){ return String(t.name||""); })); },[]).slice(0,3).join("、");
+  out+="本月最大成果：本月围绕"+(projNames.join("、")||"各项目")+"等项目开展工作，累计出勤"+att.submitted+"天、总工时"+sumH(sumHours(list))+"小时，重点完成"+(best||"各项既定任务")+"等工作，主要成果如下：\n";
+  buckets.forEach(function(b){
+    var segs=[];
+    b.tasks.slice(0,3).forEach(function(t){ segs.push(String(t.name||"")+"　（"+monthTaskTag(t)+"）"); });
+    uniq(b.entries.reduce(function(a,e){ return a.concat(sentences(e.work)); },[])).slice(0,3).forEach(function(s){ segs.push(s+"　（日报）"); });
+    out+="· "+b.project+"："+(segs.length? segs.join("；") : "本月无对应工作记录")+"。\n";
   });
-  out+="\n未达成目标分析：本月各项目关键结果均按计划推进并交付，未出现明显未达成项。\n";
-  out+="出勤情况：本月工作日应出勤 "+att.workdays+" 天，实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；周六日休息 "+att.weekends+" 天"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n\n";
-  out+="下月目标方向：\n1. \n2. \n\n";
+  out+="\n"+monthGapText(mo)+"\n";
+  out+="出勤情况：本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n\n";
+  out+=monthNextGoalText(mo)+"\n\n";
   out+="员工确认：　　事业部负责人确认：　　总经办确认：\n";
   return out;
 }
 
-function copyMonthlyScore(){ var t=document.getElementById("mo_score_preview").textContent; if(!t.trim()){toast("本月暂无数据");return;} copyText(t); }
+// task-21：月报合并为单页后 **mo_okr_preview 是唯一预览容器**，复制/下载一律读它。
+// 函数名与签名保持不变（契约面），内部实现已改。
+function copyMonthlyScore(){ var t=document.getElementById("mo_okr_preview").textContent; if(!t.trim()){toast("本月暂无数据");return;} copyText(t); }
 function copyMonthlyOKR(){ var t=document.getElementById("mo_okr_preview").textContent; if(!t.trim()){toast("本月暂无数据");return;} copyText(t); }
 window.copyMonthlyScore=copyMonthlyScore; window.copyMonthlyOKR=copyMonthlyOKR;
 
-function downloadMonthlyScore(kind){
-  var mo=document.getElementById("mo_month").value||thisMonth();
-  var b=monthBounds(mo);
-  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
-  var att=attendance(list, mo);
-  var text=previewOrCompute("mo_score_preview", function(){
-    var t=buildMonthlyTplText("score", mo, list, att);
-    return (t!=null)? t : buildScoreCard(mo, list, att);
-  });
-  var fname="月度绩效考核评分表-"+mo+"."+(kind==="md"?"md":"xls");
-  if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
-  else {
-    var rows=text.split("\n").map(function(line){ return "<tr>"+line.split("\t").map(function(c){return "<td>"+esc(c)+"</td>";}).join("")+"</tr>"; }).join("");
-    downloadText(fname, toExcelHtml("月度绩效考核评分表 "+mo, ['<table border="1">'+rows+'</table>']), "application/vnd.ms-excel;charset=utf-8");
-  }
-  toast("已下载 "+fname);
-}
-window.downloadMonthlyScore=downloadMonthlyScore;
-
+// 下载：容器里可能是 AI 月报 / 规则版月报 / 规则版评分表，故文件名统一用「月报-<月份>」，
+// 内容按容器实际文本导出（评分表那条路径保留同名函数以便契约不破，输出一致）。
 function downloadMonthlyOKR(kind){
   var mo=document.getElementById("mo_month").value||thisMonth();
   var b=monthBounds(mo);
   var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
   var att=attendance(list, mo);
-  var text=previewOrCompute("mo_okr_preview", function(){
-    var t=buildMonthlyTplText("okr", mo, list, att);
-    return (t!=null)? t : buildOKR(mo, list, att);
-  });
-  var fname="OKR绩效考核表-"+mo+"."+(kind==="md"?"md":"xls");
+  var text=previewOrCompute("mo_okr_preview", function(){ return buildOKR(mo, list, att); });
+  var fname="月报-"+mo+"."+(kind==="md"?"md":"xls");
   if(kind==="md"){ downloadText(fname, text, "text/markdown;charset=utf-8"); }
   else {
     var rows=text.split("\n").map(function(line){ return "<tr><td>"+esc(line)+"</td></tr>"; }).join("");
-    downloadText(fname, toExcelHtml("OKR绩效考核表 "+mo, ['<table border="1">'+rows+'</table>']), "application/vnd.ms-excel;charset=utf-8");
+    downloadText(fname, toExcelHtml("月报 "+mo, ['<table border="1">'+rows+'</table>']), "application/vnd.ms-excel;charset=utf-8");
   }
   toast("已下载 "+fname);
 }
 window.downloadMonthlyOKR=downloadMonthlyOKR;
+
+// 契约保留：签名 downloadMonthlyScore(kind) 不变，内部与 downloadMonthlyOKR 同源（都读唯一预览容器）
+function downloadMonthlyScore(kind){ return downloadMonthlyOKR(kind); }
+window.downloadMonthlyScore=downloadMonthlyScore;
 
 /* ================= AI 汇总（可选，OpenAI 兼容接口） ================= */
 /* ================= Word/Excel 模板引擎（纯前端 zip 解析） ================= */
@@ -3073,7 +3371,7 @@ var TPL_AI_SCORE="jzd_tpl_ai_score_v1";
 var TPL_AI_OKR="jzd_tpl_ai_okr_v1";
 
 function getTpl(key){ try{ return JSON.parse(localStorage.getItem(key))||{mode:"builtin", text:""}; }catch(e){ return {mode:"builtin", text:""}; } }
-function saveTpl(key, t){ localStorage.setItem(key, JSON.stringify(t)); pushStateDebounced(); }
+function saveTpl(key, t){ lsSet(key, JSON.stringify(t)); pushStateDebounced(); }
 
 // 周报/月报模板上下文数据
 function weeklyCtx(range, list){
@@ -3098,8 +3396,12 @@ function weeklyCtx(range, list){
   };
 }
 
+// 月报模板上下文（占位符模板用）。2026-09-30 起新增「月报任务联动」占位符，
+// 值全部来自 aiMonthTaskCtx(mo)，语义见 .dsh-workspace/skills/p3-ai「月报任务联动」。
 function monthlyCtx(mo, list, att){
   var prof=getProfile();
+  var tc=aiMonthTaskCtx(mo);
+  var mline=function(a){ return a.length? a.map(_taskFmt).join("\n") : "（无）"; };
   return {
     "姓名": prof.name, "部门": prof.dept, "岗位": prof.post,
     "月份": mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月",
@@ -3108,7 +3410,18 @@ function monthlyCtx(mo, list, att){
     "应出勤": String(att.workdays),
     "缺报天数": String(att.missing>0?att.missing:0),
     "总工时": sumH(sumHours(list))+" 小时",
-    "日报条数": String(list.length)
+    "日报条数": String(list.length),
+    "本月任务数": String(tc.thisMonth.length),
+    "本月任务明细": mline(tc.thisMonth),
+    "已完成任务": String(tc.doneThisMonth.length),
+    "未完成任务": String(tc.backlog.length),
+    "未完成任务明细": mline(tc.backlog),
+    "逾期任务": String(tc.overdue.length),
+    "逾期任务明细": mline(tc.overdue),
+    "下月计划": mline(tc.nextMonth),
+    // 2026-09-30 新增：规则版「未达成 / 下月目标」的同一实现，供占位符模板直接引用
+    "未达成分析": monthGapText(mo),
+    "下月目标": monthNextGoalText(mo)
   };
 }
 
@@ -3121,9 +3434,25 @@ function applyPlaceholders(tpl, ctx){
   return out;
 }
 
+// type → localStorage key 的**白名单**映射。
+// task-21 起月报已改为「用户自建模板（jzd_month_templates_v1）+ AI 提炼分段提示词」新流程，
+// 'score' / 'okr' 的旧模板 UI 已移除；这里保留这两个映射，只为兼容既有 TPL_SCORE/TPL_OKR 记录
+// 以及**保留下来**的 aiApply('score'|'okr') 回退分支（Lead 决策：不让用户能力倒退）。
+// 未知 type 一律返回 null，由调用方显式 return —— 不再用「if(el) 静默跳过」掩盖问题。
+function tplKeyByType(type){
+  if(type==="weekly") return TPL_WEEK;
+  if(type==="score")  return TPL_SCORE;
+  if(type==="okr")    return TPL_OKR;
+  return null;
+}
+// 月报旧模板 UI 是否还在（task-21 后为 false）→ 三个模板函数据此显式收尾，避免沉默失败
+function tplDomMissing(type){ return type!=="weekly" && !document.getElementById("tpl_text_"+type) && !document.getElementById("tpl_mode_"+type); }
+
 // 保存模板模式
 function setTplMode(type, mode){
-  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var key=tplKeyByType(type);
+  if(!key){ console.warn("[tpl] 未知模板类型，忽略 setTplMode："+type); return; }
+  if(tplDomMissing(type)){ console.warn("[tpl] "+type+" 的模板 UI 已随 task-21 移除，setTplMode 不再有任何界面效果（仅保留旧数据兼容）"); return; }
   var t=getTpl(key); t.mode=mode; saveTpl(key,t);
   var sel=document.getElementById("tpl_mode_"+type); if(sel) sel.value=mode;
   var tplBox=document.getElementById("tpl_text_"+type); if(tplBox) tplBox.style.display=(mode==="builtin"?"none":"");
@@ -3152,7 +3481,9 @@ window.setTplMode=setTplMode;
 
 // 保存模板文本
 function saveTplText(type){
-  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var key=tplKeyByType(type);
+  if(!key){ console.warn("[tpl] 未知模板类型，忽略 saveTplText："+type); return; }
+  if(tplDomMissing(type)){ console.warn("[tpl] "+type+" 的模板 UI 已随 task-21 移除，saveTplText 无对应输入框"); return; }
   var t=getTpl(key);
   t.text=document.getElementById("tpl_text_"+type).value;
   saveTpl(key,t);
@@ -3163,7 +3494,10 @@ window.saveTplText=saveTplText;
 
 // 载入模板文本到编辑区
 function loadTpl(type){
-  var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
+  var key=tplKeyByType(type);
+  if(!key){ console.warn("[tpl] 未知模板类型，忽略 loadTpl："+type); return; }
+  // 月报旧模板 UI 已在 task-21 移除：显式返回（此前靠 if(el) 守卫会「不抛错但什么都不做」= 沉默失败）
+  if(tplDomMissing(type)) return;
   var t=getTpl(key);
   var sel=document.getElementById("tpl_mode_"+type); if(sel) sel.value=t.mode;
   var tplBox=document.getElementById("tpl_text_"+type); if(tplBox){ tplBox.value=t.text; tplBox.style.display=(t.mode==="builtin"?"none":""); }
@@ -3338,7 +3672,11 @@ function buildMonthlyTplText(type, mo, list, att){
   var ctx=monthlyCtx(mo, list, att);
   if(t.mode==="placeholder") return applyPlaceholders(t.text, ctx);
   var ai=JSON.parse(localStorage.getItem(type==="score"?TPL_AI_SCORE:TPL_AI_OKR)||"null");
-  return ai && ai.month===mo ? ai.text : null;
+  if(!(ai && ai.month===mo)) return null;
+  // 任务指纹校验（2026-09-30 新增）：sig 与当前月任务数据不一致 → 视为未命中，回落规则版。
+  // 缺失 sig 的旧格式缓存同样视为未命中（本环境这两个 key 从未写入过，故无历史包袱）。
+  if(ai.sig!==aiMonthTaskSig(mo)) return null;
+  return ai.text;
 }
 window.buildWeeklyTplText=buildWeeklyTplText;
 window.buildMonthlyTplText=buildMonthlyTplText;
@@ -3349,7 +3687,7 @@ function saveAI(){
   var a={base:document.getElementById("ai_base").value.trim()||"https://api.deepseek.com/v1",
          key:document.getElementById("ai_key").value.trim(),
          model:document.getElementById("ai_model").value.trim()||"deepseek-chat"};
-  localStorage.setItem(AIKEY, JSON.stringify(a));
+  lsSet(AIKEY, JSON.stringify(a));
   toast("✅ AI 设置已保存");
   pushStateDebounced();
 }
@@ -3431,17 +3769,17 @@ function renderAiImportPreview(){
   aiImpResult.forEach(function(x,i){
     // 已存在同日期同内容 → 标记重复
     var dup=getEntries().some(function(e){ return e.date===x.date && e.work===x.work; });
-    h+='<tr style="'+(x.date? '':'background:var(--err-l)')+'">'+
-      '<td><input type="date" value="'+(x.date||"")+'" onchange="aiImpFix('+i+',\'date\',this.value)" style="width:130px"></td>'+
-      '<td><input type="text" value="'+esc(x.project)+'" onchange="aiImpFix('+i+',\'project\',this.value)" style="width:100%"></td>'+
-      '<td><input type="number" min="0" max="24" step="0.5" value="'+(x.hours!=null?x.hours:"")+'" placeholder="必填" onchange="aiImpFix('+i+',\'hours\',this.value)" style="width:60px"></td>'+
+    h+='<tr class="'+(x.date? '':'bg-err-l')+'">'+
+      '<td><input class="w-130" type="date" value="'+(x.date||"")+'" onchange="aiImpFix('+i+',\'date\',this.value)" ></td>'+
+      '<td><input class="w-full" type="text" value="'+esc(x.project)+'" onchange="aiImpFix('+i+',\'project\',this.value)" ></td>'+
+      '<td><input class="w-60" type="number" min="0" max="24" step="0.5" value="'+(x.hours!=null?x.hours:"")+'" placeholder="必填" onchange="aiImpFix('+i+',\'hours\',this.value)" ></td>'+
       '<td>'+esc(x.work)+'</td>'+
       '<td>'+esc(x.plan||"")+'</td>'+
       '<td>'+esc(x.remark||"")+'</td>'+
       '<td>'+(dup?'<span class="badge warn">重复</span>':'')+'</td></tr>';
   });
   h+='</table>';
-  h+='<div class="muted" style="margin-top:6px;font-size:12px">⚠ 红色行缺日期、工时列空的需补填后再导入；标注「重复」的会自动跳过（同日同内容）。</div>';
+  h+='<div class="muted mt6-fs12" >⚠ 红色行缺日期、工时列空的需补填后再导入；标注「重复」的会自动跳过（同日同内容）。</div>';
   box.innerHTML=h;
   btn.style.display="";
   btn.textContent="✅ 确认导入（"+aiImpResult.length+" 条）";
@@ -3582,6 +3920,279 @@ function aiTaskContext(range, list){
 window.aiTaskContext=aiTaskContext; window.aiTaskCtx=aiTaskCtx;
 window.aiUndoneText=aiUndoneText; window.aiNextWeekText=aiNextWeekText; window.aiProgressText=aiProgressText;
 
+// ===== 月报任务数据上下文（供月报 AI 生成 / AI 润色复盘 / 占位符模板使用）=====
+// 与周报侧 aiTaskCtx() 对称，复用 _d10 / _planDate / _taskFmt / uniq（不另写日期或格式化逻辑）。
+// 语义定义：
+//   · 任务是否属于某月 → 双条件 `_d10(t.start)` **或** `_planDate(t)`（真实库 28 条任务只有 4 条有 start、
+//     26 条有 plan，只按 start 会漏掉 94% 的任务）。
+//   · 「完成月份」只看 `t.done`（真实库里 26 条任务的 done 都落在一个月内，而多数 start 为空）。
+//   · 「逾期」沿用周报侧语义（未完成 + 计划日期早于今天），但计划日期取 `_planDate(t) || _d10(t.start)` 双来源；
+//     `overdue` 恒为 `backlog` 的子集。
+//   · 「下月计划」双条件指向下月；「本月日报后续计划」取本月日报里 e.plan 非空的条目。
+function aiMonthTaskCtx(mo){
+  var b=monthBounds(mo);
+  var nb=monthBounds(shiftMonth(mo,1));
+  var tasks=getTasks().filter(function(t){ return t && !t.cancelled; });
+  var tdy=today();
+  var inM=function(d){ return !!d && d>=b.first && d<=b.last; };
+  var inN=function(d){ return !!d && d>=nb.first && d<=nb.last; };
+  var planD=function(t){ return _planDate(t) || _d10(t.start); }; // 计划日期（plan 优先，退到 start 的日期部分）
+  var thisMonth=tasks.filter(function(t){ return inM(_d10(t.start)) || inM(_planDate(t)); });
+  var doneThisMonth=tasks.filter(function(t){ return inM(_d10(t.done)); });
+  var undone=tasks.filter(function(t){ return !t.done; });
+  var backlog=undone.filter(function(t){ var d=planD(t); return inM(_d10(t.start)) || inM(_planDate(t)) || (!!d && d<b.first); });
+  var overdue=undone.filter(function(t){ var d=planD(t); return !!d && d<tdy; });
+  var nextMonth=tasks.filter(function(t){ return inN(_d10(t.start)) || inN(_planDate(t)); });
+  var entryPlans=getEntries().filter(function(e){ return inM(_d10(e.date)) && String(e.plan||"").trim(); });
+  return {all:tasks, thisMonth:thisMonth, doneThisMonth:doneThisMonth, undone:undone, backlog:backlog,
+          overdue:overdue, nextMonth:nextMonth, entryPlans:entryPlans,
+          monthFirst:b.first, monthLast:b.last, nextFirst:nb.first, nextLast:nb.last};
+}
+// 一行摘要（给占位符 {本月任务数} 之类做上下文说明时可用）
+function aiMonthTaskCountText(c){
+  return "本月任务 "+c.thisMonth.length+" 条（本月完成 "+c.doneThisMonth.length+" 条，未完成/遗留 "+c.backlog.length+" 条，其中逾期 "+c.overdue.length+" 条，下月计划 "+c.nextMonth.length+" 条）";
+}
+// 完整任务上下文（拼进发给 AI 的 user 串）
+function aiMonthTaskContext(mo, list){
+  var c=aiMonthTaskCtx(mo);
+  var out=[];
+  out.push("【本月任务（计划落在 "+c.monthFirst+" ~ "+c.monthLast+" 的任务，务必用于「本月工作/进展」类内容）】\n"+(c.thisMonth.length? c.thisMonth.map(_taskFmt).join("\n") : "（本月无任务计划）"));
+  out.push("【本月完成任务（完成日期落在本月的任务，务必用于「本月成果/复盘」）】\n"+(c.doneThisMonth.length? c.doneThisMonth.map(_taskFmt).join("\n") : "（本月无已完成任务）"));
+  out.push("【本月未完成任务（务必用于「未完成/遗留/待办」）】\n"+(c.backlog.length? c.backlog.map(_taskFmt).join("\n") : "（无未完成/遗留任务）"));
+  out.push("【逾期任务（务必用于判断风险与下月顺延）】\n"+(c.overdue.length? c.overdue.map(_taskFmt).join("\n") : "（无逾期任务）"));
+  out.push("【下月工作计划素材（务必用于生成「下月目标方向」，下月范围 "+c.nextFirst+" ~ "+c.nextLast+"）】\n"+(c.nextMonth.length? c.nextMonth.map(_taskFmt).join("\n") : "（任务管理中暂无下月计划任务）"));
+  var plans=c.entryPlans.map(function(e){ return "- "+e.date+"："+String(e.plan||"").trim(); });
+  out.push("【本月日报中记录的「明日/后续计划」】\n"+(plans.length? uniq(plans).slice(0,20).join("\n") : "（本月日报中未记录后续计划）"));
+  return out.join("\n\n");
+}
+// 月报缓存指纹：覆盖「本月相关任务 + 本月日报 + 遗留状态」，任一变化即视为未命中。
+//   (a) 任务：本月任务/本月完成/本月遗留/下月计划 的 id/done/plan/start/urgent；
+//   (b) 日报：本月日报的 date/project/hours/work —— 本次改动把内容来源扩到「任务+日报并集」，日报变化必须失效；
+//   (c) 遗留状态：gap=去重后遗留条数、od=逾期条数 —— 今日推进使任务"变逾期"时也会变化，避免假结论被缓存固化。
+// 月报「规则/提示词版本」：**每次修改月报的生成口径或 AI 提示词后必须递增**（r7 → r8 …）。
+// 它被拼进 aiMonthTaskSig，使「口径变了但数据没变」也能让月报 AI 缓存失效；
+// 否则用户机器上已缓存的旧月报会继续命中，用户会「改完了却看不到变化」（旧假结论被缓存固化）。
+// 沿革：r1=task-18 首版（无分量）｜r2=无任务项目不占 O 分档｜r3=MAJOR-1+OBS-1｜r4=无日期未完成只列当月及以后
+//       ｜r5=历史月份不列未来计划（月末守门）｜r6=task-21 月报重写（单页+自建模板+分段提示词）
+//       ｜**r7=表格型模板的格式约束（提炼侧 system ④ + 生成侧硬约束第 9 条，让表格型模板能把那张表拿回来）**。
+var MONTH_RULE_VER="r7";
+// 名称沿用 aiMonthTaskSig 以免破坏既有调用点与 CONTRACTS §3.9 登记（它已不只覆盖任务，属命名债，见技能文件）。
+function aiMonthTaskSig(mo){
+  var c=aiMonthTaskCtx(mo);
+  var b=monthBounds(mo);
+  var rows=[];
+  [c.thisMonth, c.doneThisMonth, c.backlog, c.nextMonth].forEach(function(a){
+    a.forEach(function(t){ rows.push("t:"+String(t.id||"")+":"+_d10(t.done)+":"+_planDate(t)+":"+_d10(t.start)+":"+(t.urgent?"1":"0")); });
+  });
+  getEntries().filter(function(e){ return inRange(e, b.first, b.last); }).forEach(function(e){
+    rows.push("e:"+_d10(e.date)+":"+String(e.project||"")+":"+String(e.hours==null? "" : e.hours)+":"+String(e.work||""));
+  });
+  rows=uniq(rows); rows.sort();
+  var gap=monthGapItems(mo);
+  var od=monthOverdueInScope(mo).length;      // 与 monthGapItems 同一月份守门（历史月份不列未来计划）
+  var head="m"+b.first+"#n"+rows.length+"#gap"+gap.length+"#od"+od+"#"+MONTH_RULE_VER+"#";
+  var s=head+rows.join("|");
+  var h=5381, i;
+  for(i=0;i<s.length;i++){ h=((h*33)^s.charCodeAt(i))>>>0; }
+  return head+h.toString(36);
+}
+window.aiMonthTaskCtx=aiMonthTaskCtx; window.aiMonthTaskContext=aiMonthTaskContext;
+window.aiMonthTaskSig=aiMonthTaskSig; window.aiMonthTaskCountText=aiMonthTaskCountText;
+
+/* ===== 月报「任务 + 日报并集」生成口径（规则版与 AI 版共用） =====
+ * 用户口径（2026-09-30 决策，勿自行更改）：
+ *   1) 主数据源 = 任务 + 日报「并集」，任务优先、日报补充，每条 KR 末尾标注来源（任务）/（日报）；
+ *   2) O 分数按任务数降序分 40/20/10（>3 个项目第 4 个起合并「其他项目支持」且不计分；<3 个用历史模板兜底 O，
+ *      但只在确有对应内容时给分，不凭空凑）；
+ *   3) 「未达成目标分析」「下月目标方向」自动填充，禁止写假结论（有遗留绝不写「未出现明显未达成项」）。
+ */
+// 项目分桶：项目集合 = 本月任务 ∪ 本月完成 ∪ 未完成/遗留 ∪ 下月计划 ∪ 本月日报；
+// 排序 = 本月相关任务数降序 → 日报条数降序 → 项目名（任务数取并集去重后条数，理由见 skills/p3-ai「月报任务联动」）
+function aiMonthProjectBuckets(mo, list){
+  var c=aiMonthTaskCtx(mo);
+  var map={}, order=[];
+  function ensure(p){
+    p=String(p||"未分类");
+    if(!map[p]){ map[p]={project:p, tasks:[], entries:[], taskCount:0, doneCount:0, entryCount:0}; order.push(p); }
+    return map[p];
+  }
+  function addTask(t){
+    var b=ensure(t.project);
+    if(b.tasks.indexOf(t)<0){ b.tasks.push(t); b.taskCount++; if(t.done) b.doneCount++; }
+  }
+  c.thisMonth.forEach(addTask); c.doneThisMonth.forEach(addTask);
+  c.backlog.forEach(addTask); c.nextMonth.forEach(addTask);
+  (list||[]).forEach(function(e){ var b=ensure(e.project); b.entries.push(e); b.entryCount++; });
+  var arr=order.map(function(p){ return map[p]; });
+  arr.forEach(function(b){
+    b.tasks.sort(function(x,y){
+      var dx=_planDate(x)||_d10(x.start)||"9999-99-99", dy=_planDate(y)||_d10(y.start)||"9999-99-99";
+      return dx<dy?-1:(dx>dy?1:0);
+    });
+  });
+  arr.sort(function(a,b){
+    return (b.taskCount-a.taskCount) || (b.entryCount-a.entryCount) || (a.project<b.project?-1:(a.project>b.project?1:0));
+  });
+  return {buckets:arr, ctx:c};
+}
+// 日报句子是否已被该项目任务覆盖（4 字连续子串命中即视为覆盖，用于「日报补充」去重）
+function monthKrCoveredByTask(sent, tasks){
+  var strip=function(x){ return String(x||"").replace(/[\s，,。；;：:、（）()【】\[\]"“”'‘’]/g,""); };
+  var s=strip(sent);
+  if(s.length<4) return false;
+  for(var i=0;i<tasks.length;i++){
+    var n=strip(tasks[i].name);
+    if(n.length<4){ if(n && s.indexOf(n)>=0) return true; continue; }
+    for(var j=0;j+4<=n.length;j++){ if(s.indexOf(n.substr(j,4))>=0) return true; }
+  }
+  return false;
+}
+// KR 来源标签（用户口径）：任务类 `任务·已完成 YYYY-MM-DD` / `任务·未完成`；日报类 `日报`
+function monthTaskTag(t){ return t.done? ("任务·已完成"+(t.done? " "+String(t.done) : "")) : "任务·未完成"; }
+// 单项目 KR 行：任务类**优先占满配额**（每条本月任务 = 1 条 KR），日报类只在「未满额且未被任务覆盖」时补空缺
+function monthKrLines(b, maxKrs){
+  var cap=maxKrs||6, lines=[];
+  b.tasks.forEach(function(t){
+    if(lines.length>=cap) return;
+    lines.push({text:String(t.name||""), src:monthTaskTag(t)});
+  });
+  var sents=uniq(b.entries.reduce(function(a,e){ return a.concat(sentences(e.work)); },[]));
+  sents.forEach(function(s){
+    if(lines.length>=cap) return;
+    if(monthKrCoveredByTask(s, b.tasks)) return;
+    lines.push({text:s, src:"日报"});
+  });
+  return lines;
+}
+// 兜底 O 的 KR（跨项目扫描）：quality=质量与稳定性；collab=客户沟通与跨项目协作。只在确有内容时返回非空
+// collab 里**不要**写裸「部门」：它会把「异常分析前加一个分析部门」这类**开发任务**吸进协作 O，导致标题与内容错配（OBS-1）。
+// 需要保留跨部门语义时用复合词「跨部门」（实测：裸「部门」命中 2 任务 + 8 日报句；「跨部门」命中 0 任务 + 5 日报句，且 5 条全是真·协作语义）。
+var MONTH_QUALITY_RE=/(修复|排查|BUG|bug|缺陷|故障|异常|报错|稳定|性能|优化|OOM|卡顿|泄漏|崩溃|兼容|热修|巡检)/;
+var MONTH_COLLAB_RE=/(客户|沟通|会议|对接|方案确认|确认方案|需求确认|协调|协作|配合|培训|汇报|干系人|现场|周会|评审|跨部门)/;
+function monthFallbackKrs(kind, mo, list){
+  var c=aiMonthTaskCtx(mo);
+  var re=(kind==="quality")? MONTH_QUALITY_RE : MONTH_COLLAB_RE;
+  var lines=[];
+  c.thisMonth.forEach(function(t){ if(re.test(String(t.name||""))) lines.push({text:String(t.name||""), src:monthTaskTag(t)}); });
+  var sents=uniq((list||[]).reduce(function(a,e){ return a.concat(sentences(e.work)); },[]));
+  sents.forEach(function(s){ if(re.test(s)) lines.push({text:s, src:"日报"}); });
+  var seen={}, out=[];
+  lines.forEach(function(k){ if(!seen[k.text]){ seen[k.text]=1; out.push(k); } });
+  return out;   // 返回全部去重候选，由 buildOKR 的 emitO 按配额截断（并顺带排除已在别的 O 出现过的条目）
+}
+// 月内范围守门：**计划日期晚于该月月末**的任务不属于该月（用户口径 2026-09-30：历史月份不列未来计划的任务）。
+// 取 `planD = _planDate(t) || _d10(t.start)`，与 aiMonthTaskCtx 内 `planD` 同口径；两者都空 → 不受此守门约束。
+function monthPlanInScope(t, b){ var pd=_planDate(t)||_d10(t.start); return !(pd && pd > b.last); }
+// 该月「范围内」的逾期 —— sig 的 `od` 与 monthGapItems 共用同一守门，避免两处口径分叉
+function monthOverdueInScope(mo){
+  var b=monthBounds(mo);
+  return aiMonthTaskCtx(mo).overdue.filter(function(t){ return monthPlanInScope(t, b); });
+}
+// 未达成项 = 逾期 ∪ 本月未完成/遗留 ∪ 「未完成且完全没填日期」的任务（去重）
+//   ——规则版、占位符（`{未达成分析}`）、AI 自检（validateMonthGap）**共用同一实现**，改这里三处同时生效。
+//   **三条来源各自的守门规则（勿混用）**：
+//     ① overdue（逾期）：要求 `planD <= 该月月末`。否则历史月份会把「计划晚于该月」的任务当成该月未达成
+//        （真实数据：2026-05/06/07/08 各混入 1 条计划 2026-09-22 的任务）。
+//     ② backlog（本月未完成/遗留）：**同一守门**。它有三条入口 ——
+//        `inM(_d10(start))`（开始在本月）|| `inM(_planDate(t))`（计划在本月）|| `d < b.first`（往月遗留）。
+//        其中 **`inM(start)` 这条会带入「开始在本月、计划却在更晚月份」的任务**（正是要收掉的「未来计划」）；
+//        另两条天然满足 `planD <= 月末`（`inM(plan)` 计划在本月内；`d < b.first` 更是早于本月），
+//        **所以同一守门不会误伤「往月遗留」**。
+//     ③ undone 且 `plan`/`start` 全空：没有月份归属 → 只在 `mo >= 当前月` 时纳入（r4 守门，**本轮守门不适用于它**）。
+function monthGapItems(mo){
+  var c=aiMonthTaskCtx(mo);
+  var b=monthBounds(mo);
+  var seen={}, out=[];
+  var effMonth=String(today()).slice(0,7);
+  var noDate=(String(mo)>=effMonth)
+    ? (c.undone||[]).filter(function(t){ return !_planDate(t) && !_d10(t.start); })
+    : [];
+  var dated=c.overdue.concat(c.backlog).filter(function(t){ return monthPlanInScope(t, b); });
+  dated.concat(noDate).forEach(function(t){
+    var k=String(t.id||t.name||"");
+    if(!k || seen[k]) return;
+    seen[k]=1; out.push(t);
+  });
+  return out;
+}
+// 逾期天数（计划日期早于今天才算；无计划日期返回 null）
+function monthOverdueDays(t){
+  var pd=_planDate(t)||_d10(t.start);
+  if(!pd) return null;
+  var a=new Date(pd+"T00:00:00"), b2=new Date(today()+"T00:00:00");
+  if(isNaN(a.getTime())||isNaN(b2.getTime())) return null;
+  var d=Math.round((b2-a)/86400000);
+  return d>0? d : null;
+}
+// 「未达成目标分析」整段（唯一实现，含小标题）：有遗留就逐条列出（任务名 + 项目 + 计划日期 + 逾期天数），
+// 只有 backlog 与 overdue 都为空时才允许出现「未出现明显未达成项」
+function monthGapText(mo){
+  var items=monthGapItems(mo);
+  if(!items.length) return "未达成目标分析：本月各项目关键结果均按计划推进并交付，未出现明显未达成项。";
+  var lines=["未达成目标分析："];
+  items.forEach(function(t,i){
+    var pd=_planDate(t)||_d10(t.start);
+    var od=monthOverdueDays(t);
+    lines.push((i+1)+". "+String(t.name||"")+"（"+String(t.project||"未分类")+"）—— "+
+      (pd? ("计划 "+pd+"，至今未完成") : "未填计划日期，至今未完成")+
+      (od!=null? ("，已逾期 "+od+" 天") : "")+"，需顺延至下月。");
+  });
+  return lines.join("\n");
+}
+// 「下月目标方向」整段（唯一实现，含小标题）：优先下月计划任务；为空则用需顺延的逾期/未完成；仍为空才留空行
+function monthNextGoalText(mo){
+  var c=aiMonthTaskCtx(mo);
+  if(c.nextMonth.length){
+    var lines=["下月目标方向："];
+    c.nextMonth.slice(0,6).forEach(function(t,i){
+      var pd=_planDate(t)||_d10(t.start)||"（未填计划日期）";
+      lines.push((i+1)+". "+String(t.name||"")+"（"+String(t.project||"未分类")+"）—— 计划 "+pd+"，下月范围 "+c.nextFirst+" ~ "+c.nextLast+"　（任务）");
+    });
+    return lines.join("\n");
+  }
+  var carry=monthGapItems(mo);
+  if(carry.length){
+    var l2=["下月目标方向：以下任务需顺延至下月："];
+    carry.slice(0,6).forEach(function(t,i){
+      var pd=_planDate(t)||_d10(t.start);      // 无可填日期时不写「原计划 （未填计划日期）」这种重复表述
+      l2.push((i+1)+". "+String(t.name||"")+"（"+String(t.project||"未分类")+"）—— "+(pd? "原计划 "+pd+"，" : "未填计划日期，")+"仍未完成，需顺延　（任务）");
+    });
+    return l2.join("\n");
+  }
+  return "下月目标方向：\n1. \n2. ";
+}
+// 月报「未达成/下月目标」自检（纯函数，可单测）：有遗留却漏写任务名、或写了假结论 → ok:false
+function validateMonthGap(txt, mo){
+  var items=monthGapItems(mo), text=String(txt==null? "" : txt), issues=[];
+  if(items.length){
+    var named=items.filter(function(t){
+      var n=String(t.name||""); if(!n) return false;
+      return text.indexOf(n.length>12? n.slice(0,12) : n)>=0;
+    });
+    if(!named.length){
+      issues.push("本月有 "+items.length+" 条未完成/逾期任务（"+items.map(function(t){return String(t.name||"");}).join("、")+"），但生成内容未列出其中任何一条任务名：「未达成目标分析」疑似漏写或未落地。");
+    }
+    if(/(未出现明显未达成项|未出现明显未达成|均按计划推进并交付)/.test(text)){
+      issues.push("本月确实存在未完成/逾期任务，但内容出现了「未出现明显未达成项 / 均按计划推进并交付」等结论：与事实冲突（假结论）。");
+    }
+  }
+  return {ok:issues.length===0, issues:issues, gapCount:items.length, gapNames:items.map(function(t){return String(t.name||"");})};
+}
+// 把自检结果落到 UI（#mo_okr_warn）；silent=true 时不弹 toast（用于每次渲染）
+function monthGapWarn(mo, txt, silent){
+  var r=validateMonthGap(txt, mo);
+  var el=document.getElementById("mo_okr_warn");
+  if(el){
+    if(r.ok){ el.style.display="none"; el.textContent=""; }
+    else { el.style.display="block"; el.textContent="⚠️ 月报自检未通过（未达成目标分析可能漏写或与事实冲突）："+r.issues.join("　"); }
+  }
+  if(!r.ok && !silent){ try{ toast("⚠️ 月报自检未通过：OKR 预览区上方已给出警告"); }catch(e){} }
+  return r;
+}
+window.aiMonthProjectBuckets=aiMonthProjectBuckets; window.monthGapText=monthGapText;
+window.monthNextGoalText=monthNextGoalText; window.validateMonthGap=validateMonthGap;
+window.monthGapWarn=monthGapWarn; window.monthGapItems=monthGapItems;
+
 // ===== 周报栏目列表（每栏目独立撰写要求/提示词，支持示例解析） =====
 var WKSEC="jzd_wk_sections_v1";
 var WKSEC_DEFAULT=[
@@ -3593,7 +4204,7 @@ function getWkSections(){
   try{ var a=JSON.parse(localStorage.getItem(WKSEC)); if(Array.isArray(a)&&a.length) return a; }catch(e){}
   return WKSEC_DEFAULT.map(function(s){ return {name:s.name, prompt:s.prompt, example:""}; });
 }
-function saveWkSections(arr){ localStorage.setItem(WKSEC, JSON.stringify(arr)); pushStateDebounced(); }
+function saveWkSections(arr){ lsSet(WKSEC, JSON.stringify(arr)); pushStateDebounced(); }
 function wkSectionNames(){ return getWkSections().map(function(s){ return String(s.name||"").trim(); }).filter(function(s){ return s; }); }
 // 组装「栏目 + 各栏目撰写要求」的 AI 指令段
 function wkSectionsPrompt(){
@@ -3634,12 +4245,12 @@ function renderWkSections(){
   var box=document.getElementById("wk_sec_list");
   if(!box) return;
   var arr=getWkSections();
-  var h='<table><tr><th style="width:160px">栏目名</th><th>撰写要求（提示词）</th><th style="width:170px">示例解析</th><th style="width:90px">操作</th></tr>';
+  var h='<table><tr><th class="w-160" >栏目名</th><th>撰写要求（提示词）</th><th class="w-170" >示例解析</th><th class="w-90" >操作</th></tr>';
   arr.forEach(function(s,i){
     h+='<tr>'+
-      '<td><input type="text" id="wk_sec_name_'+i+'" value="'+esc(s.name||"")+'" style="width:100%"></td>'+
-      '<td><textarea id="wk_sec_prompt_'+i+'" style="min-height:58px;width:100%" placeholder="留空则按默认规则；例：按项目分组，每项写清做了什么、关键结果与工时">'+esc(s.prompt||"")+'</textarea></td>'+
-      '<td>'+((s.example||"").trim()? '<div class="muted" style="font-size:11px">已存示例 ✓</div>':"")+
+      '<td><input class="w-full" type="text" id="wk_sec_name_'+i+'" value="'+esc(s.name||"")+'" ></td>'+
+      '<td><textarea class="minh-58-full" id="wk_sec_prompt_'+i+'"  placeholder="留空则按默认规则；例：按项目分组，每项写清做了什么、关键结果与工时">'+esc(s.prompt||"")+'</textarea></td>'+
+      '<td>'+((s.example||"").trim()? '<div class="muted fs11" >已存示例 ✓</div>':"")+
         '<button class="btn gray sm" onclick="openExampleModal('+i+')">📄 粘贴示例</button> '+
         '<button class="btn warn sm" onclick="aiParseExample('+i+')">🤖 解析示例</button></td>'+
       '<td><button class="btn gray sm" onclick="delWkSection('+i+')">🗑 删除</button></td>'+
@@ -3699,9 +4310,9 @@ window.resetWkSections=resetWkSections;
 function openExampleModal(i){
   syncWkSectionsFromDom();
   var s=getWkSections()[i]||{};
-  var body='<div class="muted" style="font-size:12px;margin-bottom:6px">粘贴该栏目「期望的示例内容」（可来自公司模板或上次汇报）。点「🤖 AI 解析为要求」，AI 会据此生成该栏目的撰写要求。</div>'+
-    '<textarea id="wk_ex_text" style="min-height:170px;width:100%" placeholder="示例内容…">'+esc(s.example||"")+'</textarea>'+
-    '<div id="wk_ex_status" class="muted" style="font-size:12px;margin-top:6px"></div>';
+  var body='<div class="muted hint-mb6" >粘贴该栏目「期望的示例内容」（可来自公司模板或上次汇报）。点「🤖 AI 解析为要求」，AI 会据此生成该栏目的撰写要求。</div>'+
+    '<textarea class="minh-170-full" id="wk_ex_text"  placeholder="示例内容…">'+esc(s.example||"")+'</textarea>'+
+    '<div id="wk_ex_status" class="muted hint-6" ></div>';
   var foot='<button class="btn gray" onclick="closeModal()">取消</button>'+
     '<button class="btn" onclick="saveExample('+i+')">💾 只保存示例</button>'+
     '<button class="btn warn" onclick="aiParseExample('+i+')">🤖 AI 解析为要求</button>';
@@ -3773,7 +4384,8 @@ async function aiWeekly(){
     txt=txt.trim().replace(/^```[a-zA-Z]*\n?/,"").replace(/```\s*$/,"");
     // 保存 AI 结果：预览区是正文权威来源，重渲染后必须仍能看到同一份内容
     var tSigW=getTpl(TPL_WEEK);
-    localStorage.setItem(TPL_AI_WEEK, JSON.stringify({range:range.monday, text:txt, sig:(tSigW && tSigW.mode==="sections")?wkSectionNames().join("|"):undefined}));
+    lsSet(TPL_AI_WEEK, JSON.stringify({range:range.monday, text:txt, sig:(tSigW && tSigW.mode==="sections")?wkSectionNames().join("|"):undefined}));
+    pushStateDebounced();   // 脏标记只保证「下次推送会带上」；AI 结果是一次性生成物，这里显式请求推送
     setWeeklyPreview(txt);
     toast("✅ AI 周报已生成（含本周进展 / 未完成 / 下周计划），可复制/下载");
   }catch(e){
@@ -3788,17 +4400,22 @@ async function aiOKR(){
   var mo=document.getElementById("mo_month").value||thisMonth();
   var b=monthBounds(mo);
   var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
-  if(!list.length){ toast("本月暂无日报"); return; }
+  var mctx=aiMonthTaskCtx(mo);
+  // 与 aiApply 月报分支同口径：只有任务、没有日报的月份也允许润色（规则版仍会给出 OKR 骨架）
+  if(!list.length && !mctx.thisMonth.length && !mctx.doneThisMonth.length && !mctx.backlog.length && !mctx.nextMonth.length){ toast("本月暂无日报与任务数据"); return; }
   origBtn("btn_ai_okr","🤖 AI 润色复盘");
   loadingBtn("btn_ai_okr", true, "AI 润色中…");
   try{
     var rule=document.getElementById("mo_okr_preview").textContent;
     var txt=await aiChat([
-      {role:"system",content:"你是绩效复盘助手。下方是OKR绩效考核表初稿，请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留；不得编造日报中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"},
-      {role:"user",content:rule}
+      {role:"system",content:"你是绩效复盘助手。用户消息先给【本月任务数据】（仅作事实依据，**不要把它原样输出**），再给【OKR初稿】。请仅润色“四、本月复盘”部分（本月最大成果 / 未达成目标分析 / 下月目标方向），使表达更通顺专业、条理清晰；其余部分（目标、KR、基础行为、加分项）原样保留。润色时：本月最大成果与未达成目标分析须结合【本月任务】【本月完成任务】【本月未完成任务】；下月目标方向优先参考【下月工作计划素材】与【逾期任务】；不得编造日报或任务数据中不存在的具体成果。输出完整的OKR绩效考核表（Markdown）。"},
+      {role:"user",content:"【本月任务数据】\n"+aiMonthTaskContext(mo, list)+"\n\n【OKR初稿】\n"+rule}
     ]);
     document.getElementById("mo_okr_preview").textContent=txt.trim();
-    toast("✅ 复盘已由 AI 润色");
+    // 润色后同样过一遍「未达成/下月目标」自检：润色不得把已有的遗留分析抹成假结论
+    var vr=monthGapWarn(mo, txt.trim(), true);
+    if(vr.ok){ toast("✅ 复盘已由 AI 润色（已纳入本月任务）"); }
+    else { toast("⚠️ 润色完成，但月报自检未通过：请看 OKR 预览区上方的警告"); }
   }catch(e){
     toast("❌ AI 失败："+e.message);
   }finally{
@@ -3813,6 +4430,9 @@ async function aiApply(type){
   var key = type==="weekly"?TPL_WEEK:(type==="score"?TPL_SCORE:TPL_OKR);
   var t=getTpl(key);
   if(!t || !t.text.trim()){ toast("请先粘贴/导入模板内容（模板示例）"); return; }
+  // task-21：'score'/'okr' 的旧按钮（#btn_tpl_ai_score / #btn_tpl_ai_okr）已随旧卡片移除，
+  // 该分支仍保留可被调用（Lead 决策：不让用户能力倒退）。loadingBtn/origBtn 对 null 元素安全，
+  // 故此处不再有任何界面反馈 —— 属"有意保留的回退路径"，不是沉默失败（新流程见 aiRunMonth）。
   var btnId = type==="weekly"?"btn_tpl_ai_weekly":(type==="score"?"btn_tpl_ai_score":"btn_tpl_ai_okr");
   var origLabel = type==="weekly"?"🤖 AI 按模板生成":(type==="score"?"🤖 AI 按模板生成":"🤖 AI 按模板生成");
   origBtn(btnId, origLabel);
@@ -3838,7 +4458,7 @@ async function aiApply(type){
         "3. 栏目未给专门要求时：涉及「进展/完成情况」按项目分板块汇总日报（含工时）；涉及「未完成/遗留/待办」用【未完成任务】逐条列出；涉及「下周/下一步/计划」用【下周工作计划素材】逐条列出；涉及「风险/困难/阻塞」结合【已逾期任务】与未完成任务归纳。\n"+
         "4. 直接输出周报全文，不要任何解释、不要代码块围栏。";
       user="【本周信息】"+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
-        "\n\n【本周信息】"+range.monday+"（周一）～ "+range.sunday+"（周日）\n"+
+        "\n"+
         "出勤："+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时，日报 "+list.length+" 条\n\n"+
         "【日报条目】\n"+(lines2.length? lines2.join("\n") : "（本周无日报）")+"\n\n"+
         aiTaskContext(range, list);
@@ -3854,14 +4474,31 @@ async function aiApply(type){
       var mo=document.getElementById("mo_month").value||thisMonth();
       var b=monthBounds(mo);
       var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
-      if(!list.length){ toast("本月暂无日报，无法生成"); return; }
+      var att=attendance(list, mo);
+      var mctx=aiMonthTaskCtx(mo);
+      // 兜底放开：只要「本月有任务」就允许生成（与周报「栏目清单」分支的判定口径一致）；
+      // 日报与任务两类数据全空才拦。理由：月考核的「下月目标方向」「未完成分析」本就以任务为主要依据，
+      // 只有任务没有日报的月份（如交接期、只派任务未记日报）强制拒绝生成反而不合理。
+      if(!list.length && !mctx.thisMonth.length && !mctx.doneThisMonth.length && !mctx.backlog.length && !mctx.nextMonth.length){ toast("本月暂无日报与任务数据，无法生成"); return; }
       var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work; });
       var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
       var prof=getProfile();
       system = (type==="score")
-        ? "你是月度绩效考核表模板解析助手。用户提供一份「参考考核评分表模板」和本月出勤/工时数据。请完全按照模板结构生成本月考核评分表：保留模板标题、表头（考核项目/具体指标/满分/自评分/项目经理审核等）、行格式；把姓名/部门/岗位/考核日期、出勤情况填入；自评分与审核列留空（不填数字）。直接输出全文，不要解释。"
-        : "你是OKR绩效考核表模板解析助手。用户提供一份「参考OKR模板」和本月日报数据（含项目与工作内容）。请完全按照模板结构生成本月OKR绩效考核表：保留模板的O/KR标题、表格列、栏目（如目标与关键结果、基础行为、加分项、本月复盘）；把姓名/部门/岗位/月份填入；根据日报按项目提炼O与KR（每个项目一个O，工作内容归纳为KR）；复盘部分可写框架留待补充，不编造。直接输出全文，不要解释。";
-      user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n\n日报明细：\n"+lines.join("\n");
+        ? "你是月度绩效考核表模板解析助手。用户提供一份「参考考核评分表模板」和本月出勤/工时/任务数据。请完全按照模板结构生成本月考核评分表：保留模板标题、表头（考核项目/具体指标/满分/自评分/项目经理审核等）、行格式；把姓名/部门/岗位/考核日期、出勤情况填入；自评分与审核列留空（不填数字）。直接输出全文，不要解释。"
+        : "你是OKR绩效考核表模板解析助手。用户提供一份「参考OKR模板」和本月任务与日报数据（含项目与工作内容）。请完全按照模板结构生成本月OKR绩效考核表：保留模板的O/KR标题、表格列、栏目（如目标与关键结果、基础行为、加分项、本月复盘）；把姓名/部门/岗位/月份填入。**O 的取法与打分（必须遵守）**：只把「本月任务数 > 0」的项目作为 O 分档候选，按「本月任务数」降序排列，第 1 名 40 分、第 2 名 20 分、第 3 名 10 分；**只有日报、没有本月任务的项目不占 40/20/10 档位**（不足 3 个候选时用兜底 O 顶上，70 分总分不变）；超过 3 个候选时，第 4 个起合并为一个「其他项目支持」（不计入 70 分）；每个入围项目一个 O，但「只有日报」的项目仍要写进「本月最大成果」的项目清单与明细。**KR 的取法（必须遵守）**：每个 O 的 KR 优先使用【本月任务】【本月完成任务】中的该项目的任务（每条任务一条 KR），日报内容仅在任务未覆盖时作细节补充；每条 KR 末尾必须标注来源，任务类写「（任务·已完成 YYYY-MM-DD）」或「（任务·未完成）」，日报类写「（日报）」；每条 KR 都必须能在提供的任务或日报中找到对应内容，不得编造。复盘部分可写框架留待补充。直接输出全文，不要解释。";
+      system += "\n\n【任务数据使用要求】\n"+
+        "1. 涉及「本月工作/进展/成果」时，用【本月任务】与【本月完成任务】；\n"+
+        "2. 涉及「未完成/遗留/待办」时，用【本月未完成任务】逐条列出，没有则写「无」；\n"+
+        "3. 涉及「下月/下一步/计划/目标方向」时，用【下月工作计划素材】逐条列出；\n"+
+        "4. 涉及「风险/困难/阻塞」时，结合【逾期任务】与未完成任务归纳；\n"+
+        "5. 所有任务与成果必须来自提供的日报/任务数据，不得编造；确无内容写「无」，禁止写「（待填写）」；\n"+
+        "6. 「未达成目标分析」必须使用【本月未完成任务】与【逾期任务】逐条列出（每条含任务名、所属项目、计划日期与逾期天数）；**只要这两节非空，严禁写「未出现明显未达成项」「均按计划推进并交付」等结论**；\n"+
+        "7. 「下月目标方向」必须使用【下月工作计划素材】；该节为空时，改用待顺延的【逾期任务】/【本月未完成任务】逐条列出（并注明「需顺延至下月」）；两者都为空才留空行。";
+      user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n"+
+        "本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
+        "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
+        "日报明细：\n"+(lines.length? lines.join("\n") : "（本月无日报）")+"\n\n"+
+        aiMonthTaskContext(mo, list);
     }
     var txt=await aiChat([{role:"system",content:system},{role:"user",content:user}]);
     txt=txt.trim();
@@ -3871,15 +4508,24 @@ async function aiApply(type){
       var wk2=document.getElementById("wk_date").value||today();
       var range2=weekRange(wk2);
       var tSig=getTpl(TPL_WEEK);
-      localStorage.setItem(aiKey, JSON.stringify({range:range2.monday, text:txt, sig:(tSig && tSig.mode==="sections")?wkSectionNames().join("|"):undefined}));
+      lsSet(aiKey, JSON.stringify({range:range2.monday, text:txt, sig:(tSig && tSig.mode==="sections")?wkSectionNames().join("|"):undefined}));
+      pushStateDebounced();   // 同上：AI 结果显式请求推送
       // 显示到预览（渲染为富文本）
       setWeeklyPreview(txt);
       toast("✅ AI 已按栏目/模板生成周报（含任务管理的未完成与下周计划）");
     } else {
       var mo2=document.getElementById("mo_month").value||thisMonth();
-      localStorage.setItem(aiKey, JSON.stringify({month:mo2, text:txt}));
-      document.getElementById(type==="score"?"mo_score_preview":"mo_okr_preview").textContent=txt;
-      toast("✅ AI 已按模板生成"+(type==="score"?"评分表":"OKR表"));
+      // 月报缓存指纹含「任务 + 日报 + 遗留状态」：任一变化即视为未命中（见 buildMonthlyTplText 读取端）
+      lsSet(aiKey, JSON.stringify({month:mo2, text:txt, sig:aiMonthTaskSig(mo2)}));
+      pushStateDebounced();   // 同上：AI 结果显式请求推送
+      // task-21：月报已合并为单页，**mo_okr_preview 是唯一预览容器** ——
+      // 旧分支（type='score'|'okr'）也一律写它（此前 score 分支会写已删除的 mo_score_preview ⇒ 空指针崩溃）
+      document.getElementById("mo_okr_preview").textContent=txt;
+      // 生成后自检（OKR）：有遗留却漏写/写假结论 → 预览区警告 + 提示 toast，绝不静默通过
+      var vr={ok:true, issues:[]};
+      if(type==="okr"){ vr=monthGapWarn(mo2, txt, true); }
+      if(vr.ok){ toast("✅ AI 已按模板生成"+(type==="score"?"评分表":"OKR表")+"（已纳入本月任务）"); }
+      else { toast("⚠️ AI 已生成，但月报自检未通过：请看 OKR 预览区上方的警告"); }
     }
   }catch(e){
     toast("❌ AI 失败："+e.message);
@@ -3888,6 +4534,144 @@ async function aiApply(type){
   }
 }
 window.aiApply=aiApply;
+
+/* ================= task-21：月报「模板 → AI 提炼分段提示词 → 生成月报」（新流程） =================
+ * 与旧流程的关系：**新流程优先**（有选中模板 → aiRunMonth）；无模板/模板无段落 → 规则版 buildOKR 兜底。
+ * 旧的两条模板路径（aiApply('score'|'okr')）按 Lead 决策**保留**为可调用回退分支（其 UI 已移除）。
+ * 口径（用户已拍板）：① 模板列表初始为空；② 提炼**只能手动触发**，AI 绝不自动覆盖用户改过的提示词；
+ * ③ 生成后必须跑 validateMonthGap 自检；④ 无论用哪个模板都强制带入当月任务上下文。
+ */
+
+// 当前月份「可引用数据」清单：字段名与 aiMonthTaskContext() / attendance() 的真实语义一致，
+// 让 AI 提炼出的撰写要求能直接引用这些数据（用户不需要写任何占位符）。
+function monthDataCatalog(mo, list, att){
+  var c=aiMonthTaskCtx(mo);
+  return [
+    "【生成月报时可引用的数据（会自动带入，提示词里无需写占位符）】",
+    "· 日报明细："+list.length+" 条（每条含 日期 / 项目 / 工时 / 工作内容）",
+    "· 出勤与工时：出勤天数（有日报的天数）、总工时；工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天）、工作日缺报 "+(att.missing>0?att.missing:0)+" 天、休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）",
+    "· 本月任务："+c.thisMonth.length+" 条 → 段落中可引用【本月任务】",
+    "· 本月完成任务："+c.doneThisMonth.length+" 条 → 【本月完成任务】",
+    "· 本月未完成/遗留："+c.backlog.length+" 条 → 【本月未完成任务】",
+    "· 逾期任务："+c.overdue.length+" 条 → 【逾期任务】（含计划日期，用于计算逾期天数）",
+    "· 下月计划："+c.nextMonth.length+" 条 → 【下月工作计划素材】",
+    "· 日报里记录的后续计划："+c.entryPlans.length+" 条 → 【本月日报中记录的「明日/后续计划」】",
+    "· 两个现成素材可直接要求引用：「未达成分析」= 未完成+逾期逐条清单（含项目/计划日期/逾期天数）；「下月目标」= 下月计划，为空时取需顺延的遗留项"
+  ].join("\n");
+}
+window.monthDataCatalog=monthDataCatalog;
+
+// 分段提示词清单（喂给 aiRunMonth 的 system）。空提示词的段落给默认要求。
+function monthSectionsPrompt(tpl){
+  var arr=((tpl&&tpl.sections)||[]).filter(function(s){ return s && String(s.name||"").trim(); });
+  if(!arr.length) return "";
+  var out=["【本次月报的段落清单（名称与顺序不得增删改）】"];
+  arr.forEach(function(s,i){
+    var p=String(s.prompt||"").trim();
+    out.push((i+1)+". ## "+String(s.name).trim());
+    out.push("   撰写要求："+(p? p : "按数据合理撰写，不得编造。"));
+  });
+  return out.join("\n");
+}
+window.monthSectionsPrompt=monthSectionsPrompt;
+
+// AI 提炼：模板原文 → 分段提示词。**只能手动触发**；解析失败绝不清空已有 sections。
+async function aiExtractMonthTpl(tplId, force){
+  if(tplId===true){ force=true; tplId=null; }                 // 兼容 aiExtractMonthTpl(true) 的旧写法
+  var tpl=(tplId && typeof tplId==="object")? tplId : (tplId? monthTplById(tplId) : getMonthActiveTpl());
+  if(!tpl){ toast("请先新建并选中一个模板"); return; }
+  syncMonthTplFromDom(true);                                  // 先把编辑区里刚改的原文/名称落盘
+  tpl=monthTplById(tpl.id)||tpl;
+  var src=String(tpl.source||"");
+  if(!src.trim()){ toast("请先粘贴或导入「参考模板原文」"); return; }
+  var had=(tpl.sections||[]).length;
+  if(force && had && !confirm("重新解析会用 AI 生成的分段提示词覆盖当前 "+had+" 个段落（包括你手工改过的内容），确定继续？")) return;
+  var btnId="btn_mo_extract";
+  origBtn(btnId,"🤖 AI 提炼提示词"); loadingBtn(btnId, true, "AI 提炼中…");
+  try{
+    var mo=document.getElementById("mo_month").value||thisMonth();
+    var b=monthBounds(mo);
+    var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+    var att=attendance(list, mo);
+    var system="你是模板结构分析助手。用户给出一份『月报参考模板』，请提炼出该模板由哪些**段落**构成，以及每个段落的**撰写要求（提示词）**。要求：① 段落名必须原样使用模板里的标题文字与顺序；② 每段撰写要求要具体到『写什么内容、从哪些数据取、什么格式』；③ 只输出 JSON 数组 [{\"name\":\"…\",\"prompt\":\"…\"}]，不要任何解释、不要代码围栏；④ **若该段在模板中是一个表格，该段的撰写要求必须写明**：(a) 输出 Markdown 表格；(b) **逐列原样列出表头文字与顺序**（例如 序号 / 核心目标（O）/ 关键结果（KR）/ 权重 / 自评分 / 上级评分 / 最终分）；(c) 注明哪些列属于**人工填写、必须留空**（如 自评分 / 上级评分 / 最终分）；(d) 若某列是模板自带的评分或权重规则，要求保留该列并填入**模板本身的规则值**，不得编造。";
+    var user="【月报参考模板原文】\n"+src+"\n\n"+monthDataCatalog(mo, list, att);
+    var txt=await aiChat([{role:"system",content:system},{role:"user",content:user}]);
+    var r=parseSectionsReply(txt);
+    if(!r.ok){
+      // ⚠️ 关键：解析失败**保留原有 sections 不变**（用户可能已经手工改出满意的提示词，一次坏返回不能清空它）
+      toast("❌ AI 返回无法解析（"+r.err+"）：已保留原有 "+had+" 个段落不变，请重试或手动编辑");
+      return;
+    }
+    var all=getMonthTpls();
+    for(var i=0;i<all.length;i++){
+      if(all[i] && all[i].id===tpl.id){ all[i].sections=r.sections; all[i].parsedSig=all[i].srcSig; break; }
+    }
+    saveMonthTpls(all);
+    renderMonthTplList(); renderMonthly();
+    toast("✅ 已提炼 "+r.sections.length+" 个段落的提示词（可逐条修改后点「💾 保存提示词」）");
+  }catch(e){
+    toast("❌ AI 失败："+e.message+"（原提示词未改动）");
+  }finally{
+    loadingBtn(btnId, false, "🤖 AI 提炼提示词");
+  }
+}
+window.aiExtractMonthTpl=aiExtractMonthTpl;
+
+// 生成月报：有选中模板 → 按分段提示词 + 当月任务/日报数据生成；无模板/模板无段落 → 规则版兜底。
+async function aiRunMonth(){
+  var mo=document.getElementById("mo_month").value||thisMonth();
+  var b=monthBounds(mo);
+  var list=getEntries().filter(function(e){ return inRange(e, b.first, b.last); });
+  var att=attendance(list, mo);
+  var tpl=getMonthActiveTpl();
+  var secs=((tpl&&tpl.sections)||[]).filter(function(s){ return s && String(s.name||"").trim(); });
+  if(!tpl || !secs.length){
+    // 规则版兜底（用户决策 7）：没模板 / 模板还没提炼 / AI 不可用，都必须能出正确月报
+    document.getElementById("mo_okr_preview").textContent=buildOKR(mo, list, att);
+    monthGapWarn(mo, document.getElementById("mo_okr_preview").textContent, true);
+    toast(tpl? "该模板还没有分段提示词，已生成规则版月报（可点「🤖 AI 提炼提示词」）" : "未选中模板，已生成规则版月报");
+    return;
+  }
+  var mctx=aiMonthTaskCtx(mo);
+  if(!list.length && !mctx.thisMonth.length && !mctx.doneThisMonth.length && !mctx.backlog.length && !mctx.nextMonth.length){ toast("本月暂无日报与任务数据，无法生成"); return; }
+  var btnId="btn_mo_run";
+  origBtn(btnId,"🤖 生成月报"); loadingBtn(btnId, true, "生成中…");
+  try{
+    var ym=mo.slice(0,4)+" 年 "+String(+mo.slice(5,7))+" 月";
+    var prof=getProfile();
+    var pol=document.getElementById("mo_progress");
+    var progress=pol? String(pol.value||"100") : "100";
+    var system="你是月报撰写助手。用户提供一份「月报模板的分段提示词清单」和本月的实际数据（日报 + 任务）。请**严格按给定段落的顺序与名称**生成月报全文：每段用 Markdown 二级标题 `## <段落名>` 开头，段落内容严格遵循该段的撰写要求；首行先输出一级标题 `"+ym+" "+prof.dept+"月报`。\n\n"
+      + monthSectionsPrompt(tpl) + "\n\n【硬性要求】\n"
+      + "1. 只输出月报全文，不要任何解释、不要代码块围栏；段落名称与顺序不得增删改；\n"
+      + "2. 涉及「本月工作/进展/成果」时，用【本月任务】与【本月完成任务】；\n"
+      + "3. 涉及「未完成/遗留/待办」时，用【本月未完成任务】逐条列出，没有则写「无」；\n"
+      + "4. 涉及「下月/下一步/计划/目标方向」时，用【下月工作计划素材】逐条列出；\n"
+      + "5. 涉及「风险/困难/阻塞」时，结合【逾期任务】与未完成任务归纳；\n"
+      + "6. 所有任务与成果必须来自提供的日报/任务数据，不得编造；确无内容写「无」，禁止写「（待填写）」；\n"
+      + "7. 「未达成目标分析」必须使用【本月未完成任务】与【逾期任务】逐条列出（每条含任务名、所属项目、计划日期与逾期天数）；**只要这两节非空，严禁写「未出现明显未达成项」「均按计划推进并交付」等结论**；\n"
+      + "8. 「下月目标方向」必须使用【下月工作计划素材】；该节为空时，改用待顺延的【逾期任务】/【本月未完成任务】逐条列出（并注明「需顺延至下月」）；两者都为空才留空行；\n"
+      + "9. **若某段的撰写要求是表格，必须输出 Markdown 表格**；列名与顺序与要求完全一致；**自评分 / 上级评分 / 最终分等人工填写列一律留空**，不得编造或代填。";
+    var lines=list.map(function(e){ return e.date+" | "+e.project+" | "+sumH(e.hours)+"h | "+e.work; });
+    var user="【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n"+
+      "完成进度（用户填报）："+progress+"%\n"+
+      "本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
+      "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
+      "日报明细：\n"+(lines.length? lines.join("\n") : "（本月无日报）")+"\n\n"+
+      aiMonthTaskContext(mo, list);
+    var txt=(await aiChat([{role:"system",content:system},{role:"user",content:user}])).trim();
+    document.getElementById("mo_okr_preview").textContent=txt;
+    writeMonthAiCache(mo, tpl, txt);                          // 缓存含 tplSig：改段落/重新提炼即自动失效
+    var vr=monthGapWarn(mo, txt, true);
+    if(vr.ok) toast("✅ 已生成月报（模板："+String(tpl.name||"")+"，已纳入本月任务与日报）");
+    else toast("⚠️ 已生成，但月报自检未通过：请看预览区上方的警告（未达成分析可能漏写或与事实冲突）");
+  }catch(e){
+    toast("❌ AI 失败："+e.message+"（已保留原有内容；可点「📄 评分表（规则版）」或直接看规则版月报）");
+  }finally{
+    loadingBtn(btnId, false, "🤖 生成月报");
+  }
+}
+window.aiRunMonth=aiRunMonth;
 
 /* ================= 从 CC Switch 一键导入 ================= */
 async function importCC(){
@@ -3932,7 +4716,7 @@ window.importCC=importCC;
 
 var LASTCC_KEY="jzd_ai_lastcc_v1";
 function getLastCC(){ try{ return JSON.parse(localStorage.getItem(LASTCC_KEY))||null; }catch(e){ return null; } }
-function setLastCC(p){ if(p){ localStorage.setItem(LASTCC_KEY, JSON.stringify({name:p.name, app_type:p.app_type, base:p.base, key:p.key, model:p.model})); } }
+function setLastCC(p){ if(p){ lsSet(LASTCC_KEY, JSON.stringify({name:p.name, app_type:p.app_type, base:p.base, key:p.key, model:p.model})); pushStateDebounced(); } }
 
 function applyCCProvider(list, idx){
   var p=list[idx]; if(!p) return;
@@ -4053,7 +4837,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.14.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.21.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4111,7 +4895,28 @@ function importCSV(){
 }
 window.importCSV=importCSV;
 
-function clearAll(){ if(!confirm("确定清空全部数据（日报+任务）？此操作不可恢复，请先导出备份！")) return; localStorage.removeItem(KEY); localStorage.removeItem(TASKKEY); toast("已清空"); refreshDaily(); renderTasks(); }
+function clearAll(){
+  if(!confirm("确定清空全部日报与任务？\n\n· 会同时清空服务器（MySQL）中保存的日报与任务数据\n· 模板 / AI 设置 / 周报栏目 / 个人资料等其它数据会保留\n· 此操作不可恢复，建议先「导出全库备份」\n\n是否继续？")) return;
+  // 写空数组而不是 removeItem：服务端无删除语义（collectDirtyState 会跳过 null 值 → 推送变空操作，
+  // 下次启动 hydration 就把数据回填回来 = 用户报的「清空后复活」）。"[]" 可同步、可回填、语义可逆。
+  lsSet(KEY,"[]");
+  lsSet(TASKKEY,"[]");
+  // 派生缓存：由「已被清空的日报+任务」生成的周报/月报 AI 结果，必须随源数据一起清，
+  // 否则用户切到⑤/⑥仍会看到清空前的旧文本，与刚做的「清空」自相矛盾。
+  // 写 "null"（合法 JSON 字面量）而不是 "" ：周报读取端 :3597/:3605 是
+  // JSON.parse(getItem(K)||"null") 且**无 try/catch**，"null" 在「有 || 回退」和「无回退」两种
+  // 写法下都能 parse 成 null，而 "" 只在有回退时才安全。两端 parse 出 null 后分别命中
+  // `if(!c || …) return null`（:2627）与 `if(aiS && …)`（:3599）→ 一律视为「未命中」，回落规则版。
+  lsSet("jzd_month_ai_v1","null");
+  lsSet("jzd_tpl_ai_weekly_v1","null");
+  pushStateDebounced();   // 必须在全部 lsSet 之后：lsSet 打脏标记，pushStateDebounced 只推脏键
+  toast("已清空（已同步服务器）");
+  refreshDaily();
+  renderTasks();
+  // refreshDaily/renderTasks 在数据为空时都会提前 return（1916 / 2288），
+  // 会跳过它们内部的 refreshHeaderStats()，故此处补一次，避免顶部统计停留在清空前的旧值。
+  refreshHeaderStats();
+}
 window.clearAll=clearAll;
 
 function loadSeed(){
@@ -4180,11 +4985,13 @@ window.loadSeed=loadSeed;
   document.getElementById("mo_month").value=thisMonth();
   fillProjectSelect();
   fillTaskSelect();
+  // D22 修复配套：静态 HTML 的 value 只能写空（原误写成 JS 拼接语法），改由运行时赋值
+  var _tkEm=document.getElementById("tk_export_month"); if(_tkEm && !_tkEm.value) _tkEm.value=thisMonth();
   refreshDaily();
   renderProjects();
   renderTasks();
   renderCalendar();
-  loadTpl("weekly"); loadTpl("score"); loadTpl("okr");
+  loadTpl("weekly");
   renderWeekly();
   renderMonthly();
   refreshHeaderStats();
@@ -4195,20 +5002,22 @@ window.loadSeed=loadSeed;
   }
   // MySQL：加载完成后检查连接状态；若服务端已有数据则自动恢复（服务端优先，保证多入口数据一致）
   // MySQL 唯一数据源：打开页面即与服务器同步（静默，不弹窗），彻底不依赖浏览器存储
+  // ⚠️ 这段回填是「沿用服务器真值」的唯一机会：在它完成之前一律禁止推送（hydrated 前置门），
+  //    否则这 800ms 窗口内的任何保存都会把陈旧本地副本推回 MySQL（见「脏标记 + hydration 前置」一节）。
   setTimeout(function(){
     ntRefreshStatus();
     dbRefreshStatus().then(function(){
       fetch("/api/state").then(function(r){ return r.json().catch(function(){return {};}); }).then(function(j){
-        if(!(j && j.ok && j.available)) return; // MySQL 未连接，保持本地
+        if(!(j && j.ok && j.available)){ markHydrated(); pushStateDebounced(); return; } // MySQL 未连接：开门，保持本地
         var items=j.items||{};
         var hasData=Object.keys(items).length>0;
         if(hasData){
           // 服务器有数据 → 直接采用服务器数据（MySQL 是唯一真相），覆盖本地并刷新全部视图
           var serverDaily="";
           try{ serverDaily=items["jzd_daily_v1"]?JSON.parse(items["jzd_daily_v1"]).length:0; }catch(e){}
-          Object.keys(items).forEach(function(k){ localStorage.setItem(k, items[k]); });
+          hydrateFromServer(items);          // 回填不打脏标记；用户在本窗口内刚改过的 key 保留本地值
           refreshDaily(); renderProjects(); renderTasks(); renderCalendar();
-          loadTpl("weekly"); loadTpl("score"); loadTpl("okr"); renderWeekly(); renderMonthly();
+          loadTpl("weekly"); renderWeekly(); renderMonthly();
           refreshHeaderStats();
           var p=getProfile();
           document.getElementById("set_name").value=p.name;
@@ -4221,6 +5030,7 @@ window.loadSeed=loadSeed;
           toast("✅ 已从服务器 MySQL 加载数据（日报 "+serverDaily+" 条）");
         }else{
           // 服务器空、本地有数据 → 静默上传（首次迁移：首次配置 MySQL 时把既有数据带入）
+          markHydrated();                    // 先开门，避免下面的迁移上传被前置门挡住
           var localKeys=Object.keys(collectState());
           if(localKeys.length>0){
             fetch("/api/state", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:collectState()})})
@@ -4229,8 +5039,9 @@ window.loadSeed=loadSeed;
               .catch(function(){});
           }
         }
-      }).catch(function(){});
-    }).catch(function(){});
+        pushStateDebounced();                // 回填期间被前置门挡下的推送，在此按「变更 key」补发
+      }).catch(function(){ markHydrated(); pushStateDebounced(); });
+    }).catch(function(){ markHydrated(); });
   }, 800);
 })();
 
@@ -4311,7 +5122,7 @@ function newsLoad(){
   var sk=document.getElementById("news_list");
   if(sk && !NEWS_ALL.length){
     var skh="";
-    for(var si=0;si<6;si++){ skh+='<div class="news-skel"><i style="width:'+(58+Math.round(Math.random()*36))+'%"></i><i style="width:30%"></i></div>'; }
+    for(var si=0;si<6;si++){ skh+='<div class="news-skel"><i class="skel-w'+((si%3)+1)+'"></i><i class="w-30p"></i></div>'; }
     sk.innerHTML=skh;
   }
   fetch("/api/news?source=all").then(function(r){ return r.json(); }).then(function(j){
@@ -4326,8 +5137,8 @@ function newsLoad(){
     var sbox=document.getElementById("news_sources");
     if(sbox){
       sbox.innerHTML=(j.sources||[]).map(function(s){
-        return '<span class="news-tag" style="margin-right:6px">'+esc(s.name)+" "+(s.ok?(s.count+" 条"):"❌")+'</span>';
-      }).join("")+'<span style="margin-left:4px">· 点标题即在应用内阅读全文</span>';
+        return '<span class="news-tag mr6" >'+esc(s.name)+" "+(s.ok?(s.count+" 条"):"❌")+'</span>';
+      }).join("")+'<span class="ml4" >· 点标题即在应用内阅读全文</span>';
     }
     newsRender();
   }).catch(function(e){
@@ -4464,7 +5275,7 @@ function newsOpen(el){
   if(!/^https?:\/\//i.test(url)){ toast("该条目没有可阅读的链接"); return false; }
   if(!window.appUpdate){ window.open(url,"_blank"); return false; }   // 纯浏览器环境退化为新标签页
   openModal(title||"新闻阅读",
-    '<div id="news_art"><div class="muted" style="padding:10px 0">正在抓取正文…</div></div>',
+    '<div id="news_art"><div class="muted pad-10-0" >正在抓取正文…</div></div>',
     '<a class="btn gray" href="'+esc(url)+'" target="_blank" rel="noreferrer">🌐 用系统浏览器打开</a>'
     + '<button class="btn" onclick="closeModal()">关闭（Esc）</button>', "860px");
   function articleFailure(reason){
@@ -4528,7 +5339,7 @@ function stockAutoToggle(){
   if(_stockTimer){ clearInterval(_stockTimer); _stockTimer=null; }
   var cb=document.getElementById("stock_auto"); if(!cb||!cb.checked) return;
   var sec=parseInt(document.getElementById("stock_interval").value,10)||30;
-  _stockTimer=setInterval(function(){ var v=document.getElementById("view_stock"); if(v&&v.style.display!=="none") stockRefresh(); }, sec*1000);
+  _stockTimer=setInterval(function(){ var v=document.getElementById("view_news"), m=document.getElementById("fish_market"); if(v&&v.style.display!=="none"&&m&&m.style.display!=="none") stockRefresh(); }, sec*1000);
 }
 function stockRefresh(){
   stockStatus("刷新中…");
@@ -4545,7 +5356,7 @@ function stockRenderIndex(){
   box.innerHTML=STOCK_INDEX.map(function(x){
     var q=_stockQ[x[0]]||{}, pct=q.changePct, cls=stockCls(pct);
     return '<div class="idx-card '+(pct>0?"up-bg":(pct<0?"down-bg":""))+'" onclick="stockOpen(&#39;'+x[0]+'&#39;)">'
-      +'<div class="idx-name"><span>'+esc(q.name||x[1])+'</span><span style="font-size:11px">'+esc(stockShort(x[0]))+'</span></div>'
+      +'<div class="idx-name"><span>'+esc(q.name||x[1])+'</span><span class="fs11" >'+esc(stockShort(x[0]))+'</span></div>'
       +'<div class="idx-price '+cls+'">'+stockNum(q.price)+'</div>'
       +'<div class="idx-chg '+cls+'">'+(q.change>0?"+":"")+stockNum(q.change)+"  "+(pct>0?"+":"")+stockNum(pct)+'%</div>'
       +'</div>';
@@ -4558,9 +5369,9 @@ function stockRenderWatch(){
   box.innerHTML=list.map(function(c){
     var q=_stockQ[c]||{}, pct=q.changePct, cls=stockCls(pct);
     return '<div class="watch-row" onclick="stockOpen(&#39;'+c+'&#39;)">'
-      +'<div style="min-width:120px"><span class="watch-name">'+esc(q.name||c)+'</span><span class="watch-code">'+esc(stockShort(c))+'</span></div>'
-      +'<div class="watch-num"><span class="'+cls+'" style="font-weight:600">'+stockNum(q.price)+'</span>'
-      +'<span class="'+cls+'" style="font-size:12px;margin-left:10px">'+(q.change>0?"+":"")+stockNum(q.change)+"  "+(pct>0?"+":"")+stockNum(pct)+'%</span></div>'
+      +'<div class="minw-120" ><span class="watch-name">'+esc(q.name||c)+'</span><span class="watch-code">'+esc(stockShort(c))+'</span></div>'
+      +'<div class="watch-num"><span class="'+cls+' fw600" >'+stockNum(q.price)+'</span>'
+      +'<span class="'+cls+' fs12-ml10" >'+(q.change>0?"+":"")+stockNum(q.change)+"  "+(pct>0?"+":"")+stockNum(pct)+'%</span></div>'
       +'<div><button class="btn gray sm" onclick="event.stopPropagation();stockRemove(&#39;'+c+'&#39;)" title="移出自选">✕</button></div>'
       +'</div>';
   }).join("");
@@ -4573,11 +5384,11 @@ function stockSearchNow(){
   var box=document.getElementById("stock_search_res"); if(!box) return;
   var q=(document.getElementById("stock_q").value||"").trim();
   if(!q){ box.innerHTML=""; return; }
-  box.innerHTML='<div class="muted" style="padding:6px 2px">搜索中…</div>';
+  box.innerHTML='<div class="muted pad-6-2" >搜索中…</div>';
   fetch("/api/stock/search?q="+encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(j){
     var items=(j&&j.items)||[];
-    if(!items.length){ box.innerHTML='<div class="muted" style="padding:6px 2px">没有找到「'+esc(q)+'」</div>'; return; }
-    box.innerHTML='<div style="border:1px solid var(--line);border-radius:10px;margin:8px 0;overflow:hidden">'+items.map(function(x){
+    if(!items.length){ box.innerHTML='<div class="muted pad-6-2" >没有找到「'+esc(q)+'」</div>'; return; }
+    box.innerHTML='<div class="chart-box" >'+items.map(function(x){
       return '<div class="sr-item" onclick="stockAdd(&#39;'+x.symbol+'&#39;)">'+esc(x.name)+' <span class="muted">'+esc(x.code)+' · '+esc(String(x.market).toUpperCase())+'</span></div>';
     }).join("")+'</div>';
   }).catch(function(e){ box.innerHTML='<div class="muted">搜索失败：'+esc(e.message)+'</div>'; });
@@ -4627,7 +5438,7 @@ function stockLineSVG(points, prevClose){
   var last=points[points.length-1].price, col=(prevClose?last>=prevClose:true)?"#e03131":"#0ca678";
   var py=Y(prevClose||points[0].price), gid="sg"+(Math.floor(Math.random()*1e6));
   var ticks=[hi,(hi+lo)/2,lo].map(function(v){ return '<text x="'+(PL-7)+'" y="'+(Y(v)+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#94a3b8">'+v.toFixed(2)+'</text>'; }).join("");
-  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:232px;display:block">'
+  return '<svg class="chart-svg" viewBox="0 0 '+W+' '+H+'" >'
     +'<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+col+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+col+'" stop-opacity="0.02"/></linearGradient></defs>'
     +ticks
     +'<line x1="'+PL+'" y1="'+py.toFixed(1)+'" x2="'+(PL+iw)+'" y2="'+py.toFixed(1)+'" stroke="#cbd5e1" stroke-dasharray="4 3"/>'
@@ -4654,7 +5465,7 @@ function stockKlineSVG(bars){
     out+='<line x1="'+x.toFixed(1)+'" y1="'+Y(b.high).toFixed(1)+'" x2="'+x.toFixed(1)+'" y2="'+Y(b.low).toFixed(1)+'" stroke="'+col+'" stroke-width="1"/>'
       +'<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y1.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,y2-y1).toFixed(1)+'" fill="'+col+'" opacity="0.9"/>';
   }
-  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:174px;display:block">'+out
+  return '<svg class="chart-svg-sm" viewBox="0 0 '+W+' '+H+'" >'+out
     +'<text x="'+PL+'" y="'+(H-5)+'" font-size="10" fill="#94a3b8">'+bars[0].date+'</text>'
     +'<text x="'+(PL+iw)+'" y="'+(H-5)+'" text-anchor="end" font-size="10" fill="#94a3b8">'+bars[n-1].date+'</text>'
     +'<text x="'+(PL-7)+'" y="'+(PT+5)+'" text-anchor="end" font-size="10" fill="#94a3b8">'+hi.toFixed(2)+'</text>'
@@ -4664,7 +5475,7 @@ function stockOpen(sym){
   var q=_stockQ[sym]||{}, inWatch=stockWatchList().indexOf(sym)>=0;
   _stockSym=sym;
   openModal((q.name||sym)+"  "+stockShort(sym),
-    '<div id="stock_detail"><div class="muted" style="padding:8px 0">正在加载分时与日K…</div></div>',
+    '<div id="stock_detail"><div class="muted pad-8-0" >正在加载分时与日K…</div></div>',
     '<button class="btn gray" onclick="stockToggleWatch(&#39;'+sym+'&#39;)">'+(inWatch?"☆ 移出自选":"★ 加入自选")+'</button>'
     + '<button class="btn" onclick="closeModal()">关闭（Esc）</button>', "900px");
   Promise.all([
@@ -4673,10 +5484,10 @@ function stockOpen(sym){
   ]).then(function(res){
     var box=document.getElementById("stock_detail"); if(!box) return;
     var m=res[0]||{}, k=res[1]||{}, pct=q.changePct, cls=stockCls(pct), h="";
-    h+='<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
-      +'<span class="idx-price '+cls+'" style="font-size:26px;margin:0">'+stockNum(q.price)+'</span>'
-      +'<span class="'+cls+'" style="font-size:14px">'+(q.change>0?"+":"")+stockNum(q.change)+"  "+(pct>0?"+":"")+stockNum(pct)+'%</span>'
-      +'<span class="muted" style="font-size:12px">'+esc(q.time||"")+'</span></div>';
+    h+='<div class="fx-baseline" >'
+      +'<span class="idx-price '+cls+' fs26-m0" >'+stockNum(q.price)+'</span>'
+      +'<span class="'+cls+' fs14" >'+(q.change>0?"+":"")+stockNum(q.change)+"  "+(pct>0?"+":"")+stockNum(pct)+'%</span>'
+      +'<span class="muted fs12" >'+esc(q.time||"")+'</span></div>';
     h+='<div class="kv">'
       +'<div><span>今开</span><b>'+stockNum(q.open)+'</b></div>'
       +'<div><span>昨收</span><b>'+stockNum(q.prevClose)+'</b></div>'

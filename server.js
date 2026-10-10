@@ -5,6 +5,15 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// ===== stdout / stderr 写错误守卫（必须最先装）=====
+// 本进程的 stdout/stderr 是主进程（或启动它的控制台）给的管道，对端退出后任何 console.log 都会
+// 以 EPIPE 失败；无人监听 'error' 时 Node 会升级成 uncaughtException 把服务打死 —— 应用会因此
+// 丢掉后端。日志只是附带输出，这里统一吞掉 std 流的写错误。
+['stdout', 'stderr'].forEach(function (name) {
+  const s = process[name];
+  if (s && typeof s.on === 'function') s.on('error', function () {});
+});
+
 // ================= MySQL 数据持久化 =================
 // 配置保存在 db_config.json；未配置/未安装驱动时优雅降级为 localStorage-only。
 // 数据目录：桌面版由 Electron 主进程注入 userData；Web 版默认当前目录（db_config.json 可写）
@@ -131,10 +140,11 @@ async function importJson(items) {
 }
 
 // 启动时尝试用已保存配置连接（失败不阻塞服务）
+let configAtBoot = null;
 try {
-  const saved = readDbConfig();
-  if (saved && saved.user) {
-    ensureDb(saved).catch(() => {});
+  configAtBoot = readDbConfig();
+  if (configAtBoot && configAtBoot.user) {
+    ensureDb(configAtBoot).catch(() => {});
   }
 } catch (e) {}
 
@@ -569,5 +579,17 @@ server.on('error', (err) => {
 server.listen(LISTEN_PORT, '0.0.0.0', () => {
   console.log('PORT_STARTED:' + LISTEN_PORT); // Electron 主进程捕获实际端口
   console.log('  工作日报 · 周报月报生成器 已启动（端口 ' + LISTEN_PORT + '）');
-  console.log('  MySQL 存储: ' + (dbPool ? '已连接（' + (dbCfg ? dbCfg.database : '') + '）' : '未配置（数据仅存本地）'));
+  // ⚠ 此处 dbPool 可能仍为 null：ensureDb() 是异步的（见上方「启动时尝试用已保存配置连接」），
+  //    banner 会先于连接完成打印 → 曾误报「未配置（数据仅存本地）」（实际随后就落库成功）。
+  //   故意保持即刻打印（Electron 主进程只等 PORT_STARTED 这一行），但在连接落定后补一行真实状态。
+  console.log('  MySQL 存储: ' + (dbPool ? '已连接（' + (dbCfg ? dbCfg.database : '') + '）' : '连接中…（配置已保存）'));
 });
+
+// 连接结果落定后补印真实状态（成功/失败都印，避免用户看到与实际不符的「未配置」）
+if (configAtBoot && configAtBoot.user) {
+  ensureDb(configAtBoot).then(() => {
+    console.log('  MySQL 存储: 已连接（' + ((dbPool && dbCfg) ? dbCfg.database : (configAtBoot.database || '')) + '）');
+  }).catch((e) => {
+    console.log('  MySQL 存储: 连接失败（' + ((e && e.message) || '未知错误') + '）');
+  });
+}

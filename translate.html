@@ -24,6 +24,11 @@
   .val{flex:1;min-width:0;font-size:12.5px;color:#25324a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .row.ident .val{font-family:Consolas,"Courier New",monospace;font-size:12px}
   .more{flex:0 0 auto;font-size:10px;color:#9aa7b8}
+  /* 悬浮气泡：窗口内自绘，不放大窗口、不改变行高；pointer-events:none 保证不会打断鼠标悬浮 */
+  #bubble{position:fixed;left:6px;right:6px;display:none;background:#fff;border:1px solid #b9d4ff;border-radius:8px;
+    box-shadow:0 8px 22px rgba(15,23,42,.20);padding:7px 9px;font-size:12px;line-height:1.55;color:#1f2937;
+    white-space:pre-wrap;word-break:break-word;overflow:hidden;pointer-events:none;z-index:99}
+  #bubble .bh{display:block;font-size:10.5px;color:var(--main);font-weight:600;margin-bottom:2px}
   .row.off{cursor:default;opacity:.45}
   .row.off:hover{background:transparent;border-color:transparent}
   .row.off:hover .num{background:#eef2f8;color:#64748b}
@@ -41,6 +46,7 @@
   <button onclick="closeWin()" title="关闭 (Esc)">✕</button>
 </div>
 <div id="rows"></div>
+<div id="bubble"></div>
 <div id="foot"><span id="hint"></span><span class="sp"></span><span id="status"></span></div>
 <script src="translate-core.js"></script>
 <script>
@@ -103,7 +109,8 @@ function rowHtml(i, r){
   var ok=(r.id==="cn")? true : !!r.usable;
   var full=String(rowText(r)||"").replace(/\s+/g," ");
   var cls=(r.id==="cn")?" cn":((r.id==="text")?"":" ident");
-  return '<div class="row'+cls+(ok?"":" off")+'" data-i="'+i+'" data-ok="'+(ok?1:0)+'" title="'+esc(r.label+' · '+r.tip)+'">'
+  // 完整内容不进 title（非聚焦窗口实测不弹系统气泡），改由 #bubble 自绘展示
+  return '<div class="row'+cls+(ok?"":" off")+'" data-i="'+i+'" data-ok="'+(ok?1:0)+'">'
     +'<span class="num">'+(i+1)+'</span>'
     +'<span class="val">'+esc(clip(full))+'</span>'
     +(vlen(full)>MAXSHOW?('<span class="more">'+full.length+'字</span>'):'')
@@ -112,12 +119,14 @@ function rowHtml(i, r){
 function hintRow(msg){ return '<div class="row off"><span class="num">·</span><span class="val">'+esc(msg)+'</span></div>'; }
 function render(){
   ROWS=buildRows();
+  bubbleHide();
   $("rows").innerHTML=ROWS.map(function(r,i){ return rowHtml(i,r); }).join("");
   $("rows").onclick=function(ev){
     var el=ev.target.closest?ev.target.closest(".row"):null;
     if(!el || el.getAttribute("data-ok")!=="1") return;
     pick(Number(el.getAttribute("data-i")));
   };
+  bindHover();
   autoSize(ROWS.length);
   arm(ROWS.length);
 }
@@ -130,6 +139,44 @@ function autoSize(n){
   var h=Math.round(29+6+Math.max(n,1)*29+19+6);
   h=Math.max(120,Math.min(560,h));
   if(window.appTranslate && window.appTranslate.resize) window.appTranslate.resize(w,h);
+}
+// ---------- 悬浮气泡：完整展示指针所在行 ----------
+// 说明：窗口保持原大小，不放大、不改行高；气泡画在窗口内、贴着该行弹出，
+//      pointer-events:none 让它不抢鼠标，避免"弹出→移出→收起"的闪烁。
+var HINT_DEFAULT="";
+function bubbleHide(){ var b=$("bubble"); if(b) b.style.display="none"; }
+function bubbleShow(el, r){
+  var b=$("bubble"); if(!b) return;
+  var full=String(rowText(r)||"").replace(/\s+/g," ").trim();
+  if(vlen(full)<=MAXSHOW){ bubbleHide(); return; }   // 没被截断就不用气泡
+  b.innerHTML='<span class="bh">'+esc(r.label)+'</span>'+esc(full);
+  b.style.display="block";
+  // 贴着该行显示；尽量不超出窗口底部
+  var rect=el.getBoundingClientRect();
+  var top=Math.max(2, Math.round(rect.top)-2);
+  var avail=Math.max(60, window.innerHeight-top-6);
+  b.style.maxHeight=avail+"px";
+  b.style.top=top+"px";
+}
+function hoverIn(el){
+  var i=Number(el.getAttribute("data-i"));
+  var r=ROWS[i];
+  if(!r || el.getAttribute("data-ok")!=="1") return;
+  var h=$("hint");
+  if(h){ if(!HINT_DEFAULT) HINT_DEFAULT=h.textContent; h.textContent=r.label+(ROWS.length>1?(" · 第 "+(i+1)+" 行"):""); }
+  bubbleShow(el, r);
+}
+function hoverOut(el){
+  var h=$("hint");
+  if(h && HINT_DEFAULT) h.textContent=HINT_DEFAULT;
+  bubbleHide();
+}
+function bindHover(){
+  var els=$("rows").querySelectorAll(".row");
+  for(var i=0;i<els.length;i++){
+    els[i].onmouseenter=function(){ hoverIn(this); };
+    els[i].onmouseleave=function(){ hoverOut(this); };
+  }
 }
 async function copyText(text){
   try{ if(window.appClipboard){ await window.appClipboard.write(text); return true; } }catch(e){}
@@ -197,7 +244,9 @@ if(window.appTranslate && window.appTranslate.onPick){
   var paste=MODE==="paste";
   document.title=paste?"粘贴到光标处":"划词翻译";
   $("title").textContent=paste?"📌 粘贴到光标处":"🌐 译文";
-  $("hint").textContent=paste?"第1行中文 · 数字键选 · 点行即粘贴 · Esc 关闭":"第1行中文 · 数字键选 · 点行即复制 · Esc 关闭";
+  $("hint").textContent=paste?"第1行中文 · 数字键选 · 悬浮看全文 · Esc 关闭":"第1行中文 · 数字键选 · 悬浮看全文 · Esc 关闭";
+  // 悬浮气泡展示的是行的 title（完整内容）
+  HINT_DEFAULT=$("hint").textContent;
   $("btnRe").title=paste?"用原文重新翻译":"重新翻译";
   ROWS=buildRows();
   arm(ROWS.length);

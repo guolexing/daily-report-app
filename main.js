@@ -6,6 +6,16 @@ const path = require('path');
 const net = require('net');
 const { autoUpdater } = require('electron-updater');
 
+// ===== stdout / stderr 写错误守卫（必须最先装）=====
+// 从控制台、脚本或别的程序启动本应用时，stdout/stderr 往往是一条管道；当那个启动方的进程退出，
+// 管道对端就消失了，此后任何一次 console.log 都会以 EPIPE 失败。Node 的流在无人监听 'error' 时
+// 会把该错误升级成 uncaughtException → Electron 弹出「Uncaught Exception」对话框（用户实际遇到过）。
+// 日志只是附带输出，绝不能因为管道消失就让应用崩掉或弹窗：这里统一吞掉 std 流的写错误。
+['stdout', 'stderr'].forEach(function (name) {
+  const s = process[name];
+  if (s && typeof s.on === 'function') s.on('error', function () {});
+});
+
 // 单实例：重复启动时聚焦已有窗口
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -480,7 +490,14 @@ ipcMain.handle('translate:resize', function (e, size) {
   const h = Math.max(140, Math.min(620, Math.round(Number(size && size.h) || 200)));
   try {
     const b = win.getBounds();
-    win.setBounds({ x: b.x, y: b.y, width: w, height: h });
+    let x = b.x, y = b.y;
+    try {
+      // 悬浮展开时窗口会变高变宽，钳制在屏幕工作区内，避免超出下边缘看不到内容
+      const wa = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
+      x = Math.min(Math.max(x, wa.x), Math.max(wa.x, wa.x + wa.width - w));
+      y = Math.min(Math.max(y, wa.y), Math.max(wa.y, wa.y + wa.height - h));
+    } catch (e) {}
+    win.setBounds({ x: x, y: y, width: w, height: h });
     if (!win.isVisible()) win.showInactive();
     return { ok: true, w: w, h: h };
   } catch (err) { return { ok: false, msg: String((err && err.message) || err) }; }

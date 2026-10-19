@@ -38,12 +38,22 @@ async function postForm(url, params, timeoutMs) {
 // ---------- 免密钥极速：有道 ----------
 async function fastOne(line, target) {
   const to = isChinese(target) ? 'zh-CHS' : 'en';
-  const r = await postForm('https://aidemo.youdao.com/trans', { q: line, from: 'auto', to: to }, 8000);
-  let j = null;
-  try { j = JSON.parse(r.text); } catch (e) { throw new Error('极速通道返回异常（HTTP ' + r.status + '）'); }
-  const out = (j.translation || []).join('').trim();
-  if (!out) throw new Error('极速通道未返回译文（' + (j.errorCode || r.status) + '）');
-  return out;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await postForm('https://aidemo.youdao.com/trans', { q: line, from: 'auto', to: to }, 8000);
+    let j = null;
+    try { j = JSON.parse(r.text); } catch (e) { throw new Error('极速通道返回异常（HTTP ' + r.status + '）'); }
+    const out = (j.translation || []).join('').trim();
+    if (out) return out;
+    const code = Number(j.errorCode || 0);
+    // 102 = 原文已经是目标语言（英文→英文、中文→中文都会走到这里）。
+    // 以前直接报错（「极速通道未返回译文（102）」），用户会以为翻译坏了 —— 改为原样返回。
+    if (code === 102) return line;
+    // 411 = 频率限制：退避 1.2 秒重试一次，仍失败才报错
+    if (code === 411 && attempt === 0) { await new Promise(function (s) { setTimeout(s, 1200); }); continue; }
+    if (code === 411) throw new Error('极速通道限流（411），请稍后再试或改用 AI 模型');
+    throw new Error('极速通道未返回译文（' + (code || r.status) + '）');
+  }
+  return line;
 }
 async function viaFast(text, target) {
   const lines = String(text).split(/\r?\n/);
@@ -115,7 +125,10 @@ async function handleTranslate(req, res, json) {
     else if (provider === 'deepl') out = await viaDeepL(text, target, String(c.deeplKey || '').trim(), c.deeplFree);
     else if (provider === 'youdao') out = await viaYoudao(text, target, String(c.ydAppKey || '').trim(), String(c.ydAppSecret || '').trim());
     else { json(res, 400, { error: '未知翻译通道：' + provider }); return; }
-    json(res, 200, { translation: out, provider: provider, label: LABEL[provider] || provider, ms: Date.now() - t0 });
+    // 输出与原文完全相同（典型：原文已是目标语言）→ 标签写明，避免用户以为「没翻译」
+    const sameText = String(out).trim() === String(text).trim();
+    const label = sameText ? '原样（原文已是目标语言）' : (LABEL[provider] || provider);
+    json(res, 200, { translation: out, provider: provider, label: label, sameText: sameText, ms: Date.now() - t0 });
   } catch (e) {
     json(res, 502, { error: String((e && e.message) || e), provider: provider });
   }

@@ -123,8 +123,14 @@
     // 非 AI 通道：失败自动回退到 AI 模型
     var r = null, fallback = '';
     if (prov !== 'ai') {
-      try { r = await translateByProvider(prov, src, tgt, c); }
-      catch (e) { fallback = String((e && e.message) || e); }
+      try {
+        r = await translateByProvider(prov, src, tgt, c);
+        // 空译文当失败处理：交给 AI 回退，且绝不写进历史（历史上曾出现 dst="" 的空条目）
+        if (r && !String(r.translation == null ? '' : r.translation).trim()) {
+          fallback = (fallback ? fallback + '；' : '') + '通道返回空译文';
+          r = null;
+        }
+      } catch (e) { fallback = String((e && e.message) || e); }
     }
     if (!r) {
       if (!c.key) {
@@ -138,6 +144,9 @@
       model: r.label || c.model, provider: r.provider || 'ai', label: r.label || c.model,
       fallback: fallback || null, ms: r.ms || 0
     };
+    if (!String(rec.translation == null ? '' : rec.translation).trim()) {
+      throw new Error('未取得译文（' + (rec.label || '翻译通道') + ' 返回为空）');
+    }
     if (CACHE.size > 200) CACHE.clear();
     CACHE.set(ck, rec);
     histAdd(rec);   // 进入历史，粘贴时可选

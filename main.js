@@ -419,6 +419,9 @@ async function translateSelection() {
   }
   if (!text || !text.trim()) {
     notifyUser('划词翻译', '没有取到选中文本：请先选中内容再按快捷键');
+    // 关键：把同一个浮窗重载成「未取到选中文本」，否则屏幕上会留着上一次的译文，
+    // 用户会以为「内容没变 / 翻译是静态的」。
+    openTranslateWindow('');
     return { ok: false, msg: '没有取到选中文本（请先选中文字）' };
   }
   openTranslateWindow(text);

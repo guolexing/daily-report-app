@@ -220,7 +220,7 @@ async function retranslate(){
     }catch(e){ setStatus("翻译失败："+((e&&e.message)||e), true); }
     return;
   }
-  if(!SRC.trim()) return;
+  if(!SRC.trim()){ $("rows").innerHTML=hintRow("未取到选中文本：请先选中内容再按快捷键"); autoSize(1); setStatus("没有原文", true); return; }
   $("rows").innerHTML=hintRow("翻译中…");
   arm(ROWS.length||5);
   autoSize(ROWS.length||5);
@@ -231,8 +231,10 @@ async function retranslate(){
     render();
     setStatus(TRCore.usable("camel",DST) ? provText(r2) : ("译文为"+r2.target+"，命名格式不适用"));
   }catch(e){
-    $("rows").innerHTML=hintRow(clip((e&&e.message)||e, 40));
-    autoSize(1);
+    // 失败时必须带上原文：否则任何一次失败都长得一模一样，看起来像「翻译是静态的」
+    var emsg=clip((e&&e.message)||e, 52);
+    $("rows").innerHTML=hintRow("原文："+clip(SRC, 24))+hintRow(emsg);
+    autoSize(2);
     setStatus("翻译失败", true);
   }
 }
@@ -244,7 +246,13 @@ if(window.appTranslate && window.appTranslate.onPick){
   var paste=MODE==="paste";
   document.title=paste?"粘贴到光标处":"划词翻译";
   $("title").textContent=paste?"📌 粘贴到光标处":"🌐 译文";
-  $("hint").textContent=paste?"第1行中文 · 数字键选 · 悬浮看全文 · Esc 关闭":"第1行中文 · 数字键选 · 悬浮看全文 · Esc 关闭";
+  // 两个模式的提示语必须不同：粘贴窗口显示的是「上一次的译文」，与当前选中文本无关，
+  // 以前两分支文案完全相同，用户会以为翻译坏了 / 内容不随选中文本变化。
+  var trKey="Ctrl+Alt+Q";
+  try{ var kk=(TRCore.cfg()||{}).shortcut; if(kk) trKey=String(kk).replace(/Control/g,"Ctrl").replace(/Command/g,"Cmd").replace(/Meta/g,"Cmd"); }catch(e){}
+  $("hint").textContent = paste
+    ? ("这是上一次的译文，不随选中文本变化 · 要翻译新内容按 "+trKey+" · Esc 关闭")
+    : "第1行中文 · 数字键选 · 悬浮看全文 · Esc 关闭";
   // 悬浮气泡展示的是行的 title（完整内容）
   HINT_DEFAULT=$("hint").textContent;
   $("btnRe").title=paste?"用原文重新翻译":"重新翻译";
@@ -259,7 +267,7 @@ if(window.appTranslate && window.appTranslate.onPick){
     return;
   }
   SRC=qs("text")||"";
-  if(!SRC.trim()){ $("rows").innerHTML=hintRow("请先选中文字再按快捷键"); autoSize(1); return; }
+  if(!SRC.trim()){ $("rows").innerHTML=hintRow("未取到选中文本：请先选中内容再按快捷键"); autoSize(1); setStatus("没有原文", true); return; }
   retranslate();
 })();
 </script>

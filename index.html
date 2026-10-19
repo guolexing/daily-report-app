@@ -74,6 +74,36 @@
     </div>
 
     <div class="card">
+      <h2>请假标记</h2>
+      <div class="row">
+        <div class="col-1">
+          <label>请假日期</label>
+          <input type="date" id="lv_date">
+        </div>
+        <div class="col-1">
+          <label>请假类型</label>
+          <select id="lv_type"></select>
+        </div>
+        <div class="col-1">
+          <label>时长</label>
+          <select id="lv_days">
+            <option value="1">全天（1 天）</option>
+            <option value="0.5">半天（0.5 天）</option>
+          </select>
+        </div>
+        <div class="col-2">
+          <label>说明（可选）</label>
+          <input type="text" id="lv_remark" placeholder="如：上午去医院，下午返岗">
+        </div>
+      </div>
+      <div class="bar-top10">
+        <button class="btn warn" onclick="saveLeave()">🏖 标记请假</button>
+        <span class="muted">请假不计入日报条数与工时，只影响出勤统计（「工作日缺报」扣除请假日）与日历标记。</span>
+      </div>
+      <div id="lv_list" class="mt10"></div>
+    </div>
+
+    <div class="card">
       <h2>本月日报记录（<span id="month_count">0</span> 条）</h2>
       <div class="stat" id="month_stat"></div>
       <div id="daily_list"><div class="empty">本月还没有记录</div></div>
@@ -160,6 +190,7 @@
         <span>📌 日历显示各任务的<b>计划完成日期</b>与当天日报工时；点击任意日期查看当天计划详情。</span>
         <span><span class="legend-mark-err" >节日</span> 法定节假日（放假，不计应出勤）</span>
         <span><span class="legend-mark-warn" >节日班</span> 调休上班（计应出勤）</span>
+        <span><span class="legend-mark-lv" >假</span> 请假（应出勤日不计缺报）</span>
         <span class="c-warn" id="cal_year_note" ></span>
       </div>
     </div>
@@ -658,12 +689,41 @@ function taskHours(id){ var t=getTasks(), found={}; t.forEach(function(x){ if(x.
 function getProfile(){ try{ return JSON.parse(localStorage.getItem(PKEY)) || {name:"张三",dept:"研发部",post:"开发工程师"}; }catch(e){ return {name:"张三",dept:"研发部",post:"开发工程师"}; } }
 function saveProfileData(p){ lsSet(PKEY, JSON.stringify(p)); pushStateDebounced(); }
 
+/* ---------- 请假记录（独立于日报：不占日报条数、不影响工时；出勤统计单列并从「缺报」扣除） ----------
+ * 记录形状：{ id, date:"YYYY-MM-DD", type:"事假"|"病假"|…, days:1|0.5, remark:"" }
+ * 为什么独立存储而不复用日报：日报的语义是「这天做了什么、干了多久」，请假是「这天没出勤」；
+ * 塞进日报会让「日报条数/总工时/本月最大成果」等所有消费点都被污染，且请假没有工作内容可写。
+ */
+var LEAVEKEY = "jzd_leave_v1";
+var LEAVE_TYPES = ["事假","病假","年假","调休","婚假","产假","其他"];
+function getLeaves(){ try{ var a=JSON.parse(localStorage.getItem(LEAVEKEY)); return (a&&a.length)?a:[]; }catch(e){ return []; } }
+function saveLeaves(list){ lsSet(LEAVEKEY, JSON.stringify(list)); pushStateDebounced(); }
+// 某天的请假记录（可能多条，如上午事假+下午病假）
+function leaveOnDate(ds){ return getLeaves().filter(function(l){ return l.date===ds; }); }
+// 某天的请假天数合计（0.5 / 1 / 1.5 …）
+function leaveDaysOnDate(ds){ return leaveOnDate(ds).reduce(function(s,l){ return s+(parseFloat(l.days)||0); },0); }
+// 某月的请假天数合计（按记录里的 days 累加，不区分工作日/休息日；休息日请假在统计里不会被扣缺报）
+function leaveDaysInMonth(ym){
+  return getLeaves().reduce(function(s,l){ return (String(l.date||"").slice(0,7)===ym) ? s+(parseFloat(l.days)||0) : s; },0);
+}
+// 某月「日期 -> 请假天数」映射，供 attendance() 扣缺报与日历角标复用
+function leaveMapForMonth(ym){
+  var m={};
+  getLeaves().forEach(function(l){
+    var d=String(l.date||""); if(d.slice(0,7)!==ym) return;
+    m[d]=(m[d]||0)+(parseFloat(l.days)||0);
+  });
+  return m;
+}
+
 /* ================= MySQL 数据持久化（客户端） ================= */
 // 全部需要同步到 MySQL 的 localStorage key（含模板/AI/任务/项目/日报/个人信息）
 // 注：AIKEY/AI_LASTCC/TWKEY 等在下方才声明，这里用字符串字面量，避免顺序问题
 var DB_KEYS=["jzd_daily_v1","jzd_profile_v1","jzd_projects_v1","jzd_tasks_v1","jzd_ai_v1","jzd_ai_lastcc_v1","jzd_tpl_weekly_v1","jzd_tpl_score_v1","jzd_tpl_okr_v1","jzd_tpl_ai_weekly_v1","jzd_tpl_ai_score_v1","jzd_tpl_ai_okr_v1","jzd_wk_sections_v1",
   // task-21 月报重写：用户自建模板 + 当前选中 + 生成结果缓存（新增，不得删除既有成员）
-  "jzd_month_templates_v1","jzd_month_active_v1","jzd_month_ai_v1"];
+  "jzd_month_templates_v1","jzd_month_active_v1","jzd_month_ai_v1",
+  // 请假记录（独立存储，不占日报条数）：必须在此，否则不会同步 MySQL、备份恢复也不会剪枝
+  "jzd_leave_v1"];
 
 var dbSyncing=false;
 
@@ -755,7 +815,8 @@ var DB_KEY_LABELS={
   jzd_tpl_weekly_v1:"周报模板", jzd_tpl_score_v1:"评分表模板", jzd_tpl_okr_v1:"OKR 模板",
   jzd_tpl_ai_weekly_v1:"周报 AI 缓存", jzd_tpl_ai_score_v1:"评分表 AI 缓存", jzd_tpl_ai_okr_v1:"OKR AI 缓存",
   jzd_wk_sections_v1:"周报栏目",
-  jzd_month_templates_v1:"月报模板", jzd_month_active_v1:"当前月报模板", jzd_month_ai_v1:"月报生成缓存"
+  jzd_month_templates_v1:"月报模板", jzd_month_active_v1:"当前月报模板", jzd_month_ai_v1:"月报生成缓存",
+  jzd_leave_v1:"请假记录"
 };
 function dbKeyLabel(k){ return DB_KEY_LABELS[k]||k; }
 
@@ -1345,6 +1406,78 @@ function clearForm(){
 }
 window.clearForm=clearForm;
 
+/* ---------- 请假：录入 / 列表 / 删除 ---------- */
+// 填请假类型下拉（只填一次；重复调用无害）
+function fillLeaveTypeSelect(){
+  var sel=document.getElementById("lv_type"); if(!sel || sel.options.length) return;
+  LEAVE_TYPES.forEach(function(t){
+    var o=document.createElement("option"); o.value=t; o.textContent=t; sel.appendChild(o);
+  });
+}
+function saveLeave(){
+  var dateEl=document.getElementById("lv_date");
+  var typeEl=document.getElementById("lv_type");
+  var daysEl=document.getElementById("lv_days");
+  var remEl=document.getElementById("lv_remark");
+  var ds=(dateEl&&dateEl.value)||today();
+  var type=(typeEl&&typeEl.value)||LEAVE_TYPES[0];
+  var days=parseFloat((daysEl&&daysEl.value)||"1");
+  if(!(days>0)){ toast("请选择请假时长"); return; }
+  var list=getLeaves();
+  // 同一天同类型重复标记 → 视为修改时长而不是再叠一条（避免误点变成 2 天）
+  // 用 find 取第一条：若历史数据里已有同日同类型多条，改的应是用户先看到的那条（forEach 无 break 会取最后一条）
+  var hit=list.find(function(l){ return l.date===ds && l.type===type; }) || null;
+  if(hit){
+    hit.days=days; hit.remark=((remEl&&remEl.value)||"").trim();
+    toast("✅ 已更新请假："+ds+" "+type+" "+days+" 天");
+  }else{
+    list.push({ id:Date.now()+"_"+Math.random().toString(36).slice(2,7), date:ds, type:type, days:days, remark:((remEl&&remEl.value)||"").trim() });
+    toast("✅ 已标记请假："+ds+" "+type+" "+days+" 天");
+  }
+  list.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+  saveLeaves(list);
+  if(remEl) remEl.value="";
+  renderLeaveList(); refreshDaily(); renderCalendar();
+}
+window.saveLeave=saveLeave;
+
+function delLeave(id){
+  var list=getLeaves().filter(function(l){ return l.id!==id; });
+  saveLeaves(list);
+  toast("已删除该请假记录");
+  renderLeaveList(); refreshDaily(); renderCalendar();
+}
+window.delLeave=delLeave;
+
+// 请假记录列表：默认只显示本月（与「本月日报记录」口径一致），按日期倒序
+// att（可选）= attendance() 的返回值：传了就显示「本月合计」与「计入出勤统计（应出勤日上）」的差额说明，
+//   避免用户看到统计条的「请假 3 天」与这里的「本月请假合计 4 天」不一致却不知道差在哪。
+function renderLeaveList(att){
+  var box=document.getElementById("lv_list"); if(!box) return;
+  var ym=thisMonth();
+  var list=getLeaves().filter(function(l){ return String(l.date||"").slice(0,7)===ym; });
+  if(!list.length){ box.innerHTML='<div class="empty">本月还没有请假记录</div>'; return; }
+  list=list.slice().sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); });
+  var total=leaveDaysInMonth(ym);
+  var h='<div class="muted mb8" >本月请假合计：<b>'+sumH(total)+'</b> 天';
+  if(att && Math.abs(total-(parseFloat(att.leaveDays)||0))>1e-9){
+    h+='　（其中落在应出勤日上 <b>'+sumH(att.leaveDays)+'</b> 天，计入出勤统计并从缺报扣除；其余 '+
+       sumH(Math.round((total-(parseFloat(att.leaveDays)||0))*100)/100)+' 天落在周末/法定节假日，不影响出勤）';
+  }
+  h+='</div>';
+  h+='<table><tr><th>日期</th><th>类型</th><th class="num">时长</th><th>说明</th><th>操作</th></tr>';
+  list.forEach(function(l){
+    var dt=dateType(l.date);
+    var badge = dt.type==="holiday" ? ' <span class="badge info">法定节假日</span>' : (dt.type==="weekend" ? ' <span class="badge">周末</span>' : '');
+    h+='<tr><td>'+esc(l.date)+badge+'</td><td><span class="badge warn">'+esc(l.type)+'</span></td>'+
+       '<td class="num">'+esc(sumH(parseFloat(l.days)||0))+' 天</td><td>'+esc(l.remark||"")+'</td>'+
+       '<td class="nowrap" ><button class="btn danger sm" onclick="delLeave(\''+l.id+'\')">删</button></td></tr>';
+  });
+  h+='</table>';
+  box.innerHTML=h;
+}
+window.renderLeaveList=renderLeaveList;
+
 var entryEditingId=null;
 
 // 打开日报编辑弹框
@@ -1716,6 +1849,7 @@ function renderCalendar(){
   var entries=getEntries();
   var byPlan={};   // plan日期 -> [tasks]
   var byDate={};   // 日期 -> {hours, count}
+  var byLeave={};  // 日期 -> 请假天数合计（同一天多条会累加）
   tasks.forEach(function(task){
     if(task.cancelled) return; // 已取消任务不出现在日历
     if(task.plan){ (byPlan[task.plan]=byPlan[task.plan]||[]).push(task); }
@@ -1726,6 +1860,11 @@ function renderCalendar(){
     byDate[d].hours+= (+e.hours||0);
     byDate[d].count++;
     byDate[d].list.push(e);
+  });
+  // 请假：按 calYM 所在月取映射（跨月的补齐格也要能显示，故不用当月边界过滤单日）
+  getLeaves().forEach(function(l){
+    var d=String(l.date||""); if(!d) return;
+    byLeave[d]=(byLeave[d]||0)+(parseFloat(l.days)||0);
   });
 
   var hd=['一','二','三','四','五','六','日'];
@@ -1740,21 +1879,21 @@ function renderCalendar(){
   for(var i=startOffset-1;i>=0;i--){
     var d=prevDays-i;
     var ds=monthStr(y,m-1,d);
-    h+=dayCell(ds, d, "other");
+    h+=dayCell(ds, d, "other", null, null, byLeave[ds]);
   }
 
   // 当月
   for(var d=1; d<=daysInMonth; d++){
     var ds=monthStr(y,m,d);
     var cls = (ds===t)?"today":(ds===calSel?"sel":"");
-    h+=dayCell(ds, d, cls, byPlan[ds], byDate[ds]);
+    h+=dayCell(ds, d, cls, byPlan[ds], byDate[ds], byLeave[ds]);
   }
 
   // 下月补齐
   var endCells=(7-((startOffset+daysInMonth)%7))%7;
   for(var i=1;i<=endCells;i++){
     var ds=monthStr(y,m+1,i);
-    h+=dayCell(ds, i, "other");
+    h+=dayCell(ds, i, "other", null, null, byLeave[ds]);
   }
 
   document.getElementById("cal_grid").innerHTML=h;
@@ -1768,17 +1907,24 @@ function monthStr(y,m,d){
   return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0");
 }
 
-function dayCell(ds, dnum, cls, planTasks, dayInfo){
+function dayCell(ds, dnum, cls, planTasks, dayInfo, leaveDays){
   // 节假日/调休上班日：底色标记 + 节日名称角标（可区分、可读名称）
   var dt=dateType(ds);
   var tintCls = ((dt.type==="holiday"||dt.type==="makeup") && !cls) ? (" cal-day-"+dt.type) : "";
-  var h='<div class="cal-day '+cls+tintCls+'" data-ds="'+ds+'" onclick="selectDay(\''+ds+'\')">';
+  // 请假：只给「应出勤日」上的请假加底色（周末/法定节假日本来就不用出勤，标了反而误导）
+  var lvDays=(parseFloat(leaveDays)||0);
+  var lvTint = (lvDays>0 && !cls && isWorkday(ds)) ? " cal-day-leave" : "";
+  var h='<div class="cal-day '+cls+tintCls+lvTint+'" data-ds="'+ds+'" onclick="selectDay(\''+ds+'\')">';
   h+='<div class="fx-center" >';
   h+='<span class="cd-num">'+dnum+'</span>';
   if(dt.type==="holiday"){
     h+='<span class="cn-hol cal-day-tag-err" >'+esc(dt.name)+'</span>';
   }else if(dt.type==="makeup"){
     h+='<span class="cn-mk cal-day-tag-warn" >'+esc(dt.name)+'班</span>';
+  }
+  if(lvDays>0){
+    // 半天用「½」标注：不是严格等于 0.5，而是「非整数」（1.5 / 2.5 天也要显示假½，否则 1.5 天看起来像 1 天）
+    h+='<span class="cn-lv cal-day-tag-lv" title="请假 '+sumH(lvDays)+' 天">假'+(lvDays%1!==0?"½":"")+'</span>';
   }
   if(dayInfo && dayInfo.hours>0){
     h+='<span class="cd-hours">'+sumH(dayInfo.hours)+'h</span>';
@@ -1849,6 +1995,8 @@ function selectDay(ds){
   var t=today();
   var planTasks=tasks.filter(function(t){ return !t.cancelled && (t.plan===ds || (t.start && t.start.slice(0,10)===ds)); });
   var dayEntries=entries.filter(function(e){ return e.date===ds; });
+  var dayLeaves=leaveOnDate(ds);
+  var dayLeaveDays=leaveDaysOnDate(ds);
 
   var card=document.getElementById("cal_detail_card");
   var title=document.getElementById("cal_detail_title");
@@ -1860,8 +2008,18 @@ function selectDay(ds){
   card.style.display="";
 
   var h="";
-  if(planTasks.length===0 && dayEntries.length===0){
-    h='<div class="cal-empty">当天没有任务计划，也没有日报记录</div>';
+  if(dayLeaves.length>0){
+    h+='<h3 class="mt0" >🏖 请假（'+sumH(dayLeaveDays)+' 天）</h3>';
+    h+='<table><tr><th>类型</th><th class="num">时长</th><th>说明</th><th></th></tr>';
+    dayLeaves.forEach(function(l){
+      h+='<tr><td><span class="badge warn">'+esc(l.type)+'</span></td><td class="num">'+esc(sumH(parseFloat(l.days)||0))+' 天</td>'+
+         '<td>'+esc(l.remark||"")+'</td>'+
+         '<td class="nowrap" ><button class="btn danger sm" onclick="delLeave(\''+l.id+'\')">删</button></td></tr>';
+    });
+    h+='</table>';
+  }
+  if(planTasks.length===0 && dayEntries.length===0 && dayLeaves.length===0){
+    h+='<div class="cal-empty">当天没有任务计划，也没有日报记录</div>';
   }else{
     if(planTasks.length>0){
       h+='<h3 class="mt0" >📌 任务计划（'+planTasks.length+'）</h3>';
@@ -1924,17 +2082,20 @@ window.isWorkday=isWorkday;
 
 // 工作日日报未填写提醒：今天/昨天是工作日且未填 → 显示横幅。
 // 节假日判定已升级：法定节假日不提醒；调休上班日照常提醒，并在标题点明是「调休上班日」。
+// 请假已扣除：今天/昨天已标记请假（且当天没有日报）→ 视为已处理，不提醒。
 function checkDailyReminder(){
   var el=document.getElementById("daily_reminder"); if(!el) return;
   var t=today();
   var list=getEntries();
   var hasToday=list.some(function(e){ return e.date===t; });
-  if(isWorkday(t) && !hasToday){
+  var leaveToday=leaveDaysOnDate(t)>0;
+  if(isWorkday(t) && !hasToday && !leaveToday){
     var dt=dateType(t);
     var y=new Date(); y.setDate(y.getDate()-1);
     var yStr=iso(y);
     var hasYesterday=list.some(function(e){ return e.date===yStr; });
-    var yMsg = (isWorkday(yStr)&&!hasYesterday) ? "昨天（"+yStr+"）也是工作日且未填写。" : "";
+    var yLeave=leaveDaysOnDate(yStr)>0;
+    var yMsg = (isWorkday(yStr)&&!hasYesterday&&!yLeave) ? "昨天（"+yStr+"）也是工作日且未填写。" : "";
     document.getElementById("rm_title").textContent="今天（"+t+"）是"+(dt.type==="makeup"?(dt.name+"调休上班日"):"工作日")+"，还未填写日报！";
     document.getElementById("rm_sub").textContent=yMsg?("💡 "+yMsg+" 建议现在补上，以便周报/月报自动汇总。"):"填写后本提醒自动消失。";
     el.style.display="flex";
@@ -1972,9 +2133,11 @@ function refreshDaily(){
   statHtml+='<div class="item">本月总工时：<b>'+sumH(sumHours(monthList))+' 小时</b></div>';
   statHtml+='<div class="item">工作日应出勤：<b>'+att.workdays+'</b> 天</div>';
   statHtml+='<div class="item">工作日缺报：<b>'+(att.missing>0?'<span class="c-err" >'+att.missing+'</span>':0)+'</b> 天</div>';
+  statHtml+='<div class="item">请假：<b>'+sumH(att.leaveDays)+'</b> 天</div>';
   statHtml+='<div class="item">休息日（周末+法定节假日）：<b>'+att.weekends+'</b> 天</div>';
   statHtml+='<div class="item">其中法定节假日：<b>'+att.holidays+'</b> 天 · 调休上班：<b>'+att.makeupDays+'</b> 天</div>';
   document.getElementById("month_stat").innerHTML=statHtml;
+  renderLeaveList(att);   // 请假卡与日报卡同月口径，随刷新一起更新（传 att 以便解释「含周末/节假日」差额）
 
   var box=document.getElementById("daily_list");
   if(!monthList.length){ box.innerHTML='<div class="empty">本月还没有记录</div>'; return; }
@@ -2000,6 +2163,10 @@ function refreshDaily(){
 //   weekendWork 休息日加班天数 = 休息日里有日报的天数（调休上班日不算加班）
 //   holidays    其中法定节假日天数        makeupDays 其中调休上班天数
 //   normalWeekends 其中普通周末天数       passedWorkdays 到今天为止已到来的应出勤日数
+//   leaveDays   落在「应出勤日」上的请假天数合计（半天记 0.5）；**全月统计，不受「到今天为止」截断**；不计入 missing
+//   leaveDaysAll 全部请假天数合计（含落在周末 / 法定节假日上的）；= 请假卡「本月请假合计」口径
+// ⚠️ 已知取舍（不是缺陷）：半天请假且当天有日报时，这 0.5 天会同时进 submitted 与 leaveDays，
+//    因此 submitted + missing + leaveDays 可能大于 passedWorkdays。加总不要求相等。
 function attendance(monthList, ym){
   var y=+ym.slice(0,4), m=+ym.slice(5,7);
   var daysInMonth=new Date(y,m,0).getDate();
@@ -2014,17 +2181,31 @@ function attendance(monthList, ym){
     else if(tp==="weekend"){ normalWeekends++; weekends++; if(workDates[key]) weekendWork++; }
     else { workdays++; }
   }
+  // 请假：按日期取天数（同一天多条会累加）。
+  //   leaveDays    落在「应出勤日」上的请假合计，**全月**统计（不受「到今天为止」截断）——
+  //                这样 `#month_stat` 的「请假 N 天」与请假卡的「本月请假合计」只在「是否含周末/节假日」上不同，
+  //                不会因为「本月的请假、但日期在后天」出现两个口径（见下一条注释）。
+  //   leaveDaysAll 全部请假合计（含落在周末 / 法定节假日上的），= 请假卡「本月请假合计」的口径。
+  var lvMap=leaveMapForMonth(ym);
+  var leaveDaysAll=0, leaveDays=0;
+  Object.keys(lvMap).forEach(function(k){ leaveDaysAll+=lvMap[k]; });
   var submitted=0, missing=0, passedWorkdays=0;
   var tdy=today(); // 今天的日期（YYYY-MM-DD）
   for(var d2=1; d2<=daysInMonth; d2++){
     var key2=ym+"-"+String(d2).padStart(2,"0");
     if(!isWorkday(key2)) continue; // 法定节假日与普通周末都不计应出勤（调休上班日算工作日，继续往下走）
+    var lv=(lvMap[key2]||0);
+    if(lv>0){ leaveDays+=lv; }     // 全月累计：必须在下面的「到手今天就 break」之前，否则未来请假不计入
     if(key2>tdy) break; // 还没到来的工作日不算缺报
     passedWorkdays++;
-    if(workDates[key2]) submitted++; else missing++;
+    // 缺报 = 应出勤日既没日报、也不是请假。半天请假当天若有日报（下午返岗）→ 计入 submitted，不重复扣。
+    if(workDates[key2]) submitted++;
+    else if(lv>0) { /* 请假抵扣，不计缺报 */ }
+    else missing++;
   }
   return {workdays:workdays, submitted:submitted, missing:missing, weekends:weekends, weekendWork:weekendWork, passedWorkdays:passedWorkdays,
-          holidays:holidays, makeupDays:makeupDays, normalWeekends:normalWeekends};
+          holidays:holidays, makeupDays:makeupDays, normalWeekends:normalWeekends,
+          leaveDays:leaveDays, leaveDaysAll:leaveDaysAll};
 }
 
 /* ================= 任务管理 ================= */
@@ -3022,6 +3203,7 @@ function renderMonthly(){
   var html='<div class="item">出勤天数：<b>'+dates.length+'</b> / 工作日应出勤 '+att.workdays+' 天</div>'+
            '<div class="item">总工时：<b>'+sumH(sumHours(list))+' 小时</b></div>'+
            '<div class="item">工作日缺报：<b>'+(att.missing>0?'<span class="c-err" >'+att.missing+'</span>':0)+'</b> 天</div>'+
+           '<div class="item">请假：<b>'+sumH(att.leaveDays)+'</b> 天</div>'+
            '<div class="item">休息日（周末+法定节假日）：<b>'+att.weekends+'</b> 天</div>'+
            '<div class="item">其中法定节假日：<b>'+att.holidays+'</b> 天 · 调休上班：<b>'+att.makeupDays+'</b> 天</div>'+
            '<div class="item">休息日加班：<b>'+att.weekendWork+'</b> 天</div>';
@@ -3061,7 +3243,7 @@ function buildScoreCard(mo, list, att){
   ];
   rows.forEach(function(r){ out+=r[0]+"\t"+r[1]+"\t"+r[2]+"\t\t\n"; });
   out+="\n出勤情况（依据日报自动统计）：\n";
-  out+="本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n";
+  out+="本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，请假 "+sumH(att.leaveDays)+" 天，工作日缺报 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n";
   out+="（若本月存在迟到、早退、请假、旷工，请在评分时按标准扣分）\n\n";
   out+="自我评价：\n\n";
   out+="考核人签名："+prof.name+"　　项目经理确认：　　事业部负责人确认：\n";
@@ -3146,7 +3328,7 @@ function buildOKR(mo, list, att){
     out+="· "+b.project+"："+(segs.length? segs.join("；") : "本月无对应工作记录")+"。\n";
   });
   out+="\n"+monthGapText(mo)+"\n";
-  out+="出勤情况：本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，工作日缺报/请假 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n\n";
+  out+="出勤情况：本月工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），实际出勤 "+att.submitted+" 天，请假 "+sumH(att.leaveDays)+" 天，工作日缺报 "+(att.missing>0?att.missing:0)+" 天；休息日（周末+法定节假日）"+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）"+(att.weekendWork>0?"，其中休息日加班 "+att.weekendWork+" 天":"")+"。\n\n";
   out+=monthNextGoalText(mo)+"\n\n";
   out+="员工确认：　　事业部负责人确认：　　总经办确认：\n";
   return out;
@@ -3424,6 +3606,7 @@ function monthlyCtx(mo, list, att){
     "出勤天数": String(uniq(list.map(function(e){return e.date;})).length),
     "应出勤": String(att.workdays),
     "缺报天数": String(att.missing>0?att.missing:0),
+    "请假天数": sumH(att.leaveDays),
     "总工时": sumH(sumHours(list))+" 小时",
     "日报条数": String(list.length),
     "本月任务数": String(tc.thisMonth.length),
@@ -3989,8 +4172,11 @@ function aiMonthTaskContext(mo, list){
 // 否则用户机器上已缓存的旧月报会继续命中，用户会「改完了却看不到变化」（旧假结论被缓存固化）。
 // 沿革：r1=task-18 首版（无分量）｜r2=无任务项目不占 O 分档｜r3=MAJOR-1+OBS-1｜r4=无日期未完成只列当月及以后
 //       ｜r5=历史月份不列未来计划（月末守门）｜r6=task-21 月报重写（单页+自建模板+分段提示词）
-//       ｜**r7=表格型模板的格式约束（提炼侧 system ④ + 生成侧硬约束第 9 条，让表格型模板能把那张表拿回来）**。
-var MONTH_RULE_VER="r7";
+//       ｜r7=表格型模板的格式约束（提炼侧 system ④ + 生成侧硬约束第 9 条，让表格型模板能把那张表拿回来）
+//       ｜**r8=请假功能（出勤文本新增「请假 N 天」、缺报不再包含请假日、sig 纳入请假天数）**
+//       ｜**r9 的变动：`attendance().leaveDays` 改为「全月应出勤日上的请假」（原来被「到今天为止」截断，
+//         导致本月的未来请假不进统计，与请假卡口径打架）。口径变了 → 出勤文本可能变 → 必须升版本让缓存失效**。
+var MONTH_RULE_VER="r9";
 // 名称沿用 aiMonthTaskSig 以免破坏既有调用点与 CONTRACTS §3.9 登记（它已不只覆盖任务，属命名债，见技能文件）。
 function aiMonthTaskSig(mo){
   var c=aiMonthTaskCtx(mo);
@@ -4001,6 +4187,10 @@ function aiMonthTaskSig(mo){
   });
   getEntries().filter(function(e){ return inRange(e, b.first, b.last); }).forEach(function(e){
     rows.push("e:"+_d10(e.date)+":"+String(e.project||"")+":"+String(e.hours==null? "" : e.hours)+":"+String(e.work||""));
+  });
+  // 请假也进指纹：请假会改变「缺报天数 / 出勤文本」，否则标记请假后仍命中旧缓存月报
+  getLeaves().filter(function(l){ return inRange({date:l.date}, b.first, b.last); }).forEach(function(l){
+    rows.push("lv:"+_d10(l.date)+":"+String(l.type||"")+":"+String(l.days)+":"+String(l.remark||""));
   });
   rows=uniq(rows); rows.sort();
   var gap=monthGapItems(mo);
@@ -4511,7 +4701,7 @@ async function aiApply(type){
         "7. 「下月目标方向」必须使用【下月工作计划素材】；该节为空时，改用待顺延的【逾期任务】/【本月未完成任务】逐条列出（并注明「需顺延至下月」）；两者都为空才留空行。";
       user="【参考模板】\n"+tpl+"\n\n【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n"+
         "本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
-        "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
+        "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），请假 "+sumH(att.leaveDays)+" 天，工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
         "日报明细：\n"+(lines.length? lines.join("\n") : "（本月无日报）")+"\n\n"+
         aiMonthTaskContext(mo, list);
     }
@@ -4564,7 +4754,7 @@ function monthDataCatalog(mo, list, att){
   return [
     "【生成月报时可引用的数据（会自动带入，提示词里无需写占位符）】",
     "· 日报明细："+list.length+" 条（每条含 日期 / 项目 / 工时 / 工作内容）",
-    "· 出勤与工时：出勤天数（有日报的天数）、总工时；工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天）、工作日缺报 "+(att.missing>0?att.missing:0)+" 天、休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）",
+    "· 出勤与工时：出勤天数（有日报的天数）、总工时；工作日应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天）、请假 "+sumH(att.leaveDays)+" 天（请假不计缺报）、工作日缺报 "+(att.missing>0?att.missing:0)+" 天、休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）",
     "· 本月任务："+c.thisMonth.length+" 条 → 段落中可引用【本月任务】",
     "· 本月完成任务："+c.doneThisMonth.length+" 条 → 【本月完成任务】",
     "· 本月未完成/遗留："+c.backlog.length+" 条 → 【本月未完成任务】",
@@ -4671,7 +4861,7 @@ async function aiRunMonth(){
     var user="【本月数据】\n"+ym+"，姓名："+prof.name+"，部门："+prof.dept+"，岗位："+prof.post+"\n"+
       "完成进度（用户填报）："+progress+"%\n"+
       "本月日报 "+list.length+" 条，出勤 "+uniq(list.map(function(e){return e.date;})).length+" 天，总工时 "+sumH(sumHours(list))+" 小时\n"+
-      "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
+      "本月应出勤 "+att.workdays+" 天（其中调休上班 "+att.makeupDays+" 天），请假 "+sumH(att.leaveDays)+" 天，工作日缺报 "+(att.missing>0?att.missing:0)+" 天，休息日 "+att.weekends+" 天（其中法定节假日 "+att.holidays+" 天）\n\n"+
       "日报明细：\n"+(lines.length? lines.join("\n") : "（本月无日报）")+"\n\n"+
       aiMonthTaskContext(mo, list);
     var txt=(await aiChat([{role:"system",content:system},{role:"user",content:user}])).trim();
@@ -4852,7 +5042,7 @@ function showInstallBtn(show){
 (function(){
   try{
     var v=document.getElementById("app_version");
-    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.22.0" : "未运行桌面版");
+    if(v) v.textContent = (window.appUpdate ? "桌面版 v1.23.0" : "未运行桌面版");
     if(window.appUpdate){
       window.appUpdate.onStatus(function(s){
         if(s&&s.msg) setUpdateStatus((s.state==="downloaded"?"✅ ":s.state==="error"?"❌ ":s.state==="none"?"ℹ️ ":"⏳ ")+s.msg);
@@ -4911,11 +5101,13 @@ function importCSV(){
 window.importCSV=importCSV;
 
 function clearAll(){
-  if(!confirm("确定清空全部日报与任务？\n\n· 会同时清空服务器（MySQL）中保存的日报与任务数据\n· 模板 / AI 设置 / 周报栏目 / 个人资料等其它数据会保留\n· 此操作不可恢复，建议先「导出全库备份」\n\n是否继续？")) return;
+  if(!confirm("确定清空全部日报、任务与请假记录？\n\n· 会同时清空服务器（MySQL）中保存的日报、任务与请假数据\n· 模板 / AI 设置 / 周报栏目 / 个人资料等其它数据会保留\n· 此操作不可恢复，建议先「导出全库备份」\n\n是否继续？")) return;
   // 写空数组而不是 removeItem：服务端无删除语义（collectDirtyState 会跳过 null 值 → 推送变空操作，
   // 下次启动 hydration 就把数据回填回来 = 用户报的「清空后复活」）。"[]" 可同步、可回填、语义可逆。
   lsSet(KEY,"[]");
   lsSet(TASKKEY,"[]");
+  // 请假记录同属「出勤原始数据」，必须与日报一起清：否则清空日报后仍显示「请假 N 天」与日历上的假角标。
+  lsSet(LEAVEKEY,"[]");
   // 派生缓存：由「已被清空的日报+任务」生成的周报/月报 AI 结果，必须随源数据一起清，
   // 否则用户切到⑤/⑥仍会看到清空前的旧文本，与刚做的「清空」自相矛盾。
   // 写 "null"（合法 JSON 字面量）而不是 "" ：周报读取端 :3597/:3605 是
@@ -4996,6 +5188,7 @@ window.loadSeed=loadSeed;
   document.getElementById("ai_key").value=a.key;
   document.getElementById("ai_model").value=a.model;
   document.getElementById("in_date").value=today();
+  document.getElementById("lv_date").value=today();
   document.getElementById("wk_date").value=today();
   document.getElementById("mo_month").value=thisMonth();
   fillProjectSelect();
@@ -5006,13 +5199,15 @@ window.loadSeed=loadSeed;
   renderProjects();
   renderTasks();
   renderCalendar();
+  fillLeaveTypeSelect();   // 请假类型下拉（静态 HTML 里是空 select，由 JS 填充）
+  renderLeaveList();
   loadTpl("weekly");
   renderWeekly();
   renderMonthly();
   refreshHeaderStats();
   checkDailyReminder();
-  // 打开页面即提醒：工作日未填日报时弹 toast（无论当前在哪个页签）
-  if(isWorkday(today()) && !getEntries().some(function(e){return e.date===today();})){
+  // 打开页面即提醒：工作日未填日报时弹 toast（无论当前在哪个页签）；已请假则不再提醒
+  if(isWorkday(today()) && !getEntries().some(function(e){return e.date===today();}) && !(leaveDaysOnDate(today())>0)){
     setTimeout(function(){ toast("⏰ 今天是工作日，日报还未填写！"); }, 600);
   }
   // MySQL：加载完成后检查连接状态；若服务端已有数据则自动恢复（服务端优先，保证多入口数据一致）

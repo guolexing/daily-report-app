@@ -44,6 +44,9 @@
   --skel-hi:#f7faff; --scroll:#c3cddd; --scroll-h:#a5b3c9;
   --star-l1:#fffaf0; --star-l2:#fffdf8; --star-ink:#d9480f;
 
+  /* ===== 请假标记（日历角标 / 底色 / 图例）：与节假日（err 红）、调休上班（warn 橙）区分开 ===== */
+  --lv-l:#f1ecff; --lv-l2:#e4dbff; --lv-ink:#5b3fa8; --lv-line:#c3b0f0;
+
   /* ===== 热榜名次 ===== */
   --rank1:#ff8a3d; --rank1-d:#f2600c;
   --rank2:#ffc078; --rank2-d:#f08c00;
@@ -600,6 +603,15 @@
 /* — 前置定点改写配套（原为 JS 片段里的内联 style / 随机宽度）— */
 .cal-day-holiday.cal-day-holiday{background:var(--err-l)}
 .cal-day-makeup.cal-day-makeup{background:var(--warn-l)}
+/* 请假：只加在「应出勤日」上（由 dayCell 的 isWorkday 判定控制），底色用紫系以区别于节假日红 / 调休橙 */
+.cal-day-leave.cal-day-leave{background:var(--lv-l)}
+.cal-day-tag-lv.cal-day-tag-lv{margin-left:4px;font-size:10px;line-height:1.35;padding:0 4px;border-radius:3px;background:var(--card);color:var(--lv-ink);font-weight:600;white-space:nowrap}
+/* 今天 / 选中日：这两类格子的底色是 main 系（.cal-day.today / .cal-day.sel），请假角标若仍用 card 白底会与格子糊在一起
+   → 改用 --lv-l2 底 + --lv-line 描边，让「今天请假」一眼可辨（.cal-day-leave 的底色门仍保留 !cls，不覆盖 today/sel 蓝高亮）
+   --lv-l2 / --lv-line 此前是死令牌（var() 引用 0 次），这里接上实际使用。 */
+.cal-day.today .cal-day-tag-lv.cal-day-tag-lv,
+.cal-day.sel .cal-day-tag-lv.cal-day-tag-lv{background:var(--lv-l2);border:1px solid var(--lv-line)}
+.legend-mark-lv.legend-mark-lv{display:inline-block;padding:0 5px;border-radius:3px;background:var(--lv-l);color:var(--lv-ink);font-weight:600}
 .skel-w1.skel-w1{width:64%}
 .skel-w2.skel-w2{width:78%}
 .skel-w3.skel-w3{width:90%}
